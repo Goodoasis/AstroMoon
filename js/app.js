@@ -89,25 +89,25 @@
     requestAnimationFrame(renderLoop);
     updateCursor();
 
-    fetch('data/craters_visible.json')
-      .then(res => res.json())
-      .then(data => {
-        const craters = [];
-        for (const [name, props] of Object.entries(data)) {
-          let lon = props.longitude;
-          let lat = props.latitude;
-          if (lon > 180) lon -= 360;
-          if (lon < -90 || lon > 90) continue; 
-          let rLon = lon * Math.PI / 180;
-          let rLat = lat * Math.PI / 180;
-          let x = 0.5 * Math.cos(rLat) * Math.sin(rLon) + 0.5;
-          let y = -0.5 * Math.sin(rLat) + 0.5;
-          craters.push({ name: name, diameter: props.diameter, nx: x, ny: y });
-        }
-        window.cratersDB = craters;
-        console.log(`Loaded ${craters.length} craters`);
-      })
-      .catch(err => console.error("Crater DB Error:", err));
+    if (window.CRATERS_RAW_DATA) {
+      const data = window.CRATERS_RAW_DATA;
+      const craters = [];
+      for (const [name, props] of Object.entries(data)) {
+        let lon = props.longitude;
+        let lat = props.latitude;
+        if (lon > 180) lon -= 360;
+        if (lon < -90 || lon > 90) continue; 
+        let rLon = lon * Math.PI / 180;
+        let rLat = lat * Math.PI / 180;
+        let x = 0.5 * Math.cos(rLat) * Math.sin(rLon) + 0.5;
+        let y = -0.5 * Math.sin(rLat) + 0.5;
+        craters.push({ name: name, diameter: props.diameter, nx: x, ny: y });
+      }
+      window.cratersDB = craters;
+      console.log(`Loaded ${craters.length} craters`);
+    } else {
+      console.error("Crater DB Error: window.CRATERS_RAW_DATA is missing.");
+    }
   }
 
   function updateLayerCache() {
