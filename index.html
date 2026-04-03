@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AstroAz — Outil de superposition sélénographique pour l'astrophotographie lunaire. Alignez des calques géologiques GeoJSON sur vos photos de la Lune.">
+  <title>AstroAz — Superposition Sélénographique</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌙</text></svg>">
+</head>
+<body class="cursor-grab">
+
+  <!-- Main Canvas -->
+  <canvas id="main-canvas"></canvas>
+
+  <!-- Hidden file inputs -->
+  <input type="file" id="input-image" class="hidden-input" accept="image/*">
+  <input type="file" id="input-geojson" class="hidden-input" accept=".geojson,.json" multiple>
+
+  <!-- Toolbar -->
+  <nav id="toolbar" role="toolbar" aria-label="Outils">
+    <div class="toolbar-brand">
+      <span class="logo-icon">🌙</span>
+      <span>AstroAz</span>
+    </div>
+
+    <button id="btn-upload-image" class="tb-btn" aria-label="Charger une image">
+      🖼️
+      <span class="tooltip">Charger image</span>
+    </button>
+
+    <button id="btn-upload-geojson" class="tb-btn" aria-label="Charger un fichier GeoJSON">
+      📁
+      <span class="tooltip">Charger GeoJSON</span>
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button id="btn-anchor-mode" class="tb-btn" aria-label="Mode ancrage (punaise)">
+      📌
+      <span class="tooltip">Mode Ancrage (A)</span>
+    </button>
+
+    <button id="btn-grid" class="tb-btn" aria-label="Grille de déformation">
+      🔲
+      <span class="tooltip">Grille debug (G)</span>
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button id="btn-reset" class="tb-btn" aria-label="Réinitialiser le calque">
+      ↺
+      <span class="tooltip">Reset</span>
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button id="btn-labels" class="tb-btn" aria-label="Afficher les noms des cratères">
+      🏷️
+      <span class="tooltip">Noms Cratères (L)</span>
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <span id="fps-display">-- FPS</span>
+
+    <div class="tb-sep"></div>
+    <span id="coords-display" style="font-family: monospace; font-size: 13px; color: #a8b2c4; min-width: 170px; text-align: left;">Lat: --- | Lon: ---</span>
+  </nav>
+
+  <!-- Anchor Side Panel -->
+  <aside id="anchor-panel">
+    <h3>📌 Punaises</h3>
+    <div id="anchor-list"></div>
+  </aside>
+
+  <!-- Info Bar (Bottom) -->
+  <div id="info-bar">
+    <div class="info-hint">
+      <kbd>Drag</kbd> Calque
+    </div>
+    <div class="info-hint">
+      <kbd>Scroll</kbd> Zoom calque
+    </div>
+    <div class="info-hint">
+      <kbd>Shift</kbd>+<kbd>Drag</kbd> Rotation
+    </div>
+    <div class="info-hint hint-sep"></div>
+    <div class="info-hint">
+      <kbd>Clic-droit</kbd> Naviguer
+    </div>
+    <div class="info-hint">
+      <kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom vue
+    </div>
+    <div class="info-hint">
+      <kbd>F</kbd> Recentrer
+    </div>
+    <div class="info-hint hint-sep"></div>
+    <div class="info-hint">
+      <kbd>A</kbd> Ancrage
+    </div>
+    <div class="info-hint">
+      <kbd>G</kbd> Grille
+    </div>
+  </div>
+
+  <!-- Status Toast -->
+  <div id="status-toast"></div>
+
+  <!-- Welcome Overlay -->
+  <div id="welcome-overlay">
+    <div class="welcome-content">
+      <h1>🌙 AstroAz</h1>
+      <p>
+        Superposition sélénographique — Chargez votre photo lunaire et un calque GeoJSON 
+        pour commencer l'alignement géologique.
+      </p>
+      <div class="welcome-actions">
+        <button id="btn-welcome-image" class="welcome-btn">
+          <span class="btn-icon">🖼️</span>
+          Charger une image
+        </button>
+        <button id="btn-welcome-geojson" class="welcome-btn">
+          <span class="btn-icon">📁</span>
+          Charger un GeoJSON
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts (order matters: dependencies first) -->
+  <script src="js/geojson.js?v=4"></script>
+  <script src="js/transform.js?v=4"></script>
+  <script src="js/tps.js?v=4"></script>
+  <script src="js/anchors.js?v=4"></script>
+  <script src="js/canvas.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
+
+</body>
+</html>
