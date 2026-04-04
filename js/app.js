@@ -34,6 +34,21 @@
   let fpsTime = 0;
   let fps = 0;
 
+  // ─── Time Widget State ───
+  window.appTemporalTime = new Date();
+  let timeSource = 'manual'; // 'name', 'exif', 'manual'
+  let userManualDate = new Date();
+  let parsedNameDate = null;
+  let parsedExifDate = null;
+
+  // ─── Location Widget State ───
+  window.appSpatialLocation = { lat: 0, lon: 0 };
+  let locSource = 'ville'; // 'geoloc', 'exif-loc', 'ville'
+  let userManualLocation = { lat: 48.85, lon: 2.35, name: "" };
+  let parsedExifGps = null;
+  let geolocGps = null;
+  let locDebounceTimer = null;
+
   // ─── DOM References ───
   const imageInput = document.getElementById('input-image');
   const geojsonInput = document.getElementById('input-geojson');
@@ -84,6 +99,53 @@
     btnWelcomeGeoJSON.addEventListener('click', () => geojsonInput.click());
     imageInput.addEventListener('change', handleImageUpload);
     geojsonInput.addEventListener('change', handleGeoJSONUpload);
+
+    // --- Time Widget ---
+    document.getElementById('time-input').addEventListener('change', (e) => {
+      if (timeSource === 'manual') {
+        userManualDate = new Date(e.target.value);
+        window.appTemporalTime = userManualDate;
+        console.log("Manuel : temps mis à jour =>", window.appTemporalTime);
+      }
+    });
+
+    ['name', 'exif', 'manual'].forEach(src => {
+      document.getElementById(`src-${src}`).addEventListener('click', (e) => {
+        if (!e.target.classList.contains('disabled')) setTimeSource(src);
+      });
+    });
+    
+    setTimeSource('manual');
+
+    // --- Location Widget ---
+    const cityInput = document.getElementById('loc-city-input');
+    const predictionsList = document.getElementById('loc-predictions');
+
+    cityInput.addEventListener('input', (e) => {
+      if (locSource !== 'ville') return;
+      clearTimeout(locDebounceTimer);
+      const query = e.target.value.trim();
+      if (query.length < 3) {
+        predictionsList.innerHTML = '';
+        predictionsList.classList.add('hidden');
+        return;
+      }
+      locDebounceTimer = setTimeout(() => fetchPredictions(query), 400);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#loc-search-container')) {
+        predictionsList.classList.add('hidden');
+      }
+    });
+
+    ['geoloc', 'exif-loc', 'ville'].forEach(src => {
+      document.getElementById(`src-${src}`).addEventListener('click', (e) => {
+        if (!e.target.classList.contains('disabled')) setLocSource(src);
+      });
+    });
+
+    setLocSource('ville');
 
     Transform.reset(canvasW, canvasH);
     requestAnimationFrame(renderLoop);
@@ -155,9 +217,179 @@
     layerTransformDirty = true;
   }
 
-  function handleImageUpload(e) {
+  function formatForDatetimeLocal(date) {
+    if (!date || isNaN(date.getTime())) return '';
+    const pad = n => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function setTimeSource(src) {
+    timeSource = src;
+    ['name', 'exif', 'manual'].forEach(s => document.getElementById(`src-${s}`).classList.remove('active'));
+    document.getElementById(`src-${src}`).classList.add('active');
+    
+    const input = document.getElementById('time-input');
+    if (src === 'manual') {
+      input.classList.remove('readonly');
+      window.appTemporalTime = userManualDate;
+      input.value = formatForDatetimeLocal(userManualDate);
+    } else {
+      input.classList.add('readonly');
+      if (src === 'name' && parsedNameDate) {
+        window.appTemporalTime = parsedNameDate;
+        input.value = formatForDatetimeLocal(parsedNameDate);
+      } else if (src === 'exif' && parsedExifDate) {
+        window.appTemporalTime = parsedExifDate;
+        input.value = formatForDatetimeLocal(parsedExifDate);
+      }
+    }
+  }
+
+  function extractDateFromName(filename) {
+    const rx1 = /(\d{4})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})?[-_]?(\d{2})?[-_]?(\d{2})?/;
+    const m = filename.match(rx1);
+    if (m && m[1] >= 1900 && m[1] <= 2100 && m[2] >= 1 && m[2] <= 12 && m[3] >= 1 && m[3] <= 31) {
+      const d = new Date(m[1], m[2]-1, m[3], m[4]||0, m[5]||0, m[6]||0);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  }
+
+  function updateLocation(lat, lon, displayName) {
+    window.appSpatialLocation.lat = parseFloat(lat);
+    window.appSpatialLocation.lon = parseFloat(lon);
+    
+    if (locSource === 'ville') {
+      userManualLocation = { lat: parseFloat(lat), lon: parseFloat(lon), name: displayName };
+    }
+
+    if (displayName) {
+      document.getElementById('loc-city-input').value = displayName;
+    } else {
+      reverseGeocode(lat, lon);
+    }
+  }
+
+  async function reverseGeocode(lat, lon) {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`);
+      const data = await res.json();
+      if (data && data.name) {
+        document.getElementById('loc-city-input').value = data.name;
+        if (locSource === 'ville') userManualLocation.name = data.name;
+      } else {
+        document.getElementById('loc-city-input').value = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+      }
+    } catch(e) {
+      document.getElementById('loc-city-input').value = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+    }
+  }
+
+  async function fetchPredictions(query) {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`);
+      const data = await res.json();
+      const list = document.getElementById('loc-predictions');
+      list.innerHTML = '';
+      if (data && data.length > 0) {
+        data.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = item.display_name.split(',').slice(0, 3).join(',');
+          li.addEventListener('click', () => {
+            updateLocation(item.lat, item.lon, li.textContent);
+            list.classList.add('hidden');
+          });
+          list.appendChild(li);
+        });
+        list.classList.remove('hidden');
+      } else {
+        list.classList.add('hidden');
+      }
+    } catch(e) {
+      console.warn("Erreur Nominatim:", e);
+    }
+  }
+
+  function setLocSource(src) {
+    locSource = src;
+    ['geoloc', 'exif-loc', 'ville'].forEach(s => document.getElementById(`src-${s}`).classList.remove('active'));
+    document.getElementById(`src-${src}`).classList.add('active');
+
+    const input = document.getElementById('loc-city-input');
+    const predictionsList = document.getElementById('loc-predictions');
+
+    if (src === 'ville') {
+      input.removeAttribute('readonly');
+      input.placeholder = "Lieu...";
+      input.value = userManualLocation.name;
+      window.appSpatialLocation.lat = userManualLocation.lat;
+      window.appSpatialLocation.lon = userManualLocation.lon;
+    } else {
+      input.setAttribute('readonly', 'true');
+      predictionsList.classList.add('hidden');
+
+      if (src === 'geoloc') {
+        if (!geolocGps) {
+          input.value = "Géolocalisation...";
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              geolocGps = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+              updateLocation(geolocGps.lat, geolocGps.lon);
+              showToast("Position GPS acquise !");
+            },
+            (err) => {
+              input.value = "Rejeté/Indisponible";
+              document.getElementById('src-geoloc').classList.add('disabled');
+              setTimeout(() => setLocSource(parsedExifGps ? 'exif-loc' : 'ville'), 1000);
+            }
+          );
+        } else {
+          updateLocation(geolocGps.lat, geolocGps.lon);
+        }
+      } else if (src === 'exif-loc' && parsedExifGps) {
+        input.value = "Calcul...";
+        updateLocation(parsedExifGps.lat, parsedExifGps.lon);
+      }
+    }
+  }
+
+  async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
+    
+    // Parse les données temporelles et spatiales (EXIF complet)
+    parsedNameDate = extractDateFromName(file.name);
+    try {
+      if (window.MiniExif) {
+        const meta = await MiniExif.extractMetaData(file);
+        parsedExifDate = meta.date;
+        parsedExifGps = meta.gps;
+      }
+    } catch(err) {
+      parsedExifDate = null;
+      parsedExifGps = null;
+    }
+
+    const btnName = document.getElementById('src-name');
+    const btnExif = document.getElementById('src-exif');
+    const btnExifLoc = document.getElementById('src-exif-loc');
+    
+    btnName.classList.toggle('disabled', !parsedNameDate);
+    btnExif.classList.toggle('disabled', !parsedExifDate);
+    btnExifLoc.classList.toggle('disabled', !parsedExifGps);
+
+    // Priorité Nom > Exif > Manuel
+    if (parsedNameDate) setTimeSource('name');
+    else if (parsedExifDate) setTimeSource('exif');
+    else {
+      setTimeSource('manual');
+      document.getElementById('time-input').value = formatForDatetimeLocal(new Date());
+    }
+
+    // Priorité EXIF > Ville (On ne force pas géoloc auto pour ne pas poper à l'upload sans consentement)
+    if (parsedExifGps) setLocSource('exif-loc');
+    else setLocSource('ville');
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
@@ -306,7 +538,15 @@
     anchors.forEach(a => {
       const item = document.createElement('div');
       item.className = 'anchor-item';
-      item.innerHTML = `<span>📌 #${a.id}</span> <button>✕</button>`;
+      item.innerHTML = `
+        <span class="anchor-id">📌 #${a.id}</span>
+        <button class="anchor-delete" aria-label="Supprimer" title="Supprimer cet ancrage">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      `;
       item.querySelector('button').onclick = () => { Anchors.remove(a.id); layerTransformDirty = true; updateAnchorPanel(); };
       anchorList.appendChild(item);
     });

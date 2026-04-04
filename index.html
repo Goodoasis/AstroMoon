@@ -68,6 +68,32 @@
     <span id="coords-display" style="display: inline-block; font-family: monospace; font-size: 13px; color: #a8b2c4; width: 240px; text-align: left;">Lat: --- | Lon: ---</span>
   </nav>
 
+  <!-- Time Bar (Top Right) -->
+  <div id="time-bar" class="hud-pill-bar">
+    <div class="time-sources">
+      <button class="source-btn" id="src-name">Nom</button>
+      <button class="source-btn" id="src-exif">Exif</button>
+      <button class="source-btn" id="src-manual">Manuel</button>
+    </div>
+    <div class="tb-sep"></div>
+    <input type="datetime-local" id="time-input" aria-label="Date et heure de capture">
+  </div>
+
+  <!-- Location Bar (Top Right) -->
+  <div id="location-bar" class="hud-pill-bar">
+    <div class="time-sources">
+      <button class="source-btn" id="src-geoloc" title="Utiliser la position du navigateur">Auto</button>
+      <button class="source-btn" id="src-exif-loc" title="Trouvé dans l'image">Exif</button>
+      <button class="source-btn" id="src-ville" title="Saisie par ville ou coordonnées">Ville</button>
+    </div>
+    <div class="tb-sep"></div>
+    <div id="loc-search-container" class="loc-group" style="position: relative;">
+      <span class="loc-icon">📍</span>
+      <input type="text" id="loc-city-input" placeholder="Lieu..." autocomplete="off">
+      <ul id="loc-predictions" class="loc-predictions-list hidden"></ul>
+    </div>
+  </div>
+
   <!-- Anchor Side Panel -->
   <aside id="anchor-panel">
     <h3>📌 Punaises</h3>
@@ -129,6 +155,7 @@
   </div>
 
   <!-- Scripts (order matters: dependencies first) -->
+  <script src="js/exif.js?v=4"></script>
   <script src="js/craters_data.js"></script>
   <script src="js/geojson.js?v=4"></script>
   <script src="js/transform.js?v=4"></script>
