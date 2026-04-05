@@ -1,5 +1,5 @@
 /**
- * AstroAz — Mini EXIF Parser
+ * AstroMoon — Mini EXIF Parser
  * Lightweight EXIF extractor in Vanilla JS.
  * Extracts DateTimeOriginal and GPS Coordinates (Lat/Lon) parsing the embedded TIFF structure.
  */

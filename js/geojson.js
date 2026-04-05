@@ -1,5 +1,5 @@
 /**
- * AstroAz — GeoJSON Parser & Projector
+ * AstroMoon — GeoJSON Parser & Projector
  * Handles parsing GeoJSON files and projecting lon/lat to canvas coordinates.
  * Supports multi-layer accumulation with layer index tracking.
  */

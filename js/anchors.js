@@ -1,5 +1,5 @@
 /**
- * AstroAz — Anchor (Pin) Management
+ * AstroMoon — Anchor (Pin) Management
  * Manages the creation, movement, and deletion of anchor points
  * used for TPS rubber-sheeting deformation.
  * 

@@ -1,5 +1,5 @@
 /**
- * AstroAz — Canvas Renderer
+ * AstroMoon — Canvas Renderer
  * Handles all rendering: background image, GeoJSON overlay, anchors, debug grid.
  * 
  * VIEWPORT: A separate camera transform (pan + zoom) is applied to EVERYTHING.

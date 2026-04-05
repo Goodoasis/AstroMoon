@@ -1,5 +1,5 @@
 /**
- * AstroAz — Main Application Orchestrator
+ * AstroMoon — Main Application Orchestrator
  * Handles interaction, file uploads, and the main render loop.
  */
 

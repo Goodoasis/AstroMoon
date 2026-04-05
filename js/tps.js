@@ -1,5 +1,5 @@
 /**
- * AstroAz — Thin Plate Spline (TPS) Implementation
+ * AstroMoon — Thin Plate Spline (TPS) Implementation
  * 
  * The TPS is the standard method for "rubber sheeting" in cartography.
  * It produces a smooth (C¹) deformation that passes exactly through

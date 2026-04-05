@@ -1,5 +1,5 @@
 /**
- * AstroAz — Global Affine Transform
+ * AstroMoon — Global Affine Transform
  * Manages translation, scale, and rotation of the vector layer.
  */
 
