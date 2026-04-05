@@ -765,6 +765,7 @@
     if (backgroundImage) Renderer.drawBackground(ctx, backgroundImage, canvasW, canvasH, viewport);
     Renderer.drawGrid(ctx, transformFn, viewport);
     if (projectedFeatures) Renderer.drawGeoJSON(ctx, projectedFeatures, viewport, Anchors.count() > 0);
+    Renderer.drawNightMask(ctx, transformFn, viewport);
     Renderer.drawTerminator(ctx, transformFn, viewport);
     Renderer.drawAnchors(ctx, Anchors.getAll(), viewport, dragAnchorId);
     if (window.cratersDB) Renderer.drawAnnotations(ctx, transformFn, viewport, window.cratersDB, canvasW, canvasH);

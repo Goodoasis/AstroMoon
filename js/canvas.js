@@ -168,6 +168,125 @@ const Renderer = (() => {
     ctx.restore();
   }
 
+  function drawNightMask(ctx, transformFn, vp) {
+    const state = window.appMoonState;
+    if (!state || !state.terminatorGeoPoints || state.terminatorGeoPoints.length === 0) return;
+
+    const pts = [];
+    for (const [lon, lat] of state.terminatorGeoPoints) {
+      pts.push(GeoJSON.projectPoint(lon, lat));
+    }
+
+    const n = pts.length;
+    let startIdx = 0;
+    let found = false;
+    for (let i = 0; i < n; i++) {
+       if (pts[i] !== null && pts[(i - 1 + n) % n] === null) {
+           startIdx = i;
+           found = true;
+           break;
+       }
+    }
+    if (!found) {
+       startIdx = pts.findIndex(p => p !== null);
+       if (startIdx === -1) return;
+    }
+
+    const visiblePoints = [];
+    for (let i = 0; i < n; i++) {
+        const p = pts[(startIdx + i) % n];
+        if (p !== null) visiblePoints.push(p);
+        else if (visiblePoints.length > 0) break;
+    }
+
+    if (visiblePoints.length < 2) return;
+
+    const first = visiblePoints[0];
+    const last = visiblePoints[visiblePoints.length - 1];
+
+    ctx.save();
+    ctx.translate(vp.tx, vp.ty);
+    ctx.scale(vp.scale, vp.scale);
+
+    ctx.beginPath();
+    let moved = false;
+    for (const p of visiblePoints) {
+       const pt = transformFn(p[0], p[1]);
+       if (!moved) { ctx.moveTo(pt.x, pt.y); moved = true; }
+       else { ctx.lineTo(pt.x, pt.y); }
+    }
+
+    const cx = 0.5, cy = 0.5;
+    const aLast = Math.atan2(last[1] - cy, last[0] - cx);
+    const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
+
+    let diff = aFirst - aLast;
+    if (diff < 0) diff += Math.PI * 2;
+    const aMid1 = aLast + diff / 2;
+    const testNx = 0.5 + 0.49 * Math.cos(aMid1);
+    const testNy = 0.5 + 0.49 * Math.sin(aMid1);
+    
+    let isNight1 = false;
+    const geo = GeoJSON.inverseProject(testNx, testNy);
+    if (geo) {
+        const sLon = state.sunLon * Math.PI / 180;
+        const sLat = (state.sunLat || 0) * Math.PI / 180;
+        const geoLon = geo.lon * Math.PI / 180;
+        const geoLat = geo.lat * Math.PI / 180;
+        const px = Math.cos(geoLat) * Math.cos(geoLon);
+        const py = Math.cos(geoLat) * Math.sin(geoLon);
+        const pz = Math.sin(geoLat);
+        const sx = Math.cos(sLat) * Math.cos(sLon);
+        const sy = Math.cos(sLat) * Math.sin(sLon);
+        const sz = Math.sin(sLat);
+        isNight1 = (sx*px + sy*py + sz*pz) < 0;
+    } else {
+        // Fallback robust check (if test point fails inversion due to floating point near limb)
+        const testNx2 = 0.5 + 0.45 * Math.cos(aMid1);
+        const testNy2 = 0.5 + 0.45 * Math.sin(aMid1);
+        const geo2 = GeoJSON.inverseProject(testNx2, testNy2);
+        if (geo2) {
+            const sLon = state.sunLon * Math.PI / 180;
+            const sLat = (state.sunLat || 0) * Math.PI / 180;
+            const geoLon = geo2.lon * Math.PI / 180;
+            const geoLat = geo2.lat * Math.PI / 180;
+            const px = Math.cos(geoLat) * Math.cos(geoLon);
+            const py = Math.cos(geoLat) * Math.sin(geoLon);
+            const pz = Math.sin(geoLat);
+            const sx = Math.cos(sLat) * Math.cos(sLon);
+            const sy = Math.cos(sLat) * Math.sin(sLon);
+            const sz = Math.sin(sLat);
+            isNight1 = (sx*px + sy*py + sz*pz) < 0;
+        }
+    }
+
+    const steps = 40;
+    if (isNight1) {
+        for(let i=1; i<=steps; i++) {
+           let a = aLast + diff * (i / steps);
+           let nx = 0.5 + 0.5 * Math.cos(a);
+           let ny = 0.5 + 0.5 * Math.sin(a);
+           let pt = transformFn(nx, ny);
+           ctx.lineTo(pt.x, pt.y);
+        }
+    } else {
+        let diffCCW = aLast - aFirst;
+        if (diffCCW < 0) diffCCW += Math.PI * 2;
+        for(let i=1; i<=steps; i++) {
+           let a = aLast - diffCCW * (i / steps);
+           let nx = 0.5 + 0.5 * Math.cos(a);
+           let ny = 0.5 + 0.5 * Math.sin(a);
+           let pt = transformFn(nx, ny);
+           ctx.lineTo(pt.x, pt.y);
+        }
+    }
+
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(6, 6, 12, 0.75)'; // Assombrissement type espace profond
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawTerminator(ctx, transformFn, vp) {
     const state = window.appMoonState;
     if (!state || !state.terminatorGeoPoints || state.terminatorGeoPoints.length === 0) return;
@@ -176,12 +295,12 @@ const Renderer = (() => {
     ctx.translate(vp.tx, vp.ty);
     ctx.scale(vp.scale, vp.scale);
 
-    ctx.globalAlpha = 1.0;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5 / vp.scale;
+    ctx.globalAlpha = 1.0; // Ensure terminator is opaque
+    ctx.strokeStyle = '#e0faff'; // Plus blanc/cyan
+    ctx.lineWidth = 3.0 / vp.scale; // Plus épais
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.shadowBlur = 15;
+    ctx.shadowBlur = 25; // Néon plus fort
     ctx.shadowColor = '#00d4ff';
 
     ctx.beginPath();
@@ -201,6 +320,13 @@ const Renderer = (() => {
       }
     }
     ctx.stroke();
+
+    // Ajouter un "core" blanc intense par dessus pour accentuer l'effet néon
+    ctx.shadowBlur = 5;
+    ctx.lineWidth = 1.5 / vp.scale;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+
     ctx.restore();
   }
 
@@ -466,6 +592,7 @@ const Renderer = (() => {
     drawAnchors,
     drawGrid,
     drawAnnotations,
+    drawNightMask,
     drawTerminator,
     toggleGrid,
     toggleLabels,
