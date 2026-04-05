@@ -142,6 +142,7 @@
         userManualDate = new Date(e.target.value);
         window.appTemporalTime = userManualDate;
         console.log("Manuel : temps mis à jour =>", window.appTemporalTime);
+        updateEphemeris();
       }
     });
 
