@@ -112,36 +112,11 @@ const Renderer = (() => {
         ctx.fillStyle = colors.fill;
       }
 
-      for (const ring of feature.renderedCoords) {
-        if (ring.length < 2 && feature.type !== 'point') continue;
-
-        if (feature.type === 'point') {
-          const pointColor = getLayerColor(currentLayerIndex).stroke;
-          for (const pt of ring) {
-            if (pt.x === null) continue; // Skip hidden points
-            ctx.beginPath();
-            ctx.arc(pt.x, pt.y, 3 / vp.scale, 0, Math.PI * 2);
-            ctx.fillStyle = pointColor;
-            ctx.fill();
-          }
-        } else if (feature.type === 'line') {
-          ctx.beginPath();
-          let started = false;
-          for (let i = 0; i < ring.length; i++) {
-            if (ring[i].x === null) {
-              started = false; // Break the line
-              continue;
-            }
-            if (!started) {
-              ctx.moveTo(ring[i].x, ring[i].y);
-              started = true;
-            } else {
-              ctx.lineTo(ring[i].x, ring[i].y);
-            }
-          }
-          ctx.stroke();
-        } else if (feature.type === 'polygon') {
-          ctx.beginPath();
+      if (feature.type === 'polygon') {
+        ctx.beginPath();
+        let hasAnyPolygons = false;
+        for (const ring of feature.renderedCoords) {
+          if (ring.length < 2) continue;
           let started = false;
           for (let i = 0; i < ring.length; i++) {
             if (ring[i].x === null) {
@@ -155,11 +130,45 @@ const Renderer = (() => {
               ctx.lineTo(ring[i].x, ring[i].y);
             }
           }
-          // Only close path if it ended visibly
           if (started) {
              ctx.closePath();
-             ctx.fill();
-             ctx.stroke();
+             hasAnyPolygons = true;
+          }
+        }
+        if (hasAnyPolygons) {
+           ctx.fill('evenodd');
+           ctx.stroke();
+        }
+      } else {
+        // Point and LineString types
+        for (const ring of feature.renderedCoords) {
+          if (ring.length < 2 && feature.type !== 'point') continue;
+
+          if (feature.type === 'point') {
+            const pointColor = getLayerColor(currentLayerIndex).stroke;
+            for (const pt of ring) {
+              if (pt.x === null) continue; // Skip hidden points
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, 3 / vp.scale, 0, Math.PI * 2);
+              ctx.fillStyle = pointColor;
+              ctx.fill();
+            }
+          } else if (feature.type === 'line') {
+            ctx.beginPath();
+            let started = false;
+            for (let i = 0; i < ring.length; i++) {
+              if (ring[i].x === null) {
+                started = false; // Break the line
+                continue;
+              }
+              if (!started) {
+                ctx.moveTo(ring[i].x, ring[i].y);
+                started = true;
+              } else {
+                ctx.lineTo(ring[i].x, ring[i].y);
+              }
+            }
+            ctx.stroke();
           }
         }
       }
