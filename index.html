@@ -59,7 +59,7 @@
       🏷️
       <span class="tooltip">Noms Cratères (L)</span>
     </button>
-
+    
     <div class="tb-sep"></div>
 
     <span id="fps-display">-- FPS</span>
@@ -92,6 +92,16 @@
       <input type="text" id="loc-city-input" placeholder="Lieu..." autocomplete="off">
       <ul id="loc-predictions" class="loc-predictions-list hidden"></ul>
     </div>
+  </div>
+
+  <!-- Mount Mode Switch (below location bar) -->
+  <div id="mount-bar" class="hud-pill-bar">
+    <span class="mount-label" id="mount-label-eq">Équatoriale</span>
+    <label class="switch" id="mount-switch" title="Bascule Équatoriale / Alt-Az (O)">
+      <input type="checkbox" id="mount-toggle">
+      <span class="switch-slider"></span>
+    </label>
+    <span class="mount-label" id="mount-label-az">Trépied</span>
   </div>
 
   <!-- Anchor Side Panel -->
@@ -155,14 +165,15 @@
   </div>
 
   <!-- Scripts (order matters: dependencies first) -->
-  <script src="js/exif.js?v=4"></script>
-  <script src="js/craters_data.js"></script>
-  <script src="js/geojson.js?v=4"></script>
-  <script src="js/transform.js?v=4"></script>
-  <script src="js/tps.js?v=4"></script>
-  <script src="js/anchors.js?v=4"></script>
-  <script src="js/canvas.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/exif.js?v=9"></script>
+  <script src="js/astronomy.js?v=9"></script>
+  <script src="js/craters_data.js?v=9"></script>
+  <script src="js/geojson.js?v=9"></script>
+  <script src="js/transform.js?v=9"></script>
+  <script src="js/tps.js?v=9"></script>
+  <script src="js/anchors.js?v=9"></script>
+  <script src="js/canvas.js?v=9"></script>
+  <script src="js/app.js?v=9"></script>
 
 </body>
 </html>

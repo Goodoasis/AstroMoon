@@ -13,7 +13,7 @@
 
   let backgroundImage = null;
   let projectedFeatures = null;
-  let layerTransformDirty = true; 
+  let layerTransformDirty = true;
 
   let allRawFeatures = [];
   let mergedBounds = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
@@ -29,6 +29,7 @@
   let dragAnchorId = null;
   let dragAnchorOffset = { x: 0, y: 0 };
   let lastRotationAngle = 0;
+  let isAltAzMode = false; // false = Équatoriale, true = Alt-Az (Trépied)
 
   let frameCount = 0;
   let fpsTime = 0;
@@ -36,6 +37,14 @@
 
   // ─── Time Widget State ───
   window.appTemporalTime = new Date();
+  window.appMoonState = {
+    librationLon: 0,
+    librationLat: 0,
+    moonPhase360: 0,
+    sunLon: 0,
+    sunLat: 0,
+    terminatorGeoPoints: []
+  };
   let timeSource = 'manual'; // 'name', 'exif', 'manual'
   let userManualDate = new Date();
   let parsedNameDate = null;
@@ -72,7 +81,6 @@
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
-
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
@@ -93,7 +101,19 @@
     btnLabels.addEventListener('click', () => {
       const on = Renderer.toggleLabels();
       btnLabels.classList.toggle('active', on);
+      if (on) {
+        if (!window.cratersDB) initCraters();
+        else updateCratersProjection();
+      }
     });
+
+    const mountToggle = document.getElementById('mount-toggle');
+    mountToggle.addEventListener('change', () => {
+      isAltAzMode = mountToggle.checked;
+      updateMountUI();
+      updateEphemeris();
+    });
+    updateMountUI();
 
     btnWelcomeImage.addEventListener('click', () => imageInput.click());
     btnWelcomeGeoJSON.addEventListener('click', () => geojsonInput.click());
@@ -114,7 +134,7 @@
         if (!e.target.classList.contains('disabled')) setTimeSource(src);
       });
     });
-    
+
     setTimeSource('manual');
 
     // --- Location Widget ---
@@ -139,37 +159,25 @@
       }
     });
 
-    ['geoloc', 'exif-loc', 'ville'].forEach(src => {
-      document.getElementById(`src-${src}`).addEventListener('click', (e) => {
-        if (!e.target.classList.contains('disabled')) setLocSource(src);
-      });
-    });
+    // -- Default Location (Eiffel Tower, Paris) --
+    window.appSpatialLocation = { lat: 48.8584, lon: 2.2945, city: 'Eiffel Tower, Paris' };
+    cityInput.value = window.appSpatialLocation.city;
+
+    // -- Default Time (Now) --
+    const now = new Date();
+    window.appTemporalTime = now;
+    userManualDate = now;
+    
+    // Format for datetime-local (YYYY-MM-DDTHH:MM)
+    const localISO = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().substring(0, 16);
+    document.getElementById('time-input').value = localISO;
 
     setLocSource('ville');
 
     Transform.reset(canvasW, canvasH);
     requestAnimationFrame(renderLoop);
     updateCursor();
-
-    if (window.CRATERS_RAW_DATA) {
-      const data = window.CRATERS_RAW_DATA;
-      const craters = [];
-      for (const [name, props] of Object.entries(data)) {
-        let lon = props.longitude;
-        let lat = props.latitude;
-        if (lon > 180) lon -= 360;
-        if (lon < -90 || lon > 90) continue; 
-        let rLon = lon * Math.PI / 180;
-        let rLat = lat * Math.PI / 180;
-        let x = 0.5 * Math.cos(rLat) * Math.sin(rLon) + 0.5;
-        let y = -0.5 * Math.sin(rLat) + 0.5;
-        craters.push({ name: name, diameter: props.diameter, nx: x, ny: y });
-      }
-      window.cratersDB = craters;
-      console.log(`Loaded ${craters.length} craters`);
-    } else {
-      console.error("Crater DB Error: window.CRATERS_RAW_DATA is missing.");
-    }
+    updateEphemeris();
   }
 
   function updateLayerCache() {
@@ -220,14 +228,14 @@
   function formatForDatetimeLocal(date) {
     if (!date || isNaN(date.getTime())) return '';
     const pad = n => n.toString().padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   function setTimeSource(src) {
     timeSource = src;
     ['name', 'exif', 'manual'].forEach(s => document.getElementById(`src-${s}`).classList.remove('active'));
     document.getElementById(`src-${src}`).classList.add('active');
-    
+
     const input = document.getElementById('time-input');
     if (src === 'manual') {
       input.classList.remove('readonly');
@@ -243,13 +251,14 @@
         input.value = formatForDatetimeLocal(parsedExifDate);
       }
     }
+    updateEphemeris();
   }
 
   function extractDateFromName(filename) {
     const rx1 = /(\d{4})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})?[-_]?(\d{2})?[-_]?(\d{2})?/;
     const m = filename.match(rx1);
     if (m && m[1] >= 1900 && m[1] <= 2100 && m[2] >= 1 && m[2] <= 12 && m[3] >= 1 && m[3] <= 31) {
-      const d = new Date(m[1], m[2]-1, m[3], m[4]||0, m[5]||0, m[6]||0);
+      const d = new Date(m[1], m[2] - 1, m[3], m[4] || 0, m[5] || 0, m[6] || 0);
       if (!isNaN(d.getTime())) return d;
     }
     return null;
@@ -258,7 +267,7 @@
   function updateLocation(lat, lon, displayName) {
     window.appSpatialLocation.lat = parseFloat(lat);
     window.appSpatialLocation.lon = parseFloat(lon);
-    
+
     if (locSource === 'ville') {
       userManualLocation = { lat: parseFloat(lat), lon: parseFloat(lon), name: displayName };
     }
@@ -268,6 +277,7 @@
     } else {
       reverseGeocode(lat, lon);
     }
+    updateEphemeris();
   }
 
   async function reverseGeocode(lat, lon) {
@@ -280,7 +290,7 @@
       } else {
         document.getElementById('loc-city-input').value = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
       }
-    } catch(e) {
+    } catch (e) {
       document.getElementById('loc-city-input').value = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
     }
   }
@@ -305,9 +315,187 @@
       } else {
         list.classList.add('hidden');
       }
-    } catch(e) {
+    } catch (e) {
       console.warn("Erreur Nominatim:", e);
     }
+  }
+
+  function updateEphemeris() {
+    if (!window.Astronomy) {
+      console.warn("Astronomy library not loaded yet.");
+      return;
+    }
+    if (!window.appSpatialLocation) return;
+    const obs = new Astronomy.Observer(
+      window.appSpatialLocation.lat || 0,
+      window.appSpatialLocation.lon || 0,
+      0
+    );
+    const time = new Astronomy.AstroTime(window.appTemporalTime || new Date());
+    let moonEq = null;
+
+    // 1. Libration
+    try {
+      const lib = Astronomy.Libration(time);
+      if (lib) {
+        window.appMoonState.librationLon = lib.elon;
+        window.appMoonState.librationLat = lib.elat;
+      }
+    } catch (e) { console.warn("Ephemeris [Libration]:", e.message); }
+
+    // 2. Moon Phase (0-360)
+    try {
+      window.appMoonState.moonPhase360 = Astronomy.MoonPhase(time);
+    } catch (e) { console.warn("Ephemeris [MoonPhase]:", e.message); }
+
+    // 3. Moon equatorial coords (needed for rotation & terminator)
+    try {
+      moonEq = Astronomy.Equator(Astronomy.Body.Moon, time, obs, false, false);
+    } catch (e) { console.warn("Ephemeris [MoonEquator]:", e.message); }
+
+    // 4. Orientation / Rotation (PA + Q)
+    try {
+      const pole = Astronomy.RotationAxis(Astronomy.Body.Moon, time);
+      if (pole && moonEq) {
+        const raP = pole.ra * Astronomy.DEG2RAD;
+        const decP = pole.dec * Astronomy.DEG2RAD;
+        const raM = moonEq.ra * Astronomy.HOUR2RAD;
+        const decM = moonEq.dec * Astronomy.DEG2RAD;
+        const y = Math.cos(decP) * Math.sin(raP - raM);
+        const x = Math.sin(decP) * Math.cos(decM) - Math.cos(decP) * Math.sin(decM) * Math.cos(raP - raM);
+        const pa = Math.atan2(y, x) * Astronomy.RAD2DEG;
+
+        const gast = Astronomy.SiderealTime(time);
+        const lon = window.appSpatialLocation.lon || 0;
+        const lat = window.appSpatialLocation.lat || 0;
+        const last = (gast + lon / 15.0 + 24.0) % 24.0;
+        const lha = (last - moonEq.ra + 24.0) % 24.0 * 15.0 * Astronomy.DEG2RAD;
+        const phi = lat * Astronomy.DEG2RAD;
+        const delta = moonEq.dec * Astronomy.DEG2RAD;
+
+        const yQ = Math.sin(lha);
+        const xQ = Math.tan(phi) * Math.cos(delta) - Math.sin(delta) * Math.cos(lha);
+        const q = Math.atan2(yQ, xQ) * Astronomy.RAD2DEG;
+
+        const rotationPA = isAltAzMode ? (pa + q) : pa;
+        Transform.setRotation(rotationPA * Math.PI / 180);
+      }
+    } catch (e) { console.warn("Ephemeris [Rotation]:", e.message); }
+
+    // 5. Bright Limb PA
+    try {
+      const sunEq = Astronomy.Equator(Astronomy.Body.Sun, time, obs, false, false);
+      if (sunEq && moonEq) {
+        const raS = sunEq.ra * Astronomy.HOUR2RAD;
+        const decS = sunEq.dec * Astronomy.DEG2RAD;
+        const raM = moonEq.ra * Astronomy.HOUR2RAD;
+        const decM = moonEq.dec * Astronomy.DEG2RAD;
+        const yS = Math.cos(decS) * Math.sin(raS - raM);
+        const xS = Math.sin(decS) * Math.cos(decM) - Math.cos(decS) * Math.sin(decM) * Math.cos(raS - raM);
+        window.appMoonState.brightLimbPA = Math.atan2(yS, xS) * Astronomy.RAD2DEG;
+      }
+    } catch (e) { console.warn("Ephemeris [BrightLimb]:", e.message); }
+
+    // 6. Terminator — always generate, even with partial data
+    const phase360 = window.appMoonState.moonPhase360 || 0;
+    const sLon = (180 - phase360) + (window.appMoonState.librationLon || 0);
+    window.appMoonState.sunLon = sLon;
+    window.appMoonState.sunLat = 0;
+    generateTerminator(sLon, 0);
+
+    // Update projections
+    updateGeoJSONProjection();
+    if (Renderer.showLabels && Renderer.showLabels()) updateCratersProjection();
+    layerTransformDirty = true;
+  }
+
+  function generateTerminator(sunLon, sunLat) {
+    const points = [];
+    const λ0 = sunLon * Math.PI / 180;
+    const φ0 = (sunLat || 0) * Math.PI / 180;
+
+    // Sub-solar point in Cartesian (unit sphere)
+    const sx = Math.cos(φ0) * Math.cos(λ0);
+    const sy = Math.cos(φ0) * Math.sin(λ0);
+    const sz = Math.sin(φ0);
+
+    // Build orthonormal basis perpendicular to S (the terminator plane)
+    // e1 = normalize(S × [0,0,1])
+    let e1x = sy, e1y = -sx, e1z = 0;
+    let norm = Math.hypot(e1x, e1y);
+    if (norm < 1e-10) { e1x = 1; e1y = 0; norm = 1; } // fallback if sun at pole
+    e1x /= norm; e1y /= norm;
+
+    // e2 = S × e1
+    const e2x = sy * e1z - sz * e1y;
+    const e2y = sz * e1x - sx * e1z;
+    const e2z = sx * e1y - sy * e1x;
+
+    // Trace the great circle (360 points)
+    for (let i = 0; i <= 360; i++) {
+      const θ = i * Math.PI / 180;
+      const px = Math.cos(θ) * e1x + Math.sin(θ) * e2x;
+      const py = Math.cos(θ) * e1y + Math.sin(θ) * e2y;
+      const pz = Math.cos(θ) * e1z + Math.sin(θ) * e2z;
+
+      const lat = Math.asin(Math.max(-1, Math.min(1, pz))) * 180 / Math.PI;
+      const lon = Math.atan2(py, px) * 180 / Math.PI;
+      points.push([lon, lat]);
+    }
+    window.appMoonState.terminatorGeoPoints = points;
+  }
+
+  function updateGeoJSONProjection() {
+    if (!projectedFeatures) return;
+    for (const feature of projectedFeatures) {
+      if (!feature.coords) continue;
+      // Robust mapping for Point, LineString, or Polygon structures
+      feature.projectedCoords = feature.coords.map(ring => {
+        if (!Array.isArray(ring)) return null;
+        // If ring[0] is not an array, it's a LineString (array of points)
+        if (!Array.isArray(ring[0])) {
+          return GeoJSON.projectPoint(ring[0], ring[1]);
+        }
+        // If ring[0] is an array, it's a Polygon (array of rings)
+        return ring.map(c => GeoJSON.projectPoint(c[0], c[1]));
+      });
+    }
+  }
+
+
+
+
+
+  function updateCratersProjection() {
+    if (!window.cratersDB || !window.appMoonState) return;
+    for (const crater of window.cratersDB) {
+      const proj = GeoJSON.projectPoint(crater.longitude, crater.latitude);
+      if (proj) {
+        crater.nx = proj[0];
+        crater.ny = proj[1];
+      } else {
+        crater.nx = null; crater.ny = null;
+      }
+    }
+  }
+
+  function initCraters() {
+    if (!window.CRATERS_RAW_DATA) return;
+    const array = [];
+    for (const name in window.CRATERS_RAW_DATA) {
+      if (name === "--") continue;
+      const c = window.CRATERS_RAW_DATA[name];
+      array.push({
+        name: name,
+        diameter: c.diameter,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        nx: null,
+        ny: null
+      });
+    }
+    window.cratersDB = array;
+    updateCratersProjection();
   }
 
   function setLocSource(src) {
@@ -351,12 +539,13 @@
         updateLocation(parsedExifGps.lat, parsedExifGps.lon);
       }
     }
+    updateEphemeris();
   }
 
   async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     // Parse les données temporelles et spatiales (EXIF complet)
     parsedNameDate = extractDateFromName(file.name);
     try {
@@ -365,7 +554,7 @@
         parsedExifDate = meta.date;
         parsedExifGps = meta.gps;
       }
-    } catch(err) {
+    } catch (err) {
       parsedExifDate = null;
       parsedExifGps = null;
     }
@@ -373,7 +562,7 @@
     const btnName = document.getElementById('src-name');
     const btnExif = document.getElementById('src-exif');
     const btnExifLoc = document.getElementById('src-exif-loc');
-    
+
     btnName.classList.toggle('disabled', !parsedNameDate);
     btnExif.classList.toggle('disabled', !parsedExifDate);
     btnExifLoc.classList.toggle('disabled', !parsedExifGps);
@@ -414,7 +603,7 @@
           mergedBounds.maxLon = Math.max(mergedBounds.maxLon, newData.bounds.maxLon);
           mergedBounds.minLat = Math.min(mergedBounds.minLat, newData.bounds.minLat);
           mergedBounds.maxLat = Math.max(mergedBounds.maxLat, newData.bounds.maxLat);
-        } catch(e){}
+        } catch (e) { }
         if (++processed === files.length) {
           projectedFeatures = GeoJSON.project(allRawFeatures, mergedBounds);
           layerTransformDirty = true; hideWelcome();
@@ -522,8 +711,19 @@
     if (e.key === 'a' || e.key === 'A') toggleAnchorMode();
     if (e.key === 'g' || e.key === 'G') btnGrid.classList.toggle('active', Renderer.toggleGrid());
     if (e.key === 'l' || e.key === 'L') btnLabels.classList.toggle('active', Renderer.toggleLabels());
+    if (e.key === 'o' || e.key === 'O') {
+      isAltAzMode = !isAltAzMode;
+      document.getElementById('mount-toggle').checked = isAltAzMode;
+      updateMountUI();
+      updateEphemeris();
+    }
     if (e.key === 'f' || e.key === 'F') viewport = { tx: 0, ty: 0, scale: 1 };
     if (e.key === 'Escape' && mode === 'anchor') toggleAnchorMode();
+  }
+
+  function updateMountUI() {
+    document.getElementById('mount-label-eq').classList.toggle('active', !isAltAzMode);
+    document.getElementById('mount-label-az').classList.toggle('active', isAltAzMode);
   }
 
   function resetAll() {
@@ -565,6 +765,7 @@
     if (backgroundImage) Renderer.drawBackground(ctx, backgroundImage, canvasW, canvasH, viewport);
     Renderer.drawGrid(ctx, transformFn, viewport);
     if (projectedFeatures) Renderer.drawGeoJSON(ctx, projectedFeatures, viewport, Anchors.count() > 0);
+    Renderer.drawTerminator(ctx, transformFn, viewport);
     Renderer.drawAnchors(ctx, Anchors.getAll(), viewport, dragAnchorId);
     if (window.cratersDB) Renderer.drawAnnotations(ctx, transformFn, viewport, window.cratersDB, canvasW, canvasH);
     requestAnimationFrame(renderLoop);

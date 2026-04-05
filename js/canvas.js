@@ -168,6 +168,42 @@ const Renderer = (() => {
     ctx.restore();
   }
 
+  function drawTerminator(ctx, transformFn, vp) {
+    const state = window.appMoonState;
+    if (!state || !state.terminatorGeoPoints || state.terminatorGeoPoints.length === 0) return;
+
+    ctx.save();
+    ctx.translate(vp.tx, vp.ty);
+    ctx.scale(vp.scale, vp.scale);
+
+    ctx.globalAlpha = 1.0;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5 / vp.scale;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#00d4ff';
+
+    ctx.beginPath();
+    let moved = false;
+    for (const [lon, lat] of state.terminatorGeoPoints) {
+      const proj = GeoJSON.projectPoint(lon, lat);
+      if (proj) {
+        const pt = transformFn(proj[0], proj[1]);
+        if (!moved) {
+          ctx.moveTo(pt.x, pt.y);
+          moved = true;
+        } else {
+          ctx.lineTo(pt.x, pt.y);
+        }
+      } else {
+        moved = false;
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /**
    * Draw anchor markers using Global-only transform, within viewport.
    * @param {CanvasRenderingContext2D} ctx
@@ -258,32 +294,30 @@ const Renderer = (() => {
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
 
-    // Helper to get normalized orthographic coords for global lat/lon
-    // Only valid for the visible face (-90 to 90 lon)
     function getNorm(lon, lat) {
-      const rLon = lon * Math.PI / 180;
-      const rLat = lat * Math.PI / 180;
-      let x = 0.5 * Math.cos(rLat) * Math.sin(rLon);
-      let y = -0.5 * Math.sin(rLat);
-      return { nx: x + 0.5, ny: y + 0.5 };
+      const proj = GeoJSON.projectPoint(lon, lat);
+      if (!proj) return null;
+      return { nx: proj[0], ny: proj[1] };
     }
 
-    // Longitude lines [-90 to +90]
     for (let lon = -90; lon <= 90; lon += 10) {
       ctx.beginPath();
-      for (let lat = 90; lat >= -90; lat -= 5) {
-        const { nx, ny } = getNorm(lon, lat);
-        const pt = transformFn(nx, ny);
-        if (lat === 90) ctx.moveTo(pt.x, pt.y);
+      let moved = false;
+      for (let lat = 90; lat >= -90; lat -= 2) {
+        const norm = getNorm(lon, lat);
+        if (!norm) continue;
+        const pt = transformFn(norm.nx, norm.ny);
+        if (!moved) { ctx.moveTo(pt.x, pt.y); moved = true; }
         else ctx.lineTo(pt.x, pt.y);
       }
       ctx.stroke();
 
-      // Label at Equator (0)
       if (lon % 30 === 0 && lon !== -90 && lon !== 90) { 
         const norm = getNorm(lon, 0); 
-        const pt = transformFn(norm.nx, norm.ny);
-        ctx.fillText(` ${lon}°`, pt.x, pt.y - (10 / vp.scale));
+        if (norm) {
+          const pt = transformFn(norm.nx, norm.ny);
+          ctx.fillText(` ${lon}°`, pt.x, pt.y - (10 / vp.scale));
+        }
       }
     }
 
@@ -291,11 +325,12 @@ const Renderer = (() => {
     ctx.textAlign = 'left';
     for (let lat = -90; lat <= 90; lat += 10) {
       ctx.beginPath();
-      // From left horizon (-90) to right horizon (90)
-      for (let lon = -90; lon <= 90; lon += 5) {
-        const { nx, ny } = getNorm(lon, lat);
-        const pt = transformFn(nx, ny);
-        if (lon === -90) ctx.moveTo(pt.x, pt.y);
+      let moved = false;
+      for (let lon = -90; lon <= 90; lon += 2) {
+        const norm = getNorm(lon, lat);
+        if (!norm) continue;
+        const pt = transformFn(norm.nx, norm.ny);
+        if (!moved) { ctx.moveTo(pt.x, pt.y); moved = true; }
         else ctx.lineTo(pt.x, pt.y);
       }
       ctx.stroke();
@@ -340,9 +375,9 @@ const Renderer = (() => {
     ctx.textBaseline = 'middle';
 
     // Dynamic Level of Detail threshold
-    // 20km ensures almost all named craters are visible at standard zoom.
-    const minDiameter = 20 / vp.scale; 
-    
+    // 10km ensures most visible features are labeled.
+    const minDiameter = 10 / vp.scale; 
+    const margin = 150; // Screen boundary margin in pixels
     // Determine opacity based on size relative to threshold
     function getLayerOpacity(diam, minD) {
       if (diam > minD * 3) return 1.0; 
@@ -350,8 +385,8 @@ const Renderer = (() => {
       return 0.4 + (0.6 * Math.max(0, (diam - minD) / (minD * 2)));
     }
 
-    for (const crater of cratersDB) {
-      if (crater.diameter >= minDiameter && crater.name !== "--") {
+      for (const crater of cratersDB) {
+      if (crater.diameter >= minDiameter && crater.name !== "--" && crater.nx !== null) {
         const pt = transformFn(crater.nx, crater.ny);
         
         const sx = pt.x * vp.scale + vp.tx;
@@ -362,7 +397,24 @@ const Renderer = (() => {
             const tw = ctx.measureText(txt).width;
             
             // Set opacity based on size
-            const op = getLayerOpacity(crater.diameter, minDiameter);
+            let op = getLayerOpacity(crater.diameter, minDiameter);
+
+            // ─── Shadow detection (Dimming) ───
+            if (window.appMoonState && typeof window.appMoonState.sunLon === 'number') {
+                const rLon = crater.longitude * Math.PI / 180;
+                const rLat = crater.latitude * Math.PI / 180;
+                const sLon = window.appMoonState.sunLon * Math.PI / 180;
+                const sLat = window.appMoonState.sunLat * Math.PI / 180;
+                
+                // Lambertian illumination check
+                const cosI = Math.sin(rLat) * Math.sin(sLat) + Math.cos(rLat) * Math.cos(sLat) * Math.cos(rLon - sLon);
+                if (cosI < 0) {
+                    op *= 0.25; // Significant dimming in shadow
+                } else if (cosI < 0.1) {
+                    op *= 0.25 + (0.75 * (cosI / 0.1)); // Smooth transition at terminator
+                }
+            }
+            
             ctx.globalAlpha = op;
 
             // 1. Semi-transparent dark "pill" background for maximum contrast
@@ -399,6 +451,10 @@ const Renderer = (() => {
     return showLabels;
   }
 
+  function isLabelsEnabled() {
+    return showLabels;
+  }
+
   function toggleGrid() {
     showGrid = !showGrid;
     return showGrid;
@@ -410,8 +466,10 @@ const Renderer = (() => {
     drawAnchors,
     drawGrid,
     drawAnnotations,
+    drawTerminator,
     toggleGrid,
     toggleLabels,
+    showLabels: isLabelsEnabled,
     getLayerColor,
     getPalette
   };

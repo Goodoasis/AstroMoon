@@ -188,6 +188,13 @@ const Transform = (() => {
     state.rotation += deltaRadians;
   }
 
+  /**
+   * Set the rotation to an absolute angle in radians.
+   */
+  function setRotation(radians) {
+    state.rotation = radians;
+  }
+
   return {
     reset,
     handleResize,
@@ -198,6 +205,7 @@ const Transform = (() => {
     getLayerCenter,
     translate,
     zoom,
-    rotate
+    rotate,
+    setRotation
   };
 })();

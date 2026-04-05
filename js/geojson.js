@@ -97,53 +97,55 @@ const GeoJSON = (() => {
    * Orthographic projection (Sphere view from Earth).
    * Assumes prime meridian (lon=0, lat=0) is the center of the image.
    */
+  /**
+   * Project a single point (Lon/Lat) onto normalized [0, 1] orthographic coords.
+   */
+  function projectPoint(lon, lat) {
+    if (!window.appMoonState) return null;
+    const lat0 = (window.appMoonState.librationLat || 0) * Math.PI / 180;
+    const lon0 = (window.appMoonState.librationLon || 0) * Math.PI / 180;
+
+    const rLon = lon * Math.PI / 180;
+    const rLat = lat * Math.PI / 180;
+
+    const cosC = Math.sin(lat0) * Math.sin(rLat) + Math.cos(lat0) * Math.cos(rLat) * Math.cos(rLon - lon0);
+    if (cosC < 0) return null; // Hidden side
+
+    const x = Math.cos(rLat) * Math.sin(rLon - lon0);
+    const y = Math.cos(lat0) * Math.sin(rLat) - Math.sin(lat0) * Math.cos(rLat) * Math.cos(rLon - lon0);
+
+    return [(x * 0.5) + 0.5, (-y * 0.5) + 0.5];
+  }
+
   function project(features) {
     return features.map(f => ({
       type: f.type,
       properties: f.properties,
       layerIndex: f.layerIndex,
+      coords: f.coords,
       projectedCoords: f.coords.map(ring =>
-        ring.map(([lon, lat]) => {
-          // If the point is on the far side of the moon, project as null (clipped)
-          if (lon < -90 || lon > 90) return null;
-
-          // Convert to radians
-          const rLon = lon * Math.PI / 180;
-          const rLat = lat * Math.PI / 180;
-
-          // Pure Orthographic Projection mathematics
-          // Sphere radius = 0.5 to fit nicely inside [0, 1]
-          let x = 0.5 * Math.cos(rLat) * Math.sin(rLon);
-          let y = -0.5 * Math.sin(rLat); // Invert Y for canvas
-
-          // Center on [0.5, 0.5]
-          return [x + 0.5, y + 0.5];
-        })
+        ring.map(([lon, lat]) => projectPoint(lon, lat))
       )
     }));
   }
 
   /**
-   * Inverse Orthographic Projection.
-   * Converts [nx, ny] back to geographical [lon, lat].
-   * @param {number} nx - Normalized X [0, 1]
-   * @param {number} ny - Normalized Y [0, 1]
-   * @returns {{lon: number, lat: number}|null} Returns null if point is outside the moon's visible disk.
+   * Inverse Orthographic Projection with libration support.
    */
   function inverseProject(nx, ny) {
-    const dx = (nx - 0.5) * 2.0;
-    const dy = (0.5 - ny) * 2.0; // Y is inverted back
-    const rho2 = dx * dx + dy * dy;
+    const x = (nx - 0.5) * 2.0;
+    const y = -(ny - 0.5) * 2.0;
+    const rho = Math.hypot(x, y);
+    if (rho > 1.0) return null;
 
-    if (rho2 > 1.0) return null; // Outside the spherical horizon
+    const lat0 = (window.appMoonState.librationLat || 0) * Math.PI / 180;
+    const lon0 = (window.appMoonState.librationLon || 0) * Math.PI / 180;
+    const c = Math.asin(rho);
 
-    const latRad = Math.asin(dy);
-    const lonRad = Math.atan2(dx, Math.sqrt(1 - rho2));
+    const lat = Math.asin(Math.cos(c) * Math.sin(lat0) + (y * Math.sin(c) * Math.cos(lat0)) / rho);
+    const lon = lon0 + Math.atan2(x * Math.sin(c), rho * Math.cos(c) * Math.cos(lat0) - y * Math.sin(c) * Math.sin(lat0));
 
-    return {
-      lon: lonRad * 180 / Math.PI,
-      lat: latRad * 180 / Math.PI
-    };
+    return { lat: lat * 180 / Math.PI, lon: lon * 180 / Math.PI };
   }
 
   /**
@@ -164,6 +166,7 @@ const GeoJSON = (() => {
     parse,
     project,
     inverseProject,
+    projectPoint,
     countPoints
   };
 })();
