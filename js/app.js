@@ -60,9 +60,7 @@
 
   // ─── DOM References ───
   const imageInput = document.getElementById('input-image');
-  const geojsonInput = document.getElementById('input-geojson');
   const btnImage = document.getElementById('btn-upload-image');
-  const btnGeoJSON = document.getElementById('btn-upload-geojson');
   const btnAnchorMode = document.getElementById('btn-anchor-mode');
   const btnReset = document.getElementById('btn-reset');
   const btnGrid = document.getElementById('btn-grid');
@@ -72,8 +70,8 @@
   const statusToast = document.getElementById('status-toast');
   const welcomeOverlay = document.getElementById('welcome-overlay');
   const btnWelcomeImage = document.getElementById('btn-welcome-image');
-  const btnWelcomeGeoJSON = document.getElementById('btn-welcome-geojson');
   const btnLabels = document.getElementById('btn-labels');
+  const starfield = document.getElementById('starfield');
 
   function init() {
     canvas = document.getElementById('main-canvas');
@@ -91,7 +89,6 @@
     window.addEventListener('keydown', onKeyDown);
 
     btnImage.addEventListener('click', () => imageInput.click());
-    btnGeoJSON.addEventListener('click', () => geojsonInput.click());
     btnAnchorMode.addEventListener('click', toggleAnchorMode);
     btnReset.addEventListener('click', resetAll);
     btnGrid.addEventListener('click', () => {
@@ -116,9 +113,28 @@
     updateMountUI();
 
     btnWelcomeImage.addEventListener('click', () => imageInput.click());
-    btnWelcomeGeoJSON.addEventListener('click', () => geojsonInput.click());
     imageInput.addEventListener('change', handleImageUpload);
-    geojsonInput.addEventListener('change', handleGeoJSONUpload);
+
+    // --- Drag & Drop ---
+    document.addEventListener('dragover', (e) => { e.preventDefault(); welcomeOverlay.classList.add('drag-over'); });
+    document.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget === null || !document.contains(e.relatedTarget)) welcomeOverlay.classList.remove('drag-over');
+    });
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      welcomeOverlay.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        // Simulate input change for handleImageUpload
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        imageInput.files = dt.files;
+        imageInput.dispatchEvent(new Event('change'));
+      }
+    });
+
+    // --- Generate Starfield ---
+    generateStarfield();
 
     // --- Time Widget ---
     document.getElementById('time-input').addEventListener('change', (e) => {
@@ -175,9 +191,15 @@
     setLocSource('ville');
 
     Transform.reset(canvasW, canvasH);
+
+    // Compute ephemeris BEFORE loading layers so projections use correct libration/rotation
+    updateEphemeris();
+
+    // Auto-load embedded GeoJSON layers (offline-compatible, no fetch)
+    loadEmbeddedLayers();
+
     requestAnimationFrame(renderLoop);
     updateCursor();
-    updateEphemeris();
   }
 
   function updateLayerCache() {
@@ -582,39 +604,49 @@
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
-      img.onload = () => { backgroundImage = img; showToast(`Image: ${file.name}`); hideWelcome(); };
+      img.onload = () => { backgroundImage = img; showToast(`Image: ${file.name}`); enterApp(); };
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
   }
 
-  function handleGeoJSONUpload(e) {
-    const files = Array.from(e.target.files);
-    let processed = 0, newCount = 0;
-    for (const file of files) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        try {
-          const newData = GeoJSON.parse(ev.target.result);
-          const idx = layerCount++; newCount++;
-          newData.features.forEach(f => f.layerIndex = idx);
-          allRawFeatures = allRawFeatures.concat(newData.features);
-          mergedBounds.minLon = Math.min(mergedBounds.minLon, newData.bounds.minLon);
-          mergedBounds.maxLon = Math.max(mergedBounds.maxLon, newData.bounds.maxLon);
-          mergedBounds.minLat = Math.min(mergedBounds.minLat, newData.bounds.minLat);
-          mergedBounds.maxLat = Math.max(mergedBounds.maxLat, newData.bounds.maxLat);
-        } catch (e) { }
-        if (++processed === files.length) {
-          projectedFeatures = GeoJSON.project(allRawFeatures, mergedBounds);
-          layerTransformDirty = true; hideWelcome();
-          if (layerCount === newCount) Transform.reset(canvasW, canvasH);
-          showToast(`${layerCount} calques actifs`);
-        }
-      };
-      reader.readAsText(file);
+  /**
+   * Load all embedded GeoJSON layers (from window.GEOJSON_* globals).
+   * These are pre-bundled as JS files for offline file:// compatibility.
+   */
+  function loadEmbeddedLayers() {
+    const embeddedSources = [
+      { key: 'GEOJSON_MARIASSIMPLY2',                       name: 'Marias' },
+      { key: 'GEOJSON_BASIN_RING_ORIGINAL',                 name: 'Basin Rings' },
+      { key: 'GEOJSON_CREST_OF_BURIED_CRATER_ORIGINAL',     name: 'Buried Craters' },
+      { key: 'GEOJSON_CREST_OF_CRATER_RIM_ORIGINAL',        name: 'Crater Rims' },
+    ];
+
+    for (const src of embeddedSources) {
+      const data = window[src.key];
+      if (!data) { console.warn(`Embedded layer "${src.key}" not found.`); continue; }
+
+      try {
+        const newData = GeoJSON.parseObject(data);
+        const idx = layerCount++;
+        newData.features.forEach(f => f.layerIndex = idx);
+        allRawFeatures = allRawFeatures.concat(newData.features);
+        mergedBounds.minLon = Math.min(mergedBounds.minLon, newData.bounds.minLon);
+        mergedBounds.maxLon = Math.max(mergedBounds.maxLon, newData.bounds.maxLon);
+        mergedBounds.minLat = Math.min(mergedBounds.minLat, newData.bounds.minLat);
+        mergedBounds.maxLat = Math.max(mergedBounds.maxLat, newData.bounds.maxLat);
+        loadedLayerNames.push(src.name);
+      } catch (err) {
+        console.warn(`Failed to parse embedded layer "${src.name}":`, err);
+      }
+    }
+
+    if (allRawFeatures.length > 0) {
+      projectedFeatures = GeoJSON.project(allRawFeatures);
+      layerTransformDirty = true;
+      console.log(`Loaded ${layerCount} embedded layers: ${loadedLayerNames.join(', ')}`);
     }
   }
-
   function toggleAnchorMode() {
     mode = mode === 'anchor' ? 'navigate' : 'anchor';
     btnAnchorMode.classList.toggle('active', mode === 'anchor');
@@ -630,6 +662,7 @@
   }
 
   function onMouseDown(e) {
+    if (!backgroundImage) return;
     const mx = e.clientX, my = e.clientY;
     isDragging = true; dragStart = { x: mx, y: my };
     const locked = Anchors.count() > 0;
@@ -661,6 +694,7 @@
   }
 
   function onMouseMove(e) {
+    if (!backgroundImage) return;
     const mx = e.clientX, my = e.clientY;
     if (projectedFeatures) {
       const norm = screenToNormalized(mx, my);
@@ -684,9 +718,10 @@
     dragStart = { x: mx, y: my };
   }
 
-  function onMouseUp() { isDragging = false; dragType = null; updateCursor(); }
+  function onMouseUp() { if (!backgroundImage) return; isDragging = false; dragType = null; updateCursor(); }
 
   function onWheel(e) {
+    if (!backgroundImage) return;
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
     if (e.ctrlKey || Anchors.count() > 0) {
       viewport.tx = e.clientX - (e.clientX - viewport.tx) * factor;
@@ -700,6 +735,7 @@
   }
 
   function onDoubleClick(e) {
+    if (!backgroundImage) return;
     if (mode === 'anchor') {
       const near = Anchors.findNear(e.clientX, e.clientY, viewport);
       if (near) { Anchors.remove(near.id); layerTransformDirty = true; updateAnchorPanel(); }
@@ -707,6 +743,7 @@
   }
 
   function onKeyDown(e) {
+    if (!backgroundImage) return;
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'a' || e.key === 'A') toggleAnchorMode();
     if (e.key === 'g' || e.key === 'G') btnGrid.classList.toggle('active', Renderer.toggleGrid());
@@ -753,7 +790,33 @@
   }
 
   function showToast(m) { statusToast.textContent = m; statusToast.classList.add('show'); setTimeout(() => statusToast.classList.remove('show'), 3000); }
-  function hideWelcome() { if (backgroundImage || projectedFeatures) welcomeOverlay.classList.add('hidden'); }
+
+  /**
+   * Generate twinkling stars in the starfield container.
+   */
+  function generateStarfield() {
+    const count = 90;
+    for (let i = 0; i < count; i++) {
+      const star = document.createElement('span');
+      star.className = 'star' + (Math.random() < 0.12 ? ' bright' : '');
+      star.style.left = Math.random() * 100 + '%';
+      star.style.top = Math.random() * 100 + '%';
+      star.style.setProperty('--twinkle-dur', (2 + Math.random() * 4).toFixed(1) + 's');
+      star.style.setProperty('--twinkle-delay', (Math.random() * 5).toFixed(1) + 's');
+      star.style.setProperty('--twinkle-peak', (0.3 + Math.random() * 0.5).toFixed(2));
+      starfield.appendChild(star);
+    }
+  }
+
+  /**
+   * Transition from landing page to app mode:
+   * - Fade out welcome overlay & starfield
+   * - Slide-in all tools from screen edges
+   */
+  function enterApp() {
+    welcomeOverlay.classList.add('hidden');
+    document.body.classList.add('app-ready');
+  }
 
   function renderLoop(timestamp) {
     frameCount++;

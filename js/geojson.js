@@ -14,6 +14,18 @@ const GeoJSON = (() => {
    */
   function parse(text) {
     const data = JSON.parse(text);
+    return _parseData(data);
+  }
+
+  /**
+   * Parse an already-parsed GeoJSON object (no JSON.parse needed).
+   * Used for embedded layers loaded as JS globals.
+   */
+  function parseObject(data) {
+    return _parseData(data);
+  }
+
+  function _parseData(data) {
     if (data.type !== 'FeatureCollection') {
       throw new Error('Expected a FeatureCollection');
     }
@@ -164,6 +176,7 @@ const GeoJSON = (() => {
 
   return {
     parse,
+    parseObject,
     project,
     inverseProject,
     projectPoint,

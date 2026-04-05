@@ -15,23 +15,20 @@
 
   <!-- Hidden file inputs -->
   <input type="file" id="input-image" class="hidden-input" accept="image/*">
-  <input type="file" id="input-geojson" class="hidden-input" accept=".geojson,.json" multiple>
+
+  <!-- Starfield (behind welcome, fades on image load) -->
+  <div id="starfield"></div>
 
   <!-- Toolbar -->
   <nav id="toolbar" role="toolbar" aria-label="Outils">
     <div class="toolbar-brand">
       <span class="logo-icon">🌙</span>
-      <span>AstroAz</span>
+      <span>AstroMoon</span>
     </div>
 
     <button id="btn-upload-image" class="tb-btn" aria-label="Charger une image">
       🖼️
       <span class="tooltip">Charger image</span>
-    </button>
-
-    <button id="btn-upload-geojson" class="tb-btn" aria-label="Charger un fichier GeoJSON">
-      📁
-      <span class="tooltip">Charger GeoJSON</span>
     </button>
 
     <div class="tb-sep"></div>
@@ -94,7 +91,7 @@
     </div>
   </div>
 
-  <!-- Mount Mode Switch (below location bar) -->
+  <!-- Mount Mode Switch -->
   <div id="mount-bar" class="hud-pill-bar">
     <span class="mount-label" id="mount-label-eq">Équatoriale</span>
     <label class="switch" id="mount-switch" title="Bascule Équatoriale / Alt-Az (O)">
@@ -146,34 +143,32 @@
   <!-- Welcome Overlay -->
   <div id="welcome-overlay">
     <div class="welcome-content">
-      <h1>🌙 AstroAz</h1>
-      <p>
-        Superposition sélénographique — Chargez votre photo lunaire et un calque GeoJSON 
-        pour commencer l'alignement géologique.
-      </p>
+      <h1>🌙 AstroMoon</h1>
       <div class="welcome-actions">
-        <button id="btn-welcome-image" class="welcome-btn">
+        <button id="btn-welcome-image" class="welcome-btn welcome-btn-delayed">
           <span class="btn-icon">🖼️</span>
-          Charger une image
+          Charger votre photo lunaire
         </button>
-        <button id="btn-welcome-geojson" class="welcome-btn">
-          <span class="btn-icon">📁</span>
-          Charger un GeoJSON
-        </button>
+        <p class="welcome-drop-hint welcome-btn-delayed">ou glissez-déposez une image ici</p>
       </div>
     </div>
   </div>
 
   <!-- Scripts (order matters: dependencies first) -->
-  <script src="js/exif.js?v=12"></script>
-  <script src="js/astronomy.js?v=12"></script>
-  <script src="js/craters_data.js?v=12"></script>
-  <script src="js/geojson.js?v=12"></script>
-  <script src="js/transform.js?v=12"></script>
-  <script src="js/tps.js?v=12"></script>
-  <script src="js/anchors.js?v=12"></script>
-  <script src="js/canvas.js?v=12"></script>
-  <script src="js/app.js?v=12"></script>
+  <script src="js/exif.js?v=17"></script>
+  <script src="js/astronomy.js?v=17"></script>
+  <script src="js/craters_data.js?v=17"></script>
+  <!-- Embedded GeoJSON layer data (offline-compatible) -->
+  <script src="js/geojson_data_mariassimply2.js?v=17"></script>
+  <script src="js/geojson_data_basin_ring_original.js?v=17"></script>
+  <script src="js/geojson_data_crest_of_buried_crater_original.js?v=17"></script>
+  <script src="js/geojson_data_crest_of_crater_rim_original.js?v=17"></script>
+  <script src="js/geojson.js?v=17"></script>
+  <script src="js/transform.js?v=17"></script>
+  <script src="js/tps.js?v=17"></script>
+  <script src="js/anchors.js?v=17"></script>
+  <script src="js/canvas.js?v=17"></script>
+  <script src="js/app.js?v=17"></script>
 
 </body>
 </html>
