@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="AstroAz — Outil de superposition sélénographique pour l'astrophotographie lunaire. Alignez des calques géologiques GeoJSON sur vos photos de la Lune.">
-  <title>AstroAz — Superposition Sélénographique</title>
+  <meta name="description" content="AstroMoon — Outil de superposition sélénographique pour l'astrophotographie lunaire. Alignez des calques géologiques GeoJSON sur vos photos de la Lune.">
+  <title>AstroMoon — Superposition Sélénographique</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌙</text></svg>">
 </head>
 <body class="cursor-grab">
 
-  <!-- Main Canvas -->
-  <canvas id="main-canvas"></canvas>
+  <!-- PixiJS canvas container (replaces the old <canvas>) -->
+  <div id="pixi-container"></div>
 
   <!-- Hidden file inputs -->
   <input type="file" id="input-image" class="hidden-input" accept="image/*">
@@ -154,21 +154,12 @@
     </div>
   </div>
 
-  <!-- Scripts (order matters: dependencies first) -->
-  <script src="js/exif.js?v=18"></script>
-  <script src="js/astronomy.js?v=18"></script>
-  <script src="js/craters_data.js?v=18"></script>
-  <!-- Embedded GeoJSON layer data (offline-compatible) -->
-  <script src="js/geojson_data_mariassimply2.js?v=18"></script>
-  <script src="js/geojson_data_basin_ring_original.js?v=18"></script>
-  <script src="js/geojson_data_crest_of_buried_crater_original.js?v=18"></script>
-  <script src="js/geojson_data_crest_of_crater_rim_original.js?v=18"></script>
-  <script src="js/geojson.js?v=18"></script>
-  <script src="js/transform.js?v=18"></script>
-  <script src="js/tps.js?v=18"></script>
-  <script src="js/anchors.js?v=18"></script>
-  <script src="js/canvas.js?v=18"></script>
-  <script src="js/app.js?v=18"></script>
+  <!-- Heavy data scripts (classic, expose window globals) -->
+  <script src="js/astronomy.js?v=19"></script>
+  <script src="js/craters_data.js?v=19"></script>
+
+  <!-- App entry point (ES module — imports all other modules) -->
+  <script type="module" src="js/app.js?v=19"></script>
 
 </body>
 </html>

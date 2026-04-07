@@ -66,15 +66,19 @@ html, body {
   user-select: none;
 }
 
-/* ---------- Canvas ---------- */
-#main-canvas {
+/* ---------- PixiJS Canvas Container ---------- */
+#pixi-container {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  display: block;
+  z-index: 0;
   background: var(--color-bg);
+}
+
+#pixi-container canvas {
+  display: block;
 }
 
 /* ---------- Starfield ---------- */
