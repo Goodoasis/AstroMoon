@@ -227,7 +227,6 @@ function onResize() {
 
 function updateLayerCache() {
   if (!projectedFeatures) return;
-  const transformFn = Anchors.getTransformFunction();
   for (const feature of projectedFeatures) {
     if (!feature.renderedCoords) {
       feature.renderedCoords = new Array(feature.projectedCoords.length);
@@ -239,16 +238,20 @@ function updateLayerCache() {
         feature.renderedCoords[r] = new Float32Array(ring.length * 2);
       }
       const cachedRing = feature.renderedCoords[r];
+      
+      // Step 1: Copy raw protected coords into buffer flat floats
       for (let i = 0; i < ring.length; i++) {
         if (ring[i] === null) {
           cachedRing[i * 2] = NaN; // Use NaN for separators
           cachedRing[i * 2 + 1] = NaN;
         } else {
-          const pt = transformFn(ring[i][0], ring[i][1]);
-          cachedRing[i * 2] = pt.x;
-          cachedRing[i * 2 + 1] = pt.y;
+          cachedRing[i * 2] = ring[i][0];
+          cachedRing[i * 2 + 1] = ring[i][1];
         }
       }
+      
+      // Step 2: Apply the full TPS and Transform pipeline in-place (Zero Allocation!)
+      Anchors.applyBuffer(cachedRing);
     }
   }
   layerTransformDirty = false;

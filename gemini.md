@@ -5,30 +5,33 @@ AstroMoon est un outil web interactif (superposition sélénographique) conçu p
 
 ## Choix Techniques Actuels
 - **Technologies End-User :** HTML5, Vanilla JavaScript (ES6+), CSS natif (pas de framework lourd).
-- **Moteur de Rendu :** API HTML5 `<canvas>` (dessin manuel des images, lignes vectorielles, grilles de déformation et labels annotatifs).
+- **Moteur de Rendu :** **PixiJS (v8)**. Accélération matérielle (WebGL/WebGPU) pour le rendu haute performance de l'image de base, des géométries vectorielles GeoJSON (via `Graphics`) et du texte (via `BitmapText` ou `Text`).
 - **Formats de Données :**
-  - **GeoJSON** principalement pour les géométries complexes (lignes de crêtes, mers, bassins). Chargement utilisateur via FileReader.
-  - Fichiers de données statiques (ex: liste des cratères) encapsulés depuis du JSON vers du JS (variable globale) pour garantir un fonctionnement "offline" sous le protocole `file:///`, contournant ainsi les règles CORS qui bloquent `fetch()`.
+  - **GeoJSON** : Chargement dynamique asynchrone via `fetch()`. L'architecture s'appuie sur le fichier de configuration central `calque_geojson/layers.json` pour la découverte et le chargement à la volée des calques géologiques.
 - **Ajustement Spatial (Image) :**
-  - Manipulations spatiales (Pan, Zoom, Rotation).
-  - Système d'ancrages interactifs (punaises) permettant une déformation non-linéaire sur l'image via l'algorithme **Thin Plate Spline (TPS)**.
+  - Manipulations spatiales : Pan, Zoom, Rotation.
+  - Déformation non-linéaire : Système d'ancrages interactifs (punaises) manipulant une grille via l'algorithme **Thin Plate Spline (TPS)**.
 - **Widgets de Contexte (Temps & Localisation) :**
-  - Extracteur EXIF binaire natif développé "from scratch" en Vanilla JS (0 dépendance) pour la récupération de la Date de capture et des Coordonnées GPS IFD.
-  - Outil de recherche prédictive et reverse-geocoding utilisant l'API publique libre **OpenStreetMap Nominatim**.
-  - Hiérarchie d'application intelligente pour le Temps (Filename > Exif > Manuel) et la Localisation (Exif > Geoloc API > Recherche Nominatim).
+  - Parseur EXIF binaire natif développé from scratch pour l'extraction de la date et des coordonnées GPS.
+  - Recherche prédictive et reverse-geocoding via l'API **OpenStreetMap Nominatim**.
+  - Fallbacks intelligents : Temps (Fichier > Exif > Manuel) et Localisation (Exif > Geoloc API > Nominatim).
 
-## Règles de Session (Instructions pour Gemini)
-- **Style de communication :** Ne pas être trop verbeux. Sois direct, concis et privilégie le code ou l'explication technique brute aux longues phrases de politesse ou transitions.
-- **Périmètre de recherche/analyse :** Ignorer le dossier `data/` et les sous-dossiers de `user_exemple/`.
-- **GIT :** Ne pas commit ou check out sans que je ne te le demande.
+## Règles de Session & Interaction (Instructions IA)
+- **Style de communication :** Sois direct, concis, technique. Privilégier le code brut et les explications architecturales aux formules de politesse.
+- **Périmètre d'intervention :** NE PAS scanner ni modifier le dossier `data/` et les sous-dossiers de `user_exemple/`.
+- **Workspace Git :** Ne JAMAIS initier de commit, push, ou de changement de branche sans accord explicite.
+
+## Lignes Directrices : Optimisation & Performance (Focus)
+Puisque nous sommes dans le cycle d'optimisation :
+- **Boucle de Rendu (PixiJS) :** Tirer parti du Scene Graph. Minimiser les recréations d'objets `Graphics`. Préférer la mise à jour des géométries/transformations (via modifications des propriétés) plutôt que de `clear()` et redessiner l'entier du stage.
+- **Gestion Mémoire & Textes :** Attention aux instanciations de `Text` (création de textures VRAM). Privilégier `BitmapText` pour les étiquettes en masse (cratères). Éviter la pression sur le GC dans les algorithmes comme le TPS (pré-allocation d'arrays, `TypedArrays` pour les matrices).
+- **Performance Calculatoire :** Garder un seuil maximal de 60 FPS constant. Les tâches lourdes doivent tendre vers une optimisation fine (voire Web Workers si c'est strictement indispensable).
 
 ## Direction Artistique & UI/UX (Design System)
-L'application vise une expérience premium, immersive et technique, traduite par les partis pris suivants :
-- **Atmosphère globale :** "Dark Mode" profond (`#06060c`) orienté espace/astronomie, pensé pour maximiser le contraste des photographies lunaires et minimiser la fatigue visuelle.
-- **Glassmorphism & Superposition :** Les barres d'outils et panneaux d'information sont flottants, dotés de fonds translucides (`rgba`) couplés à un effet de flou (`backdrop-filter: blur`), évoquant un HUD logiciel de pointe. Formes adoucies (boutons circulaires, barres en forme de pilules).
-- **Halo Néon sur les panneaux flottants :** **Tout** panneau flottant (toolbar, HUD pill, side-panel, toast, popup, dropdown) **doit** utiliser le token CSS `--shadow-hud-glow` dans son `box-shadow` pour produire un léger halo cyan/violet qui le détache visuellement du fond sombre. Règle : `box-shadow: var(--shadow-card), var(--shadow-hud-glow);`. Ce token est défini dans `:root` de `style.css`.
-- **Nuancier & Textures (Neon Glow) :**
-  - **Couleurs accentuées :** Cyan (`#00d4ff`) et Violet (`#7b2ff7`), souvent fusionnés en dégradés pour le branding ou l'activation d'outils. 
-  - **Feedback visuel :** Utilisation intensive d'ombres portées lumineuses (box-shadow) simulant un effet néon/LED au survol ou à l'activation des boutons, afin de confirmer les interactions utilisateur.
-- **Typographie :** Combinaison d'une police sans-serif moderne pour l'interface (*Space Grotesk*) et d'une police à chasse fixe type code (*JetBrains Mono*) pour les données télémétriques (FPS, Lat/Lon, ID d'ancrage), renforçant l'aspect d'outil de précision.
-- **Micro-animations dynamiques :** L'UI réagit avec fluidité (transitions rapides, effets de `scale`, rotation des icônes SVG, pulsations) pour rendre l'interface engageante et vivante sans surcharger l'attention.
+L'application vise une UX premium, ancrée dans la "hard-tech" et l'immersif :
+- **Atmosphère Globale :** "Dark Mode" profond (`#06060c`), optimisé pour le contraste astrophotographique.
+- **Glassmorphism & HUD :** Barres d'outils et outils d'information (pills) avec fonds translucides et flou d'arrière-plan (`backdrop-filter: blur`), évoquant une interface d'ingénierie spatiale. Formes arrondies.
+- **Halo Néon Obligatoire :** Chaque panneau flottant interactif **doit obligatoirement** inclure un léger halo dans son ombre : `box-shadow: var(--shadow-card), var(--shadow-hud-glow);`. Le token `hud-glow` crée une lueur ambiante cyan ou violette délicate.
+- **Nuancier d'Accentuation :** Cyan (`#00d4ff`) et Violet (`#7b2ff7`). Très souvent utilisés combinés via des gradients linéaires. Feedback visuel de focus et de clic accentué par des "glows" (ombres lumineuses).
+- **Typographie Hybride :** *Space Grotesk* (sans-serif) pour la lisibilité standard et *JetBrains Mono* (monospace) pour les éléments analytiques en mouvement constant (coordonnées, FPS, métriques).
+- **Animation :** Implémenter des micro-interactions visuelles (scale au hover, transitions d'opacité/couleur) rendant l'interface dynamique et tactile, tout en restant discrète.

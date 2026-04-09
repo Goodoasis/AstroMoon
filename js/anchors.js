@@ -127,6 +127,14 @@ function getTransformFunction() {
   }
 }
 
+function applyBuffer(buffer, length = buffer.length) {
+  const tps = getTPSData();
+  if (tps) {
+    TPS.applyBuffer(buffer, tps, length);
+  }
+  Transform.applyBuffer(buffer, length);
+}
+
 function markDirty() {
   dirty = true;
 }
@@ -141,6 +149,7 @@ export const Anchors = {
   findNear,
   getTPSData,
   getTransformFunction,
+  applyBuffer,
   markDirty,
   inverseTPS,
   HIT_RADIUS

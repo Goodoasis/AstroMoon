@@ -95,6 +95,41 @@ function inverse(sx, sy) {
   return { x, y };
 }
 
+function applyBuffer(buffer, length = buffer.length) {
+  const cx = state.layerSize / 2;
+  const cy = state.layerSize / 2;
+  const cos = Math.cos(state.rotation);
+  const sin = Math.sin(state.rotation);
+  const ls = state.layerSize;
+  const sc = state.scale;
+  const tx = state.tx;
+  const ty = state.ty;
+
+  for (let ptr = 0; ptr < length; ptr += 2) {
+    let nx = buffer[ptr];
+    let ny = buffer[ptr + 1];
+
+    if (isNaN(nx)) continue;
+
+    let x = nx * ls;
+    let y = ny * ls;
+
+    const dx = x - cx;
+    const dy = y - cy;
+    x = cx + dx * cos - dy * sin;
+    y = cy + dx * sin + dy * cos;
+
+    x = cx + (x - cx) * sc;
+    y = cy + (y - cy) * sc;
+
+    x += tx;
+    y += ty;
+
+    buffer[ptr] = x;
+    buffer[ptr + 1] = y;
+  }
+}
+
 function getLayerCenter() {
   return apply(0.5, 0.5);
 }
@@ -130,6 +165,7 @@ export const Transform = {
   getState,
   setState,
   apply,
+  applyBuffer,
   inverse,
   getLayerCenter,
   translate,
