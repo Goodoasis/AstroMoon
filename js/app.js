@@ -40,6 +40,10 @@ let fps = 0;
 let lastInteractionTime = 0;
 let sceneRebuildPending = false;
 
+// Coordonnées hover UI
+let mouseX = -1000;
+let mouseY = -1000;
+
 // ─── Time Widget State ───
 window.appTemporalTime = new Date();
 window.appMoonState = {
@@ -231,6 +235,10 @@ function updateLayerCache() {
     if (!feature.renderedCoords) {
       feature.renderedCoords = new Array(feature.projectedCoords.length);
     }
+    
+    // Initialiser les bounds pour l'optimisation (culling)
+    feature.worldBounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    
     for (let r = 0; r < feature.projectedCoords.length; r++) {
       const ring = feature.projectedCoords[r];
       // Reuse or allocate Float32Array (2 floats per point)
@@ -252,6 +260,18 @@ function updateLayerCache() {
       
       // Step 2: Apply the full TPS and Transform pipeline in-place (Zero Allocation!)
       Anchors.applyBuffer(cachedRing);
+      
+      // Step 3: Compute World Bounds for fast geometry culling
+      const bounds = feature.worldBounds;
+      for (let i = 0; i < cachedRing.length; i += 2) {
+        const x = cachedRing[i];
+        const y = cachedRing[i + 1];
+        if (isNaN(x)) continue;
+        if (x < bounds.minX) bounds.minX = x;
+        if (x > bounds.maxX) bounds.maxX = x;
+        if (y < bounds.minY) bounds.minY = y;
+        if (y > bounds.maxY) bounds.maxY = y;
+      }
     }
   }
   layerTransformDirty = false;
@@ -713,6 +733,7 @@ function onMouseMove(e) {
   if (!backgroundImage) return;
   lastInteractionTime = Date.now();
   const mx = e.clientX, my = e.clientY;
+  mouseX = mx; mouseY = my;
   if (projectedFeatures) {
     const norm = screenToNormalized(mx, my);
     const src = Anchors.inverseTPS(norm.x, norm.y);
@@ -875,23 +896,34 @@ function renderTick(ticker) {
 
   const timeSinceLastInteraction = Date.now() - lastInteractionTime;
   const viewportZoomChanged = Math.abs(viewport.scale - lastViewportScale) > 0.001;
+  const viewportPanChanged = Math.abs(viewport.tx - (window._lastViewportTx || 0)) > 1 || Math.abs(viewport.ty - (window._lastViewportTy || 0)) > 1;
+
+  if (viewportZoomChanged || viewportPanChanged) {
+    window._lastPanZoomTime = Date.now();
+  }
+  const timeSincePanZoom = Date.now() - (window._lastPanZoomTime || 0);
 
   // ─── 1. FAST UPDATE (Every frame) ───
   // Update viewport container (GPU-fast transform)
   PixiRenderer.updateViewport(viewport);
   
+  // Utiliser uniquement les vrais pan/zoom pour masquer les textes
+  const isInteracting = isDragging || timeSincePanZoom < 150;
+
   // Update labels scales immediately so they remain readable during zoom
   if (PixiRenderer.showLabels && PixiRenderer.showLabels()) {
-    PixiRenderer.updateAnnotationsTransform(viewport);
+    PixiRenderer.updateAnnotationsTransform(viewport, isInteracting, mouseX, mouseY);
   }
 
   // ─── 2. SLOW QUALITY REBUILD (Debounced) ───
   // If we are idle for 150ms and a change occurred, we rebuild the sharp lines (CPU-heavy)
-  if ((layerTransformDirty || viewportZoomChanged) && projectedFeatures) {
+  if ((layerTransformDirty || viewportZoomChanged || viewportPanChanged) && projectedFeatures) {
     if (timeSinceLastInteraction > 150 || layerTransformDirty) {
       if (layerTransformDirty) updateLayerCache();
       rebuildScene();
       lastViewportScale = viewport.scale;
+      window._lastViewportTx = viewport.tx;
+      window._lastViewportTy = viewport.ty;
     }
   }
 }

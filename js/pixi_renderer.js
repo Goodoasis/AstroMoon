@@ -44,9 +44,17 @@ let layerGraphicsMap = new Map(); // Store PIXI.Graphics objects indexed by laye
 let textPool = [];
 let activeLabels = [];
 let dotsGfx = null;
+let labelsContainer = null;
+let labelsBgGfx = null;
+
+// Hover
+let hoverBgGfx = null;
+let hoverLabel = null;
 
 let _showGrid = false;
 let _showLabels = false;
+let _labelsTargetAlpha = 1;
+let _allVisibleCraterPoints = [];
 
 /**
  * Initialize the PixiJS application and build the scene tree.
@@ -100,12 +108,33 @@ async function init(container) {
   anchorsGfx = new PIXI.Graphics();
   viewportContainer.addChild(anchorsGfx);
 
+  // Annotations
   annotationsContainer = new PIXI.Container();
   annotationsContainer.visible = false;
   viewportContainer.addChild(annotationsContainer);
 
+  // Les points restent constants et attachés à Annotations
   dotsGfx = new PIXI.Graphics();
   annotationsContainer.addChild(dotsGfx);
+
+  // Groupe Textes + Fonds (pour fondu indépendant)
+  labelsContainer = new PIXI.Container();
+  annotationsContainer.addChild(labelsContainer);
+
+  labelsBgGfx = new PIXI.Graphics();
+  labelsContainer.addChild(labelsBgGfx);
+
+  // Hover
+  hoverBgGfx = new PIXI.Graphics();
+  labelsContainer.addChild(hoverBgGfx);
+
+  hoverLabel = new PIXI.Text({
+    text: '',
+    style: { fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: '600', fill: 0x00d4ff, align: 'center' }
+  });
+  hoverLabel.anchor.set(0.5, 1);
+  hoverLabel.visible = false;
+  labelsContainer.addChild(hoverLabel);
 
   return app;
 }
@@ -184,6 +213,14 @@ function rebuildGeoJSON(projectedFeatures, vp) {
 
   const invScale = 1 / vp.scale;
 
+  // Viewport bounds en coordonnées "monde" brutes, avec une marge anti-pop (30%)
+  const marginX = app.screen.width * 0.3;
+  const marginY = app.screen.height * 0.3;
+  const vpMinX = (-vp.tx - marginX) * invScale;
+  const vpMaxX = (app.screen.width - vp.tx + marginX) * invScale;
+  const vpMinY = (-vp.ty - marginY) * invScale;
+  const vpMaxY = (app.screen.height - vp.ty + marginY) * invScale;
+
   // Hide all current graphics first (instead of removing them)
   for (const gfx of layerGraphicsMap.values()) {
     gfx.visible = false;
@@ -196,12 +233,20 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       geojsonContainer.addChild(gfx);
       layerGraphicsMap.set(layerIndex, gfx);
     }
-    
+
     gfx.clear();
     gfx.visible = true;
     const colors = LAYER_PALETTE[layerIndex % LAYER_PALETTE.length];
 
     for (const feature of features) {
+      // Culling géométrique : ignorer la feature si elle est hors du viewport élargi
+      if (feature.worldBounds) {
+        if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
+          feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) {
+          continue;
+        }
+      }
+
       if (feature.type === 'polygon') {
         for (const ring of feature.renderedCoords) {
           if (ring.length < 4) continue; // Need at least 2 points (4 floats)
@@ -258,7 +303,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       } else if (feature.type === 'point') {
         for (const ring of feature.renderedCoords) {
           for (let i = 0; i < ring.length; i += 2) {
-            const rx = ring[i], ry = ring[i+1];
+            const rx = ring[i], ry = ring[i + 1];
             if (rx === null || isNaN(rx)) continue;
             gfx.circle(rx, ry, 3 * invScale);
             gfx.fill({ color: colors.stroke, alpha: colors.alpha });
@@ -340,7 +385,7 @@ function rebuildNightMask(transformFn) {
     const sx = Math.cos(sLat) * Math.cos(sLon);
     const sy = Math.cos(sLat) * Math.sin(sLon);
     const sz = Math.sin(sLat);
-    isNight1 = (sx*px + sy*py + sz*pz) < 0;
+    isNight1 = (sx * px + sy * py + sz * pz) < 0;
   } else {
     const testNx2 = 0.5 + 0.45 * Math.cos(aMid1);
     const testNy2 = 0.5 + 0.45 * Math.sin(aMid1);
@@ -356,7 +401,7 @@ function rebuildNightMask(transformFn) {
       const sx = Math.cos(sLat) * Math.cos(sLon);
       const sy = Math.cos(sLat) * Math.sin(sLon);
       const sz = Math.sin(sLat);
-      isNight1 = (sx*px + sy*py + sz*pz) < 0;
+      isNight1 = (sx * px + sy * py + sz * pz) < 0;
     }
   }
 
@@ -547,6 +592,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
   const minDiameter = 10 / vp.scale;
   dotsGfx.clear();
+  labelsBgGfx.clear();
 
   // Move current labels to pool
   for (const label of activeLabels) {
@@ -560,16 +606,22 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     return 0.4 + (0.6 * Math.max(0, (diam - minD) / (minD * 2)));
   }
 
+  // LOD très sélectif pour la propreté visuelle
+  const minDotDiameter = 6 / vp.scale;
+  const minLabelDiameter = 14 / vp.scale; // Marge assouplie (permet d'afficher de plus petits cratères quand on zoome)
+  const minHoverDiameter = 8 / vp.scale;
+
+  const candidates = [];
+  const cx = canvasW / 2;
+  const cy = canvasH / 2;
+  _allVisibleCraterPoints = [];
+
   for (const crater of cratersDB) {
-    if (crater.diameter < minDiameter || crater.name === "--" || crater.nx === null) continue;
+    if (crater.diameter < minDotDiameter || crater.name === "--" || crater.nx === null) continue;
 
     const pt = transformFn(crater.nx, crater.ny);
-    const sx = pt.x * vp.scale + vp.tx;
-    const sy = pt.y * vp.scale + vp.ty;
 
-    if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
-
-    let op = getLayerOpacity(crater.diameter, minDiameter);
+    let op = getLayerOpacity(crater.diameter, minDotDiameter);
 
     // Shadow detection (dimming)
     if (window.appMoonState && typeof window.appMoonState.sunLon === 'number') {
@@ -582,39 +634,110 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
       else if (cosI < 0.1) op *= 0.25 + (0.75 * (cosI / 0.1));
     }
 
-    // Reuse or create label (BitmapText)
+    if (op < 0.05) continue;
+
+    // On dessine toujours le dot s'il passe le minDotDiameter
+    dotsGfx.circle(pt.x, pt.y, 2.5 / vp.scale);
+    dotsGfx.fill({ color: 0xff4b4b, alpha: op });
+
+    // Stocker pour le Hover, SEULEMENT s'il passe le seuil de hover
+    if (crater.diameter >= minHoverDiameter) {
+      _allVisibleCraterPoints.push({ crater, pt, op });
+    }
+
+    // Le cratère est-il assez gros pour mériter un label à l'écran en permanence ?
+    if (crater.diameter < minLabelDiameter) continue;
+
+    const sx = pt.x * vp.scale + vp.tx;
+    const sy = pt.y * vp.scale + vp.ty;
+    if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
+
+    // Calcul du Score = (Taille relative) - (Forte pénalité de distance au centre pour épurer les bords)
+    const dist = Math.hypot(sx - cx, sy - cy);
+    const score = (crater.diameter * vp.scale) - (dist * 0.25);
+
+    candidates.push({ crater, pt, sx, sy, op, score });
+  }
+
+  // Tri par priorité décroissante
+  candidates.sort((a, b) => b.score - a.score);
+
+  const MAX_LABELS = 150; // On laisse l'agorithme Anti-Overlap gérer l'aération de l'écran naturellement !
+  const placedBoxes = [];
+  const invScale = 1 / vp.scale;
+
+  for (const item of candidates) {
+    if (activeLabels.length >= MAX_LABELS) break;
+
+    // Dimensions estimées de la hitbox du texte
+    const textWidth = item.crater.name.length * 8;
+    const textHeight = 14;
+
+    // Position du texte (anchor: 0.5, 1) -> coords du coin haut gauche
+    const boxX = item.sx - textWidth / 2;
+    const boxY = item.sy - 8 - textHeight;
+    const boxW = textWidth;
+    const boxH = textHeight;
+
+    // HITBOX INVISIBLE : Force les labels à s'écarter les uns des autres (Anti surpeuplement naturel)
+    const pad = 30; // 30 pixels de "champ de force" vide autour de chaque bloc !
+    const hitX = boxX - pad;
+    const hitY = boxY - pad;
+    const hitW = boxW + pad * 2;
+    const hitH = boxH + pad * 2;
+
+    // Anti-Overlap sur la Hitbox géante
+    let overlap = false;
+    for (const box of placedBoxes) {
+      if (hitX < box.x + box.w && hitX + hitW > box.x &&
+        hitY < box.y + box.h && hitY + hitH > box.y) {
+        overlap = true;
+        break;
+      }
+    }
+    if (overlap) continue;
+
+    // Validation (on réserve tout ce grand espace vide)
+    placedBoxes.push({ x: hitX, y: hitY, w: hitW, h: hitH });
+
+    // Design de la Pilule (Backdrop) ajustée et amincie
+    const bgWorldW = (boxW + 10) * invScale;
+    const bgWorldH = (boxH + 6) * invScale;
+    const bgWorldX = item.pt.x - bgWorldW / 2;
+    const bgWorldY = (item.pt.y - 10 * invScale) - bgWorldH; // Bien collé à la base du texte
+
+    labelsBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 3 * invScale);
+    labelsBgGfx.fill({ color: 0x06060c, alpha: item.op * 0.85 });
+    labelsBgGfx.stroke({ width: 1 * invScale, color: 0x22222a, alpha: item.op * 0.6 });
+
+    // Utilisation de PIXI.Text pour forcer le blanc, car la font bitmap source est noire
     let label = textPool.pop();
     if (!label) {
-      label = new PIXI.BitmapText({
+      label = new PIXI.Text({
         text: '',
         style: {
-          fontFamily: 'Space Grotesk SemiBold',
-          fontSize: 16,
+          fontFamily: 'Space Grotesk',
+          fontSize: 14,
+          fontWeight: '600',
           fill: 0xffffff,
           align: 'center',
         }
       });
       label.anchor.set(0.5, 1);
-      annotationsContainer.addChild(label);
+      labelsContainer.addChild(label);
     }
-    
-    label.text = crater.name;
-    // Bitmap fonts might need a small vertical offset adjustment
-    label.position.set(pt.x, pt.y - 10 / vp.scale);
-    label.scale.set(1 / vp.scale);
-    label.alpha = op;
-    label.visible = true;
-    
-    // Store original world coords for fast updates during zoom
-    label._worldX = pt.x;
-    label._worldY = pt.y;
-    label._baseOp = op;
-    
-    activeLabels.push(label);
 
-    // Red dot marker
-    dotsGfx.circle(pt.x, pt.y, 3 / vp.scale);
-    dotsGfx.fill({ color: 0xff4b4b, alpha: op });
+    label.text = item.crater.name;
+    label.position.set(item.pt.x, item.pt.y - 10 * invScale);
+    label.scale.set(invScale);
+    label.alpha = item.op;
+    label.visible = true;
+
+    label._worldX = item.pt.x;
+    label._worldY = item.pt.y;
+    label._crater = item.crater; // Store obj ref for Hover
+
+    activeLabels.push(label);
   }
 }
 
@@ -622,12 +745,93 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
  * Lightweight update for labels during zoom/pan.
  * Just updates transforms and scales without full rebuild or dot update.
  */
-function updateAnnotationsTransform(vp) {
+function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mouseY = -1000) {
   if (!_showLabels) return;
   const invScale = 1 / vp.scale;
+
+  // 1. Interpolation Alpha (Tempo / Fondu)
+  _labelsTargetAlpha = isDragging ? 0 : 1;
+  const alphaDiff = _labelsTargetAlpha - labelsContainer.alpha;
+  if (Math.abs(alphaDiff) > 0.01) {
+    labelsContainer.alpha += alphaDiff * 0.15; // Smooth Damping
+  } else {
+    labelsContainer.alpha = _labelsTargetAlpha;
+  }
+
+  const w = app.screen.width;
+  const h = app.screen.height;
+  const margin = 50; // pixels de marge
+
+  // 2. Frustum Culling temps réel et reset de teinte
   for (const label of activeLabels) {
-    label.position.set(label._worldX, label._worldY - 10 * invScale);
-    label.scale.set(invScale);
+    const sx = label._worldX * vp.scale + vp.tx;
+    const sy = label._worldY * vp.scale + vp.ty;
+
+    if (sx < -margin || sx > w + margin || sy < -margin || sy > h + margin) {
+      label.visible = false;
+    } else {
+      label.visible = true;
+      label.position.set(label._worldX, label._worldY - 10 * invScale);
+      label.scale.set(invScale);
+      label.tint = 0xffffff; // Reset le tint obligatoire pour retirer l'effet bleu après un hover
+    }
+  }
+
+  // 3. Hover : Scan optimisé (influence réduite)
+  let closestCandidate = null;
+  let closestDist = 12; // Rayon drastiquement réduit (plus précis)
+
+  if (!isDragging) {
+    for (const cand of _allVisibleCraterPoints) {
+      const sx = cand.pt.x * vp.scale + vp.tx;
+      const sy = cand.pt.y * vp.scale + vp.ty;
+
+      if (Math.abs(sx - mouseX) > 15 || Math.abs(sy - mouseY) > 15) continue;
+
+      const d = Math.hypot(sx - mouseX, sy - mouseY);
+      if (d < closestDist) {
+        closestDist = d;
+        closestCandidate = cand;
+      }
+    }
+  }
+
+  // 4. Update Hover UI
+  hoverBgGfx.clear();
+  hoverLabel.visible = false;
+
+  if (closestCandidate) {
+    // Vérifier si ce cratère possède DÉJÀ un label à l'écran
+    const existingLabel = activeLabels.find(l => l._crater === closestCandidate.crater);
+
+    // Effet commun : cercle Néon de sélection
+    hoverBgGfx.circle(closestCandidate.pt.x, closestCandidate.pt.y, 8 * invScale);
+    hoverBgGfx.stroke({ width: 2 * invScale, color: 0x00d4ff, alpha: 0.9 });
+
+    if (existingLabel && existingLabel.visible) {
+      // Glow sur le label existant au lieu de le dupliquer !
+      existingLabel.tint = 0x00d4ff;
+    } else {
+      // S'il n'avait pas de label, on fait "pop" un label de hover classique
+      const txt = closestCandidate.crater.name;
+      hoverLabel.text = txt;
+
+      const textW = txt.length * 9;
+      const textH = 22;
+      const bgWorldW = (textW + 16) * invScale;
+      const bgWorldH = (textH + 8) * invScale;
+      const bgWorldX = closestCandidate.pt.x - bgWorldW / 2;
+      const bgWorldY = (closestCandidate.pt.y - 12 * invScale) - bgWorldH + (4 * invScale);
+
+      hoverBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 6 * invScale);
+      hoverBgGfx.fill({ color: 0x06060c, alpha: 0.95 });
+      hoverBgGfx.stroke({ width: 2 * invScale, color: 0x00d4ff, alpha: 0.8 });
+
+      hoverLabel.position.set(closestCandidate.pt.x, closestCandidate.pt.y - 14 * invScale);
+      hoverLabel.scale.set(invScale);
+      hoverLabel.tint = 0x00d4ff;
+      hoverLabel.visible = true;
+    }
   }
 }
 
