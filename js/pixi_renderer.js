@@ -67,8 +67,25 @@ const _placedBoxes = [];
  */
 async function init(container) {
   try {
-    PIXI.Assets.add({ alias: 'SpaceGrotesk', src: 'assets/bitmap/bitmap_SpaceGrotesk_white.fnt' });
+    const fontUrl = `assets/bitmap/bitmap_SpaceGrotesk_white.fnt?v=${Date.now()}`;
+    PIXI.Assets.add({ alias: 'SpaceGrotesk', src: fontUrl });
     await PIXI.Assets.load('SpaceGrotesk');
+    
+    // Optimisation de la texture pour le downscaling (Mipmaps + Linear filtering)
+    const font = PIXI.Assets.get('SpaceGrotesk');
+    if (font && font.pages) {
+      font.pages.forEach(page => {
+        if (page.texture && page.texture.source) {
+          page.texture.source.style.magFilter = 'linear';
+          page.texture.source.style.minFilter = 'linear';
+          page.texture.source.style.mipmapMode = 'on';
+          // Force la résolution pour correspondre au ratio physique
+          page.texture.source.resolution = window.devicePixelRatio || 2;
+          page.texture.source.alphaMode = 'premultiplied-alpha';
+          page.texture.source.update();
+        }
+      });
+    }
   } catch (err) {
     console.error("PixiRenderer: Font load error:", err);
   }
@@ -78,7 +95,7 @@ async function init(container) {
     background: 0x06060c,
     resizeTo: window,
     antialias: true,
-    resolution: window.devicePixelRatio || 1,
+    resolution: Math.max(window.devicePixelRatio || 1, 2), // Force au moins resolution 2
     autoDensity: true,
   });
 
