@@ -56,15 +56,18 @@ let _showLabels = false;
 let _labelsTargetAlpha = 1;
 let _allVisibleCraterPoints = [];
 
+const _dotCandidates = [];
+const _candidates = [];
+const _placedBoxes = [];
+
 /**
  * Initialize the PixiJS application and build the scene tree.
  * @param {HTMLElement} container - DOM element to append the canvas to
  * @returns {PIXI.Application}
  */
 async function init(container) {
-  // Load Bitmap Font
   try {
-    PIXI.Assets.add({ alias: 'SpaceGrotesk', src: 'assets/bitmap/bitmap_SpaceGrotesk.fnt' });
+    PIXI.Assets.add({ alias: 'SpaceGrotesk', src: 'assets/bitmap/bitmap_SpaceGrotesk_white.fnt' });
     await PIXI.Assets.load('SpaceGrotesk');
   } catch (err) {
     console.error("PixiRenderer: Font load error:", err);
@@ -128,9 +131,9 @@ async function init(container) {
   hoverBgGfx = new PIXI.Graphics();
   labelsContainer.addChild(hoverBgGfx);
 
-  hoverLabel = new PIXI.Text({
+  hoverLabel = new PIXI.BitmapText({
     text: '',
-    style: { fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: '600', fill: 0x00d4ff, align: 'center' }
+    style: { fontFamily: 'Space Grotesk Bold', fontSize: 14, align: 'center' }
   });
   hoverLabel.anchor.set(0.5, 1);
   hoverLabel.visible = false;
@@ -238,78 +241,76 @@ function rebuildGeoJSON(projectedFeatures, vp) {
     gfx.visible = true;
     const colors = LAYER_PALETTE[layerIndex % LAYER_PALETTE.length];
 
+    // --- Type 1: Polygons (Batching) ---
+    let polyFound = false;
     for (const feature of features) {
-      // Culling géométrique : ignorer la feature si elle est hors du viewport élargi
+      if (feature.type !== 'polygon') continue;
+      // Culling
       if (feature.worldBounds) {
         if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
-          feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) {
-          continue;
+            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
+      }
+      polyFound = true;
+      for (const ring of feature.renderedCoords) {
+        if (ring.length < 4) continue;
+        let started = false;
+        for (let i = 0; i < ring.length; i += 2) {
+          const rx = ring[i], ry = ring[i + 1];
+          if (isNaN(rx)) { started = false; continue; }
+          if (!started) { gfx.moveTo(rx, ry); started = true; }
+          else { gfx.lineTo(rx, ry); }
+        }
+        gfx.closePath();
+      }
+    }
+    if (polyFound) {
+      gfx.fill({ color: colors.fill, alpha: colors.fillAlpha });
+      gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
+    }
+
+    // --- Type 2: Lines (Batching) ---
+    let lineFound = false;
+    for (const feature of features) {
+      if (feature.type !== 'line') continue;
+      if (feature.worldBounds) {
+        if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
+            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
+      }
+      lineFound = true;
+      for (const ring of feature.renderedCoords) {
+        if (ring.length < 4) continue;
+        let started = false;
+        for (let i = 0; i < ring.length; i += 2) {
+          const rx = ring[i], ry = ring[i + 1];
+          if (isNaN(rx)) { started = false; continue; }
+          if (!started) { gfx.moveTo(rx, ry); started = true; }
+          else { gfx.lineTo(rx, ry); }
         }
       }
+    }
+    if (lineFound) {
+      gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
+    }
 
-      if (feature.type === 'polygon') {
-        for (const ring of feature.renderedCoords) {
-          if (ring.length < 4) continue; // Need at least 2 points (4 floats)
-          let started = false;
-
-          for (let i = 0; i < ring.length; i += 2) {
-            const rx = ring[i], ry = ring[i + 1];
-            if (isNaN(rx)) {
-              if (started) {
-                gfx.fill({ color: colors.fill, alpha: colors.fillAlpha });
-                gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
-              }
-              started = false;
-              continue;
-            }
-            if (!started) {
-              gfx.moveTo(rx, ry);
-              started = true;
-            } else {
-              gfx.lineTo(rx, ry);
-            }
-          }
-          if (started) {
-            gfx.closePath();
-            gfx.fill({ color: colors.fill, alpha: colors.fillAlpha });
-            gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
-          }
-        }
-      } else if (feature.type === 'line') {
-        for (const ring of feature.renderedCoords) {
-          if (ring.length < 4) continue;
-          let started = false;
-
-          for (let i = 0; i < ring.length; i += 2) {
-            const rx = ring[i], ry = ring[i + 1];
-            if (isNaN(rx)) {
-              if (started) {
-                gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
-              }
-              started = false;
-              continue;
-            }
-            if (!started) {
-              gfx.moveTo(rx, ry);
-              started = true;
-            } else {
-              gfx.lineTo(rx, ry);
-            }
-          }
-          if (started) {
-            gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
-          }
-        }
-      } else if (feature.type === 'point') {
-        for (const ring of feature.renderedCoords) {
-          for (let i = 0; i < ring.length; i += 2) {
-            const rx = ring[i], ry = ring[i + 1];
-            if (rx === null || isNaN(rx)) continue;
-            gfx.circle(rx, ry, 3 * invScale);
-            gfx.fill({ color: colors.stroke, alpha: colors.alpha });
-          }
+    // --- Type 3: Points (Batching) ---
+    let ptFound = false;
+    for (const feature of features) {
+      if (feature.type !== 'point') continue;
+      if (feature.worldBounds) {
+        if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
+            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
+      }
+      ptFound = true;
+      for (const ring of feature.renderedCoords) {
+        for (let i = 0; i < ring.length; i += 2) {
+          const rx = ring[i], ry = ring[i + 1];
+          if (isNaN(rx)) continue;
+          gfx.circle(rx, ry, 3 * invScale);
         }
       }
+    }
+    if (ptFound) {
+      gfx.fill({ color: colors.stroke, alpha: colors.alpha });
     }
   }
 }
@@ -606,12 +607,14 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   
   const cx = canvasW / 2;
   const cy = canvasH / 2;
-  const maxScreenDist = Math.hypot(cx, cy);
+  const maxScreenDistSq = cx * cx + cy * cy;
   
-  _allVisibleCraterPoints = [];
+  _allVisibleCraterPoints.length = 0;
+  _dotCandidates.length = 0;
+  _candidates.length = 0;
+  _placedBoxes.length = 0;
 
   // Passe 1 : Collecter et trier tous les cratères visibles dans le champ
-  const dotCandidates = [];
   for (const crater of cratersDB) {
     if (crater.name === "--" || crater.nx === null) continue;
 
@@ -622,18 +625,18 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     // Frustum Culling généreux (On garde les cratères juste en dehors de l'écran pour garder du buffer lors du drag)
     if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
 
-    dotCandidates.push({ crater, pt, sx, sy });
+    _dotCandidates.push({ crater, pt, sx, sy });
   }
 
   // Tri par taille absolue (les plus gros cratères réels en premier)
-  dotCandidates.sort((a, b) => b.crater.diameter - a.crater.diameter);
-  const topDots = dotCandidates.slice(0, MAX_DOTS);
-
-  // Passe 2 : Dessiner le Top 500 des plus gros cratères de la zone
-  const candidates = [];
+  _dotCandidates.sort((a, b) => b.crater.diameter - a.crater.diameter);
+  
+  const dotsCount = Math.min(_dotCandidates.length, MAX_DOTS);
   const minHoverDiameter = 4 / vp.scale;
 
-  for (const item of topDots) {
+  // Passe 2 : Dessiner le Top 500 des plus gros cratères de la zone
+  for (let i = 0; i < dotsCount; i++) {
+    const item = _dotCandidates[i];
     const { crater, pt, sx, sy } = item;
 
     // L'opacité ne dépend plus d'une limite arbitraire, seulement de la nuit de la lune
@@ -669,20 +672,21 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     // Strict Culling des labels sur le bord véritable de l'écran
     if (boxX < 0 || boxX + textWidth > canvasW || boxY < 0 || boxY + textHeight > canvasH) continue;
 
-    const dist = Math.hypot(sx - cx, sy - cy);
-    const normalizedDist = Math.max(0, Math.min(1, dist / maxScreenDist));
+    const dx = sx - cx;
+    const dy = sy - cy;
+    const distSq = dx * dx + dy * dy;
+    const normalizedDist = Math.max(0, Math.min(1, Math.sqrt(distSq / maxScreenDistSq)));
     const score = (crater.diameter * vp.scale) * (1.0 - (normalizedDist * 0.8));
 
-    candidates.push({ crater, pt, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
+    _candidates.push({ crater, pt, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
   }
 
   // Tri par priorité décroissante
-  candidates.sort((a, b) => b.score - a.score);
+  _candidates.sort((a, b) => b.score - a.score);
 
-  const placedBoxes = [];
   const invScale = 1 / vp.scale;
 
-  for (const item of candidates) {
+  for (const item of _candidates) {
     if (activeLabels.length >= MAX_LABELS) break;
 
     // HITBOX INVISIBLE : Force les labels à s'écarter les uns des autres (Anti surpeuplement naturel)
@@ -694,7 +698,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
     // Anti-Overlap sur la Hitbox géante
     let overlap = false;
-    for (const box of placedBoxes) {
+    for (const box of _placedBoxes) {
       if (hitX < box.x + box.w && hitX + hitW > box.x &&
         hitY < box.y + box.h && hitY + hitH > box.y) {
         overlap = true;
@@ -704,7 +708,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     if (overlap) continue;
 
     // Validation (on réserve tout ce grand espace vide)
-    placedBoxes.push({ x: hitX, y: hitY, w: hitW, h: hitH });
+    _placedBoxes.push({ x: hitX, y: hitY, w: hitW, h: hitH });
 
     // Design de la Pilule (Backdrop) ajustée et amincie
     const bgWorldW = (item.textWidth + 10) * invScale;
@@ -716,16 +720,14 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     labelsBgGfx.fill({ color: 0x06060c, alpha: item.op * 0.85 });
     labelsBgGfx.stroke({ width: 1 * invScale, color: 0x22222a, alpha: item.op * 0.6 });
 
-    // Utilisation de PIXI.Text pour forcer le blanc, car la font bitmap source est noire
+    // Utilisation de PIXI.BitmapText
     let label = textPool.pop();
     if (!label) {
-      label = new PIXI.Text({
+      label = new PIXI.BitmapText({
         text: '',
         style: {
-          fontFamily: 'Space Grotesk',
+          fontFamily: 'Space Grotesk Bold',
           fontSize: 14,
-          fontWeight: '600',
-          fill: 0xffffff,
           align: 'center',
         }
       });
@@ -789,18 +791,21 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   // 3. Hover : Scan optimisé (influence réduite)
   let closestCandidate = null;
-  let closestDist = 12; // Rayon drastiquement réduit (plus précis)
+  let closestDistSq = 144; // 12 * 12
 
   if (!isDragging) {
     for (const cand of _allVisibleCraterPoints) {
       const sx = cand.pt.x * vp.scale + vp.tx;
       const sy = cand.pt.y * vp.scale + vp.ty;
 
-      if (Math.abs(sx - mouseX) > 15 || Math.abs(sy - mouseY) > 15) continue;
+      const dx = sx - mouseX;
+      if (Math.abs(dx) > 15) continue;
+      const dy = sy - mouseY;
+      if (Math.abs(dy) > 15) continue;
 
-      const d = Math.hypot(sx - mouseX, sy - mouseY);
-      if (d < closestDist) {
-        closestDist = d;
+      const dSq = dx * dx + dy * dy;
+      if (dSq < closestDistSq) {
+        closestDistSq = dSq;
         closestCandidate = cand;
       }
     }

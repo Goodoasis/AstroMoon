@@ -10,15 +10,34 @@
  */
 
 /**
+ * Thin Plate Spline (TPS) Precalculated Fast-Lookup-Table
+ */
+const LUT_SIZE = 100000;
+const LUT_MAX_R2 = 2.0;
+const LUT_INV_STEP = LUT_SIZE / LUT_MAX_R2;
+const LUT = new Float64Array(LUT_SIZE + 1);
+
+for (let i = 0; i <= LUT_SIZE; i++) {
+  const r2 = (i / LUT_SIZE) * LUT_MAX_R2;
+  LUT[i] = r2 >= 1e-20 ? 0.5 * r2 * Math.log(r2) : 0;
+}
+
+/**
  * Radial basis function for TPS, mathematically optimized.
  * U(r) = r² · ln(r)
  * U(r) = r² · ln( (r²)^0.5 ) = 0.5 · r² · ln(r²)
- * This safely completely avoids calling Math.sqrt().
+ * This safely completely avoids calling Math.sqrt() and uses a LUT to avoid Math.log().
  * @param {number} r2 - Distance squared
  * @returns {number}
  */
 function kernelU_r2(r2) {
   if (r2 < 1e-20) return 0;
+  if (r2 <= LUT_MAX_R2) {
+    const fnIdx = r2 * LUT_INV_STEP;
+    const idx = fnIdx | 0;
+    const f = fnIdx - idx;
+    return LUT[idx] * (1 - f) + LUT[idx + 1] * f;
+  }
   return 0.5 * r2 * Math.log(r2);
 }
 
@@ -146,7 +165,16 @@ function applyBuffer(buffer, tpsData, length = buffer.length) {
       const r2 = ddx * ddx + ddy * ddy;
       
       let u = 0;
-      if (r2 >= 1e-20) u = 0.5 * r2 * Math.log(r2);
+      if (r2 >= 1e-20) {
+        if (r2 <= LUT_MAX_R2) {
+          const fnIdx = r2 * LUT_INV_STEP;
+          const idx = fnIdx | 0;
+          const f = fnIdx - idx;
+          u = LUT[idx] * (1 - f) + LUT[idx + 1] * f;
+        } else {
+          u = 0.5 * r2 * Math.log(r2);
+        }
+      }
       
       dispX += weightsX[i] * u;
       dispY += weightsY[i] * u;

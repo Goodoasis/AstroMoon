@@ -52,25 +52,25 @@ function setState(newState) {
 }
 
 function apply(nx, ny) {
-  let x = nx * state.layerSize;
-  let y = ny * state.layerSize;
-
   const cx = state.layerSize / 2;
   const cy = state.layerSize / 2;
   const cos = Math.cos(state.rotation);
   const sin = Math.sin(state.rotation);
-  const dx = x - cx;
-  const dy = y - cy;
-  x = cx + dx * cos - dy * sin;
-  y = cy + dx * sin + dy * cos;
+  const ls = state.layerSize;
+  const sc = state.scale;
 
-  x = cx + (x - cx) * state.scale;
-  y = cy + (y - cy) * state.scale;
+  const m00 = ls * cos * sc;
+  const m01 = -ls * sin * sc;
+  const m02 = cx - cx * cos * sc + cy * sin * sc + state.tx;
 
-  x += state.tx;
-  y += state.ty;
+  const m10 = ls * sin * sc;
+  const m11 = ls * cos * sc;
+  const m12 = cy - cx * sin * sc - cy * cos * sc + state.ty;
 
-  return { x, y };
+  return { 
+    x: nx * m00 + ny * m01 + m02, 
+    y: nx * m10 + ny * m11 + m12 
+  };
 }
 
 function inverse(sx, sy) {
@@ -105,28 +105,22 @@ function applyBuffer(buffer, length = buffer.length) {
   const tx = state.tx;
   const ty = state.ty;
 
+  const m00 = ls * cos * sc;
+  const m01 = -ls * sin * sc;
+  const m02 = cx - cx * cos * sc + cy * sin * sc + tx;
+
+  const m10 = ls * sin * sc;
+  const m11 = ls * cos * sc;
+  const m12 = cy - cx * sin * sc - cy * cos * sc + ty;
+
   for (let ptr = 0; ptr < length; ptr += 2) {
-    let nx = buffer[ptr];
-    let ny = buffer[ptr + 1];
+    const nx = buffer[ptr];
+    const ny = buffer[ptr + 1];
 
     if (isNaN(nx)) continue;
 
-    let x = nx * ls;
-    let y = ny * ls;
-
-    const dx = x - cx;
-    const dy = y - cy;
-    x = cx + dx * cos - dy * sin;
-    y = cy + dx * sin + dy * cos;
-
-    x = cx + (x - cx) * sc;
-    y = cy + (y - cy) * sc;
-
-    x += tx;
-    y += ty;
-
-    buffer[ptr] = x;
-    buffer[ptr + 1] = y;
+    buffer[ptr] = nx * m00 + ny * m01 + m02;
+    buffer[ptr + 1] = nx * m10 + ny * m11 + m12;
   }
 }
 
