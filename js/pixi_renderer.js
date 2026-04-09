@@ -601,29 +601,43 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   }
   activeLabels = [];
 
-  function getLayerOpacity(diam, minD) {
-    if (diam > minD * 3) return 1.0;
-    return 0.4 + (0.6 * Math.max(0, (diam - minD) / (minD * 2)));
-  }
-
-  // LOD très sélectif pour la propreté visuelle
-  const minDotDiameter = 6 / vp.scale;
-  const minLabelDiameter = 14 / vp.scale; // Marge assouplie (permet d'afficher de plus petits cratères quand on zoome)
-  const minHoverDiameter = 8 / vp.scale;
-
-  const candidates = [];
+  const MAX_DOTS = 250; // Limite stricte absolue pour nettoyer l'écran des petits points
+  const MAX_LABELS = 150; 
+  
   const cx = canvasW / 2;
   const cy = canvasH / 2;
+  const maxScreenDist = Math.hypot(cx, cy);
+  
   _allVisibleCraterPoints = [];
 
+  // Passe 1 : Collecter et trier tous les cratères visibles dans le champ
+  const dotCandidates = [];
   for (const crater of cratersDB) {
-    if (crater.diameter < minDotDiameter || crater.name === "--" || crater.nx === null) continue;
+    if (crater.name === "--" || crater.nx === null) continue;
 
     const pt = transformFn(crater.nx, crater.ny);
+    const sx = pt.x * vp.scale + vp.tx;
+    const sy = pt.y * vp.scale + vp.ty;
 
-    let op = getLayerOpacity(crater.diameter, minDotDiameter);
+    // Frustum Culling généreux (On garde les cratères juste en dehors de l'écran pour garder du buffer lors du drag)
+    if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
 
-    // Shadow detection (dimming)
+    dotCandidates.push({ crater, pt, sx, sy });
+  }
+
+  // Tri par taille absolue (les plus gros cratères réels en premier)
+  dotCandidates.sort((a, b) => b.crater.diameter - a.crater.diameter);
+  const topDots = dotCandidates.slice(0, MAX_DOTS);
+
+  // Passe 2 : Dessiner le Top 500 des plus gros cratères de la zone
+  const candidates = [];
+  const minHoverDiameter = 4 / vp.scale;
+
+  for (const item of topDots) {
+    const { crater, pt, sx, sy } = item;
+
+    // L'opacité ne dépend plus d'une limite arbitraire, seulement de la nuit de la lune
+    let op = 1.0;
     if (window.appMoonState && typeof window.appMoonState.sunLon === 'number') {
       const rLon = crater.longitude * Math.PI / 180;
       const rLat = crater.latitude * Math.PI / 180;
@@ -636,55 +650,47 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
     if (op < 0.05) continue;
 
-    // On dessine toujours le dot s'il passe le minDotDiameter
-    dotsGfx.circle(pt.x, pt.y, 2.5 / vp.scale);
+    // Rayon borné entre 2.0 et 3.0 via sqrt
+    const onScreenRadius = Math.max(2.0, Math.min(3.0, Math.sqrt(crater.diameter * vp.scale) * 0.35));
+
+    dotsGfx.circle(pt.x, pt.y, onScreenRadius / vp.scale);
     dotsGfx.fill({ color: 0xff4b4b, alpha: op });
 
-    // Stocker pour le Hover, SEULEMENT s'il passe le seuil de hover
     if (crater.diameter >= minHoverDiameter) {
       _allVisibleCraterPoints.push({ crater, pt, op });
     }
 
-    // Le cratère est-il assez gros pour mériter un label à l'écran en permanence ?
-    if (crater.diameter < minLabelDiameter) continue;
+    // Préparation pour les Labels
+    const textWidth = crater.name.length * 8;
+    const textHeight = 14;
+    const boxX = sx - textWidth / 2;
+    const boxY = sy - 8 - textHeight;
 
-    const sx = pt.x * vp.scale + vp.tx;
-    const sy = pt.y * vp.scale + vp.ty;
-    if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
+    // Strict Culling des labels sur le bord véritable de l'écran
+    if (boxX < 0 || boxX + textWidth > canvasW || boxY < 0 || boxY + textHeight > canvasH) continue;
 
-    // Calcul du Score = (Taille relative) - (Forte pénalité de distance au centre pour épurer les bords)
     const dist = Math.hypot(sx - cx, sy - cy);
-    const score = (crater.diameter * vp.scale) - (dist * 0.25);
+    const normalizedDist = Math.max(0, Math.min(1, dist / maxScreenDist));
+    const score = (crater.diameter * vp.scale) * (1.0 - (normalizedDist * 0.8));
 
-    candidates.push({ crater, pt, sx, sy, op, score });
+    candidates.push({ crater, pt, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
   }
 
   // Tri par priorité décroissante
   candidates.sort((a, b) => b.score - a.score);
 
-  const MAX_LABELS = 150; // On laisse l'agorithme Anti-Overlap gérer l'aération de l'écran naturellement !
   const placedBoxes = [];
   const invScale = 1 / vp.scale;
 
   for (const item of candidates) {
     if (activeLabels.length >= MAX_LABELS) break;
 
-    // Dimensions estimées de la hitbox du texte
-    const textWidth = item.crater.name.length * 8;
-    const textHeight = 14;
-
-    // Position du texte (anchor: 0.5, 1) -> coords du coin haut gauche
-    const boxX = item.sx - textWidth / 2;
-    const boxY = item.sy - 8 - textHeight;
-    const boxW = textWidth;
-    const boxH = textHeight;
-
     // HITBOX INVISIBLE : Force les labels à s'écarter les uns des autres (Anti surpeuplement naturel)
     const pad = 30; // 30 pixels de "champ de force" vide autour de chaque bloc !
-    const hitX = boxX - pad;
-    const hitY = boxY - pad;
-    const hitW = boxW + pad * 2;
-    const hitH = boxH + pad * 2;
+    const hitX = item.boxX - pad;
+    const hitY = item.boxY - pad;
+    const hitW = item.textWidth + pad * 2;
+    const hitH = item.textHeight + pad * 2;
 
     // Anti-Overlap sur la Hitbox géante
     let overlap = false;
@@ -701,8 +707,8 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     placedBoxes.push({ x: hitX, y: hitY, w: hitW, h: hitH });
 
     // Design de la Pilule (Backdrop) ajustée et amincie
-    const bgWorldW = (boxW + 10) * invScale;
-    const bgWorldH = (boxH + 6) * invScale;
+    const bgWorldW = (item.textWidth + 10) * invScale;
+    const bgWorldH = (item.textHeight + 6) * invScale;
     const bgWorldX = item.pt.x - bgWorldW / 2;
     const bgWorldY = (item.pt.y - 10 * invScale) - bgWorldH; // Bien collé à la base du texte
 
@@ -760,14 +766,18 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   const w = app.screen.width;
   const h = app.screen.height;
-  const margin = 50; // pixels de marge
 
-  // 2. Frustum Culling temps réel et reset de teinte
+  // 2. Frustum Culling temps réel STRICT
   for (const label of activeLabels) {
     const sx = label._worldX * vp.scale + vp.tx;
     const sy = label._worldY * vp.scale + vp.ty;
+    const textW = label.text.length * 8;
+    const textH = 14;
+    const boxX = sx - textW / 2;
+    const boxY = sy - 8 - textH;
 
-    if (sx < -margin || sx > w + margin || sy < -margin || sy > h + margin) {
+    // On n'affiche pas si tronqué par le bord (Culling strict)
+    if (boxX < 0 || boxX + textW > w || boxY < 0 || boxY + textH > h) {
       label.visible = false;
     } else {
       label.visible = true;
