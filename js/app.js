@@ -16,6 +16,8 @@ let canvasW = 0, canvasH = 0;
 let backgroundImage = null;
 let projectedFeatures = null;
 let layerTransformDirty = true;
+let dirtyEphemeris = true;  // nightmask, terminator, projections
+let dirtyGrid = false;      // grid only
 
 let allRawFeatures = [];
 let mergedBounds = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
@@ -39,6 +41,9 @@ let fpsTime = 0;
 let fps = 0;
 let lastInteractionTime = 0;
 let sceneRebuildPending = false;
+let _lastPanZoomTime = 0;
+let _lastViewportTx = 0;
+let _lastViewportTy = 0;
 
 // Coordonnées hover UI
 let mouseX = -1000;
@@ -109,7 +114,7 @@ async function init() {
   btnGrid.addEventListener('click', () => {
     const on = PixiRenderer.toggleGrid();
     btnGrid.classList.toggle('active', on);
-    if (on) rebuildScene();
+    if (on) { dirtyGrid = true; layerTransformDirty = true; }
   });
   btnLabels.addEventListener('click', () => {
     const on = PixiRenderer.toggleLabels();
@@ -117,7 +122,7 @@ async function init() {
     if (on) {
       if (!window.cratersDB) initCraters();
       else updateCratersProjection();
-      rebuildScene();
+      layerTransformDirty = true;
     }
   });
 
@@ -469,6 +474,7 @@ function updateEphemeris() {
   updateGeoJSONProjection();
   if (PixiRenderer.showLabels && PixiRenderer.showLabels()) updateCratersProjection();
   layerTransformDirty = true;
+  dirtyEphemeris = true;
 }
 
 function generateTerminator(sunLon, sunLat) {
@@ -532,18 +538,27 @@ function updateCratersProjection() {
 function initCraters() {
   if (!window.CRATERS_RAW_DATA) return;
   const array = [];
+  const DEG2RAD = Math.PI / 180;
   for (const name in window.CRATERS_RAW_DATA) {
     if (name === "--") continue;
     const c = window.CRATERS_RAW_DATA[name];
+    const latRad = c.latitude * DEG2RAD;
+    const lonRad = c.longitude * DEG2RAD;
     array.push({
       name: name,
       diameter: c.diameter,
       latitude: c.latitude,
       longitude: c.longitude,
+      // Pre-computed trig for sun incidence (immutable)
+      sinLat: Math.sin(latRad),
+      cosLat: Math.cos(latRad),
+      lonRad: lonRad,
       nx: null,
       ny: null
     });
   }
+  // Pre-sort by diameter descending ONCE (avoids per-rebuild sort in renderer)
+  array.sort((a, b) => b.diameter - a.diameter);
   window.cratersDB = array;
   updateCratersProjection();
 }
@@ -788,14 +803,14 @@ function onKeyDown(e) {
   if (e.key === 'g' || e.key === 'G') {
     const on = PixiRenderer.toggleGrid();
     btnGrid.classList.toggle('active', on);
-    if (on) rebuildScene();
+    if (on) { dirtyGrid = true; layerTransformDirty = true; }
   }
   if (e.key === 'l' || e.key === 'L') {
     const on = PixiRenderer.toggleLabels();
     btnLabels.classList.toggle('active', on);
     if (on) {
       if (!window.cratersDB) initCraters();
-      rebuildScene();
+      layerTransformDirty = true;
     }
   }
   if (e.key === 'o' || e.key === 'O') {
@@ -861,23 +876,41 @@ function enterApp() {
 }
 
 /**
- * Rebuild all scene graphics when data changes.
+ * Rebuild scene graphics with granular dirty flags.
+ * Only rebuilds subsystems that actually changed.
  */
-function rebuildScene() {
+function rebuildScene(forceAll = false, hadTransformChange = false) {
   const transformFn = Anchors.getTransformFunction();
+  const rebuildEphemeris = forceAll || dirtyEphemeris;
+  const rebuildTransform = forceAll || hadTransformChange;
 
+  // GeoJSON: rebuild when transform or viewport changes (line widths depend on scale)
   if (projectedFeatures) {
     PixiRenderer.rebuildGeoJSON(projectedFeatures, viewport);
   }
 
-  PixiRenderer.rebuildNightMask(transformFn);
-  PixiRenderer.rebuildTerminator(transformFn, viewport);
-  PixiRenderer.rebuildGrid(transformFn, viewport);
+  // Nightmask + Terminator: ONLY when ephemeris or layer transform changes
+  // (they live inside viewportContainer → GPU-transformed on pan/zoom)
+  if (rebuildEphemeris || rebuildTransform) {
+    PixiRenderer.rebuildNightMask(transformFn);
+    PixiRenderer.rebuildTerminator(transformFn, viewport);
+  }
+
+  // Grid: only on toggle or transform change
+  if (dirtyGrid || rebuildTransform) {
+    PixiRenderer.rebuildGrid(transformFn, viewport);
+    dirtyGrid = false;
+  }
+
+  // Anchors: always (cheap, few items)
   PixiRenderer.rebuildAnchors(Anchors.getAll(), viewport, dragAnchorId);
 
+  // Annotations: rebuild on any scene change
   if (window.cratersDB) {
     PixiRenderer.rebuildAnnotations(transformFn, window.cratersDB, viewport, canvasW, canvasH);
   }
+
+  dirtyEphemeris = false;
 }
 
 /**
@@ -896,12 +929,12 @@ function renderTick(ticker) {
 
   const timeSinceLastInteraction = Date.now() - lastInteractionTime;
   const viewportZoomChanged = Math.abs(viewport.scale - lastViewportScale) > 0.001;
-  const viewportPanChanged = Math.abs(viewport.tx - (window._lastViewportTx || 0)) > 1 || Math.abs(viewport.ty - (window._lastViewportTy || 0)) > 1;
+  const viewportPanChanged = Math.abs(viewport.tx - _lastViewportTx) > 1 || Math.abs(viewport.ty - _lastViewportTy) > 1;
 
   if (viewportZoomChanged || viewportPanChanged) {
-    window._lastPanZoomTime = Date.now();
+    _lastPanZoomTime = Date.now();
   }
-  const timeSincePanZoom = Date.now() - (window._lastPanZoomTime || 0);
+  const timeSincePanZoom = Date.now() - _lastPanZoomTime;
 
   // ─── 1. FAST UPDATE (Every frame) ───
   // Update viewport container (GPU-fast transform)
@@ -919,11 +952,13 @@ function renderTick(ticker) {
   // If we are idle for 150ms and a change occurred, we rebuild the sharp lines (CPU-heavy)
   if ((layerTransformDirty || viewportZoomChanged || viewportPanChanged) && projectedFeatures) {
     if (timeSinceLastInteraction > 150 || layerTransformDirty) {
+      // Snapshot dirty flag BEFORE updateLayerCache() clears it
+      const hadTransformChange = layerTransformDirty;
       if (layerTransformDirty) updateLayerCache();
-      rebuildScene();
+      rebuildScene(false, hadTransformChange);
       lastViewportScale = viewport.scale;
-      window._lastViewportTx = viewport.tx;
-      window._lastViewportTy = viewport.ty;
+      _lastViewportTx = viewport.tx;
+      _lastViewportTy = viewport.ty;
     }
   }
 }

@@ -15,3 +15,5 @@ user_exemple/
 # data/LRO_*.png  # Exclude source images if they are huge
 # data/*.json     # Exclude raw data if it's huge
 calque_geojson_backup/
+.claude/
+CLAUDE.md

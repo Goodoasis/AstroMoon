@@ -17,6 +17,7 @@
 import * as PIXI from 'https://cdn.jsdelivr.net/npm/pixi.js@8.17.1/dist/pixi.min.mjs';
 import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
+import { Anchors } from './anchors.js';
 
 // ─── Layer color palette ───
 const LAYER_PALETTE = [
@@ -59,6 +60,7 @@ let _allVisibleCraterPoints = [];
 const _dotCandidates = [];
 const _candidates = [];
 const _placedBoxes = [];
+const _activeLabelMap = new Map(); // crater -> BitmapText, for O(1) hover lookup
 
 /**
  * Initialize the PixiJS application and build the scene tree.
@@ -95,7 +97,7 @@ async function init(container) {
     background: 0x06060c,
     resizeTo: window,
     antialias: true,
-    resolution: Math.max(window.devicePixelRatio || 1, 2), // Force au moins resolution 2
+    resolution: window.devicePixelRatio || 1,
     autoDensity: true,
   });
 
@@ -334,17 +336,41 @@ function rebuildGeoJSON(projectedFeatures, vp) {
 
 // ─── Night Mask ───
 
+// Shared projection cache for terminator points (used by both nightmask + terminator)
+let _termProjCache = null; // { geoPointsRef, libKey, projNorm: Array<[nx,ny]|null> }
+
+/**
+ * Get projected terminator points (normalized coords).
+ * Cached per ephemeris change (terminatorGeoPoints ref + libration).
+ */
+function _getTerminatorProjections() {
+  const state = window.appMoonState;
+  if (!state || !state.terminatorGeoPoints || state.terminatorGeoPoints.length === 0) return null;
+
+  const geoPoints = state.terminatorGeoPoints;
+  const libKey = `${(state.librationLon || 0).toFixed(6)}_${(state.librationLat || 0).toFixed(6)}`;
+
+  if (_termProjCache && _termProjCache.geoPointsRef === geoPoints && _termProjCache.libKey === libKey) {
+    return _termProjCache;
+  }
+
+  const projNorm = new Array(geoPoints.length);
+  for (let i = 0; i < geoPoints.length; i++) {
+    projNorm[i] = GeoJSON.projectPoint(geoPoints[i][0], geoPoints[i][1]);
+  }
+
+  _termProjCache = { geoPointsRef: geoPoints, libKey, projNorm };
+  return _termProjCache;
+}
+
 function rebuildNightMask(transformFn) {
   nightMaskGfx.clear();
 
+  const projCache = _getTerminatorProjections();
+  if (!projCache) return;
+
+  const pts = projCache.projNorm;
   const state = window.appMoonState;
-  if (!state || !state.terminatorGeoPoints || state.terminatorGeoPoints.length === 0) return;
-
-  const pts = [];
-  for (const [lon, lat] of state.terminatorGeoPoints) {
-    pts.push(GeoJSON.projectPoint(lon, lat));
-  }
-
   const n = pts.length;
   let startIdx = 0;
   let found = false;
@@ -454,106 +480,150 @@ function rebuildNightMask(transformFn) {
 function rebuildTerminator(transformFn, vp) {
   terminatorGfx.clear();
 
-  const state = window.appMoonState;
-  if (!state || !state.terminatorGeoPoints || state.terminatorGeoPoints.length === 0) return;
+  const projCache = _getTerminatorProjections();
+  if (!projCache) return;
 
+  const projNorm = projCache.projNorm;
+  const len = projNorm.length;
   const invScale = 1 / vp.scale;
 
-  // Main glow line
-  let moved = false;
-  for (const [lon, lat] of state.terminatorGeoPoints) {
-    const proj = GeoJSON.projectPoint(lon, lat);
+  // Build world-space buffer from cached projections + transformFn
+  if (!rebuildTerminator._buf || rebuildTerminator._buf.length < len * 2) {
+    rebuildTerminator._buf = new Float64Array(len * 2);
+  }
+  const buf = rebuildTerminator._buf;
+  for (let i = 0; i < len; i++) {
+    const proj = projNorm[i];
     if (proj) {
       const pt = transformFn(proj[0], proj[1]);
-      if (!moved) {
-        terminatorGfx.moveTo(pt.x, pt.y);
-        moved = true;
-      } else {
-        terminatorGfx.lineTo(pt.x, pt.y);
-      }
+      buf[i * 2] = pt.x;
+      buf[i * 2 + 1] = pt.y;
     } else {
-      if (moved) {
-        terminatorGfx.stroke({ width: 3.0 * invScale, color: 0xe0faff, alpha: 1.0 });
-      }
-      moved = false;
+      buf[i * 2] = NaN;
+      buf[i * 2 + 1] = NaN;
     }
-  }
-  if (moved) {
-    terminatorGfx.stroke({ width: 3.0 * invScale, color: 0xe0faff, alpha: 1.0 });
   }
 
-  // Inner white core (redraw on top)
-  moved = false;
-  for (const [lon, lat] of state.terminatorGeoPoints) {
-    const proj = GeoJSON.projectPoint(lon, lat);
-    if (proj) {
-      const pt = transformFn(proj[0], proj[1]);
-      if (!moved) {
-        terminatorGfx.moveTo(pt.x, pt.y);
-        moved = true;
-      } else {
-        terminatorGfx.lineTo(pt.x, pt.y);
-      }
+  // Draw glow line from buffer
+  let moved = false;
+  for (let i = 0; i < len; i++) {
+    const px = buf[i * 2], py = buf[i * 2 + 1];
+    if (!isNaN(px)) {
+      if (!moved) { terminatorGfx.moveTo(px, py); moved = true; }
+      else { terminatorGfx.lineTo(px, py); }
     } else {
-      if (moved) {
-        terminatorGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 1.0 });
-      }
+      if (moved) terminatorGfx.stroke({ width: 3.0 * invScale, color: 0xe0faff, alpha: 1.0 });
       moved = false;
     }
   }
-  if (moved) {
-    terminatorGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 1.0 });
+  if (moved) terminatorGfx.stroke({ width: 3.0 * invScale, color: 0xe0faff, alpha: 1.0 });
+
+  // Draw white core from same buffer
+  moved = false;
+  for (let i = 0; i < len; i++) {
+    const px = buf[i * 2], py = buf[i * 2 + 1];
+    if (!isNaN(px)) {
+      if (!moved) { terminatorGfx.moveTo(px, py); moved = true; }
+      else { terminatorGfx.lineTo(px, py); }
+    } else {
+      if (moved) terminatorGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 1.0 });
+      moved = false;
+    }
   }
+  if (moved) terminatorGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 1.0 });
 }
 
 // ─── Grid ───
+
+// Cached grid projection data (only changes with libration)
+let _gridCache = null; // { libKey, linesNorm, horizonNorm }
+
+/**
+ * Build or retrieve cached grid normalized coords.
+ * Only reprojects when libration changes.
+ */
+function _getGridCache() {
+  const state = window.appMoonState || {};
+  const libKey = `${(state.librationLon || 0).toFixed(6)}_${(state.librationLat || 0).toFixed(6)}`;
+
+  if (_gridCache && _gridCache.libKey === libKey) return _gridCache;
+
+  // Build grid lines as flat [nx, ny, nx, ny, ...] with NaN separators between lines
+  const linesData = [];
+
+  // Longitude lines (19 lines × ~91 points)
+  for (let lon = -90; lon <= 90; lon += 10) {
+    let hasStarted = false;
+    for (let lat = 90; lat >= -90; lat -= 2) {
+      const proj = GeoJSON.projectPoint(lon, lat);
+      if (!proj) continue;
+      if (!hasStarted) hasStarted = true;
+      linesData.push(proj[0], proj[1]);
+    }
+    if (hasStarted) linesData.push(NaN, NaN); // separator
+  }
+
+  // Latitude lines (19 lines × ~91 points)
+  for (let lat = -90; lat <= 90; lat += 10) {
+    let hasStarted = false;
+    for (let lon = -90; lon <= 90; lon += 2) {
+      const proj = GeoJSON.projectPoint(lon, lat);
+      if (!proj) continue;
+      if (!hasStarted) hasStarted = true;
+      linesData.push(proj[0], proj[1]);
+    }
+    if (hasStarted) linesData.push(NaN, NaN); // separator
+  }
+
+  // Horizon circle (73 points)
+  const horizonData = [];
+  for (let angle = 0; angle <= 360; angle += 5) {
+    const rad = angle * Math.PI / 180;
+    horizonData.push(0.5 + 0.5 * Math.cos(rad), 0.5 + 0.5 * Math.sin(rad));
+  }
+
+  _gridCache = {
+    libKey,
+    linesNorm: new Float32Array(linesData),
+    horizonNorm: new Float32Array(horizonData),
+    // Working buffers for transform (avoids allocation)
+    linesWork: new Float32Array(linesData.length),
+    horizonWork: new Float32Array(horizonData.length)
+  };
+
+  return _gridCache;
+}
 
 function rebuildGrid(transformFn, vp) {
   gridGfx.clear();
   if (!_showGrid) return;
 
   const invScale = 1 / vp.scale;
+  const cache = _getGridCache();
 
-  function getNorm(lon, lat) {
-    const proj = GeoJSON.projectPoint(lon, lat);
-    if (!proj) return null;
-    return { nx: proj[0], ny: proj[1] };
+  // Copy cached projections to working buffers, then apply TPS + Transform in-place
+  cache.linesWork.set(cache.linesNorm);
+  Anchors.applyBuffer(cache.linesWork);
+
+  cache.horizonWork.set(cache.horizonNorm);
+  Anchors.applyBuffer(cache.horizonWork);
+
+  // Draw grid lines from transformed buffer
+  const lb = cache.linesWork;
+  let moved = false;
+  for (let i = 0; i < lb.length; i += 2) {
+    const x = lb[i], y = lb[i + 1];
+    if (isNaN(x)) { moved = false; continue; }
+    if (!moved) { gridGfx.moveTo(x, y); moved = true; }
+    else gridGfx.lineTo(x, y);
   }
+  gridGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 0.7 });
 
-  // Longitude lines
-  for (let lon = -90; lon <= 90; lon += 10) {
-    let moved = false;
-    for (let lat = 90; lat >= -90; lat -= 2) {
-      const norm = getNorm(lon, lat);
-      if (!norm) continue;
-      const pt = transformFn(norm.nx, norm.ny);
-      if (!moved) { gridGfx.moveTo(pt.x, pt.y); moved = true; }
-      else gridGfx.lineTo(pt.x, pt.y);
-    }
-    if (moved) gridGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 0.7 });
-  }
-
-  // Latitude lines
-  for (let lat = -90; lat <= 90; lat += 10) {
-    let moved = false;
-    for (let lon = -90; lon <= 90; lon += 2) {
-      const norm = getNorm(lon, lat);
-      if (!norm) continue;
-      const pt = transformFn(norm.nx, norm.ny);
-      if (!moved) { gridGfx.moveTo(pt.x, pt.y); moved = true; }
-      else gridGfx.lineTo(pt.x, pt.y);
-    }
-    if (moved) gridGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 0.7 });
-  }
-
-  // Horizon circle
-  for (let angle = 0; angle <= 360; angle += 5) {
-    const rad = angle * Math.PI / 180;
-    const nx = 0.5 + 0.5 * Math.cos(rad);
-    const ny = 0.5 + 0.5 * Math.sin(rad);
-    const pt = transformFn(nx, ny);
-    if (angle === 0) gridGfx.moveTo(pt.x, pt.y);
-    else gridGfx.lineTo(pt.x, pt.y);
+  // Draw horizon from transformed buffer
+  const hb = cache.horizonWork;
+  gridGfx.moveTo(hb[0], hb[1]);
+  for (let i = 2; i < hb.length; i += 2) {
+    gridGfx.lineTo(hb[i], hb[i + 1]);
   }
   gridGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 0.6 });
 }
@@ -568,19 +638,20 @@ function rebuildAnchors(anchorsData, vp, activeAnchorId) {
   const invScale = 1 / vp.scale;
 
   for (const a of anchorsData) {
-    const src = Transform.apply(a.sx, a.sy);
+    const srcPt = Transform.apply(a.sx, a.sy);
+    const srcX = srcPt.x, srcY = srcPt.y;
     const dst = Transform.apply(a.dx, a.dy);
     const isActive = a.id === activeAnchorId;
 
-    const dist = Math.hypot(dst.x - src.x, dst.y - src.y);
+    const dist = Math.hypot(dst.x - srcX, dst.y - srcY);
     if (dist > 2) {
       // Connecting dashed line (simplified to solid in PixiJS)
-      anchorsGfx.moveTo(src.x, src.y);
+      anchorsGfx.moveTo(srcX, srcY);
       anchorsGfx.lineTo(dst.x, dst.y);
       anchorsGfx.stroke({ width: 1 * invScale, color: 0xffffff, alpha: 0.3 });
 
       // Source (orange)
-      anchorsGfx.circle(src.x, src.y, 5 * invScale);
+      anchorsGfx.circle(srcX, srcY, 5 * invScale);
       anchorsGfx.fill({ color: 0xff6b35 });
       anchorsGfx.stroke({ width: 1 * invScale, color: 0xffffff, alpha: 0.6 });
     }
@@ -618,6 +689,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     textPool.push(label);
   }
   activeLabels = [];
+  _activeLabelMap.clear();
 
   const MAX_DOTS = 250; // Limite stricte absolue pour nettoyer l'écran des petits points
   const MAX_LABELS = 150; 
@@ -636,36 +708,44 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     if (crater.name === "--" || crater.nx === null) continue;
 
     const pt = transformFn(crater.nx, crater.ny);
-    const sx = pt.x * vp.scale + vp.tx;
-    const sy = pt.y * vp.scale + vp.ty;
+    const ptX = pt.x, ptY = pt.y; // Copy from scratch object
+    const sx = ptX * vp.scale + vp.tx;
+    const sy = ptY * vp.scale + vp.ty;
 
-    // Frustum Culling généreux (On garde les cratères juste en dehors de l'écran pour garder du buffer lors du drag)
+    // Frustum Culling généreux
     if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
 
-    _dotCandidates.push({ crater, pt, sx, sy });
+    _dotCandidates.push({ crater, ptX, ptY, sx, sy });
   }
 
-  // Tri par taille absolue (les plus gros cratères réels en premier)
-  _dotCandidates.sort((a, b) => b.crater.diameter - a.crater.diameter);
+  // cratersDB is pre-sorted by diameter descending (done once at init)
+  // _dotCandidates inherits that order — no re-sort needed
   
   const dotsCount = Math.min(_dotCandidates.length, MAX_DOTS);
   const minHoverDiameter = 4 / vp.scale;
 
-  // Passe 2 : Dessiner le Top 500 des plus gros cratères de la zone
+  // Pre-compute sun trig ONCE outside the loop
+  const DEG2RAD = Math.PI / 180;
+  const hasSun = window.appMoonState && typeof window.appMoonState.sunLon === 'number';
+  let sinSLon = 0, cosSLon = 0, sinSLat = 0, cosSLat = 0, sunLonRad = 0;
+  if (hasSun) {
+    sunLonRad = window.appMoonState.sunLon * DEG2RAD;
+    const sLatR = (window.appMoonState.sunLat || 0) * DEG2RAD;
+    sinSLon = Math.sin(sunLonRad); cosSLon = Math.cos(sunLonRad);
+    sinSLat = Math.sin(sLatR); cosSLat = Math.cos(sLatR);
+  }
+
+  // Passe 2 : Dessiner le Top N des plus gros cratères de la zone
   for (let i = 0; i < dotsCount; i++) {
     const item = _dotCandidates[i];
-    const { crater, pt, sx, sy } = item;
+    const { crater, ptX, ptY, sx, sy } = item;
 
-    // L'opacité ne dépend plus d'une limite arbitraire, seulement de la nuit de la lune
+    // Sun incidence using pre-computed trig (crater.sinLat/cosLat/lonRad immutable)
     let op = 1.0;
-    if (window.appMoonState && typeof window.appMoonState.sunLon === 'number') {
-      const rLon = crater.longitude * Math.PI / 180;
-      const rLat = crater.latitude * Math.PI / 180;
-      const sLon = window.appMoonState.sunLon * Math.PI / 180;
-      const sLat = window.appMoonState.sunLat * Math.PI / 180;
-      const cosI = Math.sin(rLat) * Math.sin(sLat) + Math.cos(rLat) * Math.cos(sLat) * Math.cos(rLon - sLon);
-      if (cosI < 0) op *= 0.25;
-      else if (cosI < 0.1) op *= 0.25 + (0.75 * (cosI / 0.1));
+    if (hasSun) {
+      const cosI = crater.sinLat * sinSLat + crater.cosLat * cosSLat * Math.cos(crater.lonRad - sunLonRad);
+      if (cosI < 0) op = 0.25;
+      else if (cosI < 0.1) op = 0.25 + (0.75 * (cosI / 0.1));
     }
 
     if (op < 0.05) continue;
@@ -673,11 +753,11 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     // Rayon borné entre 2.0 et 3.0 via sqrt
     const onScreenRadius = Math.max(2.0, Math.min(3.0, Math.sqrt(crater.diameter * vp.scale) * 0.35));
 
-    dotsGfx.circle(pt.x, pt.y, onScreenRadius / vp.scale);
+    dotsGfx.circle(ptX, ptY, onScreenRadius / vp.scale);
     dotsGfx.fill({ color: 0xff4b4b, alpha: op });
 
     if (crater.diameter >= minHoverDiameter) {
-      _allVisibleCraterPoints.push({ crater, pt, op });
+      _allVisibleCraterPoints.push({ crater, ptX, ptY, op });
     }
 
     // Préparation pour les Labels
@@ -695,7 +775,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const normalizedDist = Math.max(0, Math.min(1, Math.sqrt(distSq / maxScreenDistSq)));
     const score = (crater.diameter * vp.scale) * (1.0 - (normalizedDist * 0.8));
 
-    _candidates.push({ crater, pt, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
+    _candidates.push({ crater, ptX, ptY, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
   }
 
   // Tri par priorité décroissante
@@ -706,8 +786,8 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   for (const item of _candidates) {
     if (activeLabels.length >= MAX_LABELS) break;
 
-    // HITBOX INVISIBLE : Force les labels à s'écarter les uns des autres (Anti surpeuplement naturel)
-    const pad = 30; // 30 pixels de "champ de force" vide autour de chaque bloc !
+    // HITBOX INVISIBLE : Force les labels à s'écarter les uns des autres
+    const pad = 30;
     const hitX = item.boxX - pad;
     const hitY = item.boxY - pad;
     const hitW = item.textWidth + pad * 2;
@@ -730,8 +810,8 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     // Design de la Pilule (Backdrop) ajustée et amincie
     const bgWorldW = (item.textWidth + 10) * invScale;
     const bgWorldH = (item.textHeight + 6) * invScale;
-    const bgWorldX = item.pt.x - bgWorldW / 2;
-    const bgWorldY = (item.pt.y - 10 * invScale) - bgWorldH; // Bien collé à la base du texte
+    const bgWorldX = item.ptX - bgWorldW / 2;
+    const bgWorldY = (item.ptY - 10 * invScale) - bgWorldH;
 
     labelsBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 3 * invScale);
     labelsBgGfx.fill({ color: 0x06060c, alpha: item.op * 0.85 });
@@ -753,16 +833,17 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     }
 
     label.text = item.crater.name;
-    label.position.set(item.pt.x, item.pt.y - 10 * invScale);
+    label.position.set(item.ptX, item.ptY - 10 * invScale);
     label.scale.set(invScale);
     label.alpha = item.op;
     label.visible = true;
 
-    label._worldX = item.pt.x;
-    label._worldY = item.pt.y;
-    label._crater = item.crater; // Store obj ref for Hover
+    label._worldX = item.ptX;
+    label._worldY = item.ptY;
+    label._crater = item.crater;
 
     activeLabels.push(label);
+    _activeLabelMap.set(item.crater, label);
   }
 }
 
@@ -812,8 +893,8 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   if (!isDragging) {
     for (const cand of _allVisibleCraterPoints) {
-      const sx = cand.pt.x * vp.scale + vp.tx;
-      const sy = cand.pt.y * vp.scale + vp.ty;
+      const sx = cand.ptX * vp.scale + vp.tx;
+      const sy = cand.ptY * vp.scale + vp.ty;
 
       const dx = sx - mouseX;
       if (Math.abs(dx) > 15) continue;
@@ -833,11 +914,11 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   hoverLabel.visible = false;
 
   if (closestCandidate) {
-    // Vérifier si ce cratère possède DÉJÀ un label à l'écran
-    const existingLabel = activeLabels.find(l => l._crater === closestCandidate.crater);
+    // Vérifier si ce cratère possède DÉJÀ un label à l'écran (O(1) lookup)
+    const existingLabel = _activeLabelMap.get(closestCandidate.crater) || null;
 
     // Effet commun : cercle Néon de sélection
-    hoverBgGfx.circle(closestCandidate.pt.x, closestCandidate.pt.y, 8 * invScale);
+    hoverBgGfx.circle(closestCandidate.ptX, closestCandidate.ptY, 8 * invScale);
     hoverBgGfx.stroke({ width: 2 * invScale, color: 0x00d4ff, alpha: 0.9 });
 
     if (existingLabel && existingLabel.visible) {
@@ -852,14 +933,14 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       const textH = 22;
       const bgWorldW = (textW + 16) * invScale;
       const bgWorldH = (textH + 8) * invScale;
-      const bgWorldX = closestCandidate.pt.x - bgWorldW / 2;
-      const bgWorldY = (closestCandidate.pt.y - 12 * invScale) - bgWorldH + (4 * invScale);
+      const bgWorldX = closestCandidate.ptX - bgWorldW / 2;
+      const bgWorldY = (closestCandidate.ptY - 12 * invScale) - bgWorldH + (4 * invScale);
 
       hoverBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 6 * invScale);
       hoverBgGfx.fill({ color: 0x06060c, alpha: 0.95 });
       hoverBgGfx.stroke({ width: 2 * invScale, color: 0x00d4ff, alpha: 0.8 });
 
-      hoverLabel.position.set(closestCandidate.pt.x, closestCandidate.pt.y - 14 * invScale);
+      hoverLabel.position.set(closestCandidate.ptX, closestCandidate.ptY - 14 * invScale);
       hoverLabel.scale.set(invScale);
       hoverLabel.tint = 0x00d4ff;
       hoverLabel.visible = true;

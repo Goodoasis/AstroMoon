@@ -18,6 +18,10 @@ let dirty = true;
 
 const HIT_RADIUS = 14;
 
+// Scratch objects for zero-alloc transform closures
+const _deformPt = { x: 0, y: 0 };
+const _invPt = { x: 0, y: 0 };
+
 function add(sx, sy, dx, dy) {
   if (dx === undefined) dx = sx;
   if (dy === undefined) dy = sy;
@@ -50,7 +54,7 @@ function clear() {
 }
 
 function getAll() {
-  return anchors.map(a => ({ ...a }));
+  return anchors;
 }
 
 function count() {
@@ -103,7 +107,7 @@ function inverseTPS(dx, dy) {
   let sy = dy;
   
   for (let i = 0; i < 20; i++) {
-    const f = TPS.apply(sx, sy, tps);
+    const f = TPS.apply(sx, sy, tps, _invPt);
     const ex = dx - f.x;
     const ey = dy - f.y;
     sx += ex;
@@ -119,7 +123,7 @@ function getTransformFunction() {
 
   if (tps) {
     return (nx, ny) => {
-      const deformed = TPS.apply(nx, ny, tps);
+      const deformed = TPS.apply(nx, ny, tps, _deformPt);
       return Transform.apply(deformed.x, deformed.y);
     };
   } else {

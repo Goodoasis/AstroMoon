@@ -10,14 +10,21 @@ let state = {
   ty: 0,
   scale: 1,
   rotation: 0,
-  layerSize: DEFAULT_LAYER_SIZE
+  layerSize: DEFAULT_LAYER_SIZE,
+  _cos: 1,  // cached cos(rotation)
+  _sin: 0   // cached sin(rotation)
 };
+
+// Reusable output object for apply()/inverse() — avoids GC in hot loops
+const _tmpOut = { x: 0, y: 0 };
 
 function reset(canvasW, canvasH) {
   const size = Math.min(canvasW, canvasH) * 0.7;
   state.layerSize = size;
   state.scale = 1;
   state.rotation = 0;
+  state._cos = 1;
+  state._sin = 0;
   state.tx = (canvasW - size) / 2;
   state.ty = (canvasH - size) / 2;
 }
@@ -51,11 +58,11 @@ function setState(newState) {
   Object.assign(state, newState);
 }
 
-function apply(nx, ny) {
+function apply(nx, ny, out) {
   const cx = state.layerSize / 2;
   const cy = state.layerSize / 2;
-  const cos = Math.cos(state.rotation);
-  const sin = Math.sin(state.rotation);
+  const cos = state._cos;
+  const sin = state._sin;
   const ls = state.layerSize;
   const sc = state.scale;
 
@@ -67,13 +74,13 @@ function apply(nx, ny) {
   const m11 = ls * cos * sc;
   const m12 = cy - cx * sin * sc - cy * cos * sc + state.ty;
 
-  return { 
-    x: nx * m00 + ny * m01 + m02, 
-    y: nx * m10 + ny * m11 + m12 
-  };
+  const o = out || _tmpOut;
+  o.x = nx * m00 + ny * m01 + m02;
+  o.y = nx * m10 + ny * m11 + m12;
+  return o;
 }
 
-function inverse(sx, sy) {
+function inverse(sx, sy, out) {
   let x = sx - state.tx;
   let y = sy - state.ty;
 
@@ -92,14 +99,17 @@ function inverse(sx, sy) {
   x /= state.layerSize;
   y /= state.layerSize;
 
-  return { x, y };
+  const o = out || _tmpOut;
+  o.x = x;
+  o.y = y;
+  return o;
 }
 
 function applyBuffer(buffer, length = buffer.length) {
   const cx = state.layerSize / 2;
   const cy = state.layerSize / 2;
-  const cos = Math.cos(state.rotation);
-  const sin = Math.sin(state.rotation);
+  const cos = state._cos;
+  const sin = state._sin;
   const ls = state.layerSize;
   const sc = state.scale;
   const tx = state.tx;
@@ -125,7 +135,7 @@ function applyBuffer(buffer, length = buffer.length) {
 }
 
 function getLayerCenter() {
-  return apply(0.5, 0.5);
+  return apply(0.5, 0.5, { x: 0, y: 0 });
 }
 
 function translate(dx, dy) {
@@ -147,10 +157,14 @@ function zoom(factor, sx, sy) {
 
 function rotate(deltaRadians) {
   state.rotation += deltaRadians;
+  state._cos = Math.cos(state.rotation);
+  state._sin = Math.sin(state.rotation);
 }
 
 function setRotation(radians) {
   state.rotation = radians;
+  state._cos = Math.cos(radians);
+  state._sin = Math.sin(radians);
 }
 
 export const Transform = {

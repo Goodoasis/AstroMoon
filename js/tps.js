@@ -22,6 +22,9 @@ for (let i = 0; i <= LUT_SIZE; i++) {
   LUT[i] = r2 >= 1e-20 ? 0.5 * r2 * Math.log(r2) : 0;
 }
 
+// Reusable output for apply() — avoids GC in hot loops
+const _tmpPt = { x: 0, y: 0 };
+
 /**
  * Radial basis function for TPS, mathematically optimized.
  * U(r) = r² · ln(r)
@@ -116,8 +119,12 @@ function solve(controlPoints) {
  * @param {Object} tpsData - Result from solve()
  * @returns {{x: number, y: number}} (Caution: allocates objects, causes GC overhead in render loop)
  */
-function apply(x, y, tpsData) {
-  if (!tpsData) return { x, y };
+function apply(x, y, tpsData, out) {
+  if (!tpsData) {
+    const o = out || _tmpPt;
+    o.x = x; o.y = y;
+    return o;
+  }
 
   const { weightsX, weightsY, n, srcPoints } = tpsData;
 
@@ -133,7 +140,10 @@ function apply(x, y, tpsData) {
     dispY += weightsY[i] * u;
   }
 
-  return { x: x + dispX, y: y + dispY };
+  const o = out || _tmpPt;
+  o.x = x + dispX;
+  o.y = y + dispY;
+  return o;
 }
 
 /**
