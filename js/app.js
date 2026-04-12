@@ -688,8 +688,13 @@ async function loadLayersAsync() {
 
     if (allRawFeatures.length > 0) {
       projectedFeatures = GeoJSON.project(allRawFeatures);
-      layerTransformDirty = true;
       console.log(`Total: ${layerCount} layers loaded via fetch.`);
+
+      // Initial cache build + scene rebuild done HERE (outside rAF ticker)
+      // to avoid a 50-100ms requestAnimationFrame violation on first frame.
+      layerTransformDirty = true;
+      updateLayerCache();  // allocs Float32Arrays + applies TPS/Transform pipeline
+      rebuildScene(true);  // full initial rebuild (all subsystems)
     }
   } catch (err) {
     console.error("Failed to load layers.json index:", err);
