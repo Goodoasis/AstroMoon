@@ -8,6 +8,8 @@ import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
 import { MiniExif } from './exif.js';
+import { GeoJSONLod } from './geojson_lod.js';
+import { CULLING, PERF } from './config.js';
 // TPS is used internally by Anchors, no direct import needed here.
 
 // ─── State ───
@@ -26,6 +28,10 @@ let layerCount = 0;
 
 let viewport = { tx: 0, ty: 0, scale: 1 };
 let lastViewportScale = 1; // Used to detect zoom changes and rebuild sharp lines
+
+// ─── LOD State ───
+let _currentLOD = 2; // Start at coarsest LOD (fast initial render)
+let _lodEnabled = false; // True once LOD data is available
 
 let mode = 'navigate'; // 'navigate' | 'anchor'
 let isDragging = false;
@@ -236,23 +242,90 @@ function onResize() {
 
 function updateLayerCache() {
   if (!projectedFeatures) return;
+
+  // ─── LOD Selection ───
+  // Choose the appropriate LOD level based on current zoom
+  if (_lodEnabled) {
+    const tState = Transform.getState();
+    const newLOD = GeoJSONLod.selectLOD(viewport.scale, tState.scale, tState.layerSize);
+    if (newLOD !== _currentLOD) {
+      // Count total vertices at each LOD for diagnostics
+      let oldVerts = 0, newVerts = 0;
+      for (const f of projectedFeatures) {
+        if (f.projectedLodCoords) {
+          const oldSrc = f.projectedLodCoords[_currentLOD];
+          const newSrc = f.projectedLodCoords[newLOD];
+          if (oldSrc) for (const r of oldSrc) if (r) oldVerts += Array.isArray(r) ? r.length : 0;
+          if (newSrc) for (const r of newSrc) if (r) newVerts += Array.isArray(r) ? r.length : 0;
+        }
+      }
+      console.log(`LOD ${_currentLOD} → ${newLOD} | vertices: ${oldVerts.toLocaleString()} → ${newVerts.toLocaleString()}`);
+      _currentLOD = newLOD;
+    }
+  }
+
+  // ─── Pre-culling setup (viewport bounds in world space) ───
+  const app = PixiRenderer.getApp();
+  const screenW = app ? app.screen.width : canvasW;
+  const screenH = app ? app.screen.height : canvasH;
+  const invScale = 1 / viewport.scale;
+  const margin = CULLING.viewportMargin;
+  const vpMinX = (-viewport.tx - screenW * margin) * invScale;
+  const vpMaxX = (screenW - viewport.tx + screenW * margin) * invScale;
+  const vpMinY = (-viewport.ty - screenH * margin) * invScale;
+  const vpMaxY = (screenH - viewport.ty + screenH * margin) * invScale;
+
   for (const feature of projectedFeatures) {
-    if (!feature.renderedCoords) {
-      feature.renderedCoords = new Array(feature.projectedCoords.length);
+    // ─── Select source coords (LOD-aware) ───
+    let sourceCoords;
+    if (_lodEnabled && feature.projectedLodCoords && feature.projectedLodCoords[_currentLOD]) {
+      sourceCoords = feature.projectedLodCoords[_currentLOD];
+    } else {
+      sourceCoords = feature.projectedCoords;
+    }
+
+    if (!feature.renderedCoords || feature.renderedCoords.length !== sourceCoords.length) {
+      feature.renderedCoords = new Array(sourceCoords.length);
     }
     
     // Initialiser les bounds pour l'optimisation (culling)
     feature.worldBounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+
+    // ─── Pre-culling: estimate bounds via affine transform only (skip TPS) ───
+    // Use normalized bounds from the source coords to do cheap frustum test
+    if (feature._normBounds) {
+      const nb = feature._normBounds;
+      // Transform the 4 corners of the AABB via affine only (4 calls, no TPS)
+      const c0 = Transform.apply(nb.minX, nb.minY, { x: 0, y: 0 });
+      const c1 = Transform.apply(nb.maxX, nb.minY, { x: 0, y: 0 });
+      const c2 = Transform.apply(nb.minX, nb.maxY, { x: 0, y: 0 });
+      const c3 = Transform.apply(nb.maxX, nb.maxY, { x: 0, y: 0 });
+      const estMinX = Math.min(c0.x, c1.x, c2.x, c3.x);
+      const estMaxX = Math.max(c0.x, c1.x, c2.x, c3.x);
+      const estMinY = Math.min(c0.y, c1.y, c2.y, c3.y);
+      const estMaxY = Math.max(c0.y, c1.y, c2.y, c3.y);
+
+      if (estMaxX < vpMinX || estMinX > vpMaxX || estMaxY < vpMinY || estMinY > vpMaxY) {
+        // Feature is entirely off-screen — skip TPS + mark empty
+        for (let r = 0; r < sourceCoords.length; r++) {
+          feature.renderedCoords[r] = feature.renderedCoords[r] || new Float32Array(0);
+          if (feature.renderedCoords[r].length > 0) {
+            feature.renderedCoords[r] = new Float32Array(0);
+          }
+        }
+        continue;
+      }
+    }
     
-    for (let r = 0; r < feature.projectedCoords.length; r++) {
-      const ring = feature.projectedCoords[r];
+    for (let r = 0; r < sourceCoords.length; r++) {
+      const ring = sourceCoords[r];
       // Reuse or allocate Float32Array (2 floats per point)
       if (!feature.renderedCoords[r] || feature.renderedCoords[r].length !== ring.length * 2) {
         feature.renderedCoords[r] = new Float32Array(ring.length * 2);
       }
       const cachedRing = feature.renderedCoords[r];
       
-      // Step 1: Copy raw protected coords into buffer flat floats
+      // Step 1: Copy raw projected coords into buffer flat floats
       for (let i = 0; i < ring.length; i++) {
         if (ring[i] === null) {
           cachedRing[i * 2] = NaN; // Use NaN for separators
@@ -512,14 +585,53 @@ function updateGeoJSONProjection() {
   if (!projectedFeatures) return;
   for (const feature of projectedFeatures) {
     if (!feature.coords) continue;
-    feature.projectedCoords = feature.coords.map(ring => {
-      if (!Array.isArray(ring)) return null;
-      if (!Array.isArray(ring[0])) {
-        return GeoJSON.projectPoint(ring[0], ring[1]);
+
+    // Project the base coords (LOD 0 / original)
+    feature.projectedCoords = _projectRings(feature.coords);
+
+    // Project all LOD levels if available
+    if (feature.lodCoords) {
+      feature.projectedLodCoords = new Array(feature.lodCoords.length);
+      for (let level = 0; level < feature.lodCoords.length; level++) {
+        if (level === 0) {
+          // LOD 0 is always the original data — reuse base projection
+          feature.projectedLodCoords[level] = feature.projectedCoords;
+        } else {
+          feature.projectedLodCoords[level] = _projectRings(feature.lodCoords[level]);
+        }
       }
-      return ring.map(c => GeoJSON.projectPoint(c[0], c[1]));
-    });
+
+      // Compute normalized bounds from LOD 0 projected coords for pre-culling
+      _computeNormBounds(feature);
+    }
   }
+}
+
+/** Project an array of rings from lon/lat to normalized coords. */
+function _projectRings(rings) {
+  return rings.map(ring => {
+    if (!Array.isArray(ring)) return null;
+    if (!Array.isArray(ring[0])) {
+      return GeoJSON.projectPoint(ring[0], ring[1]);
+    }
+    return ring.map(c => GeoJSON.projectPoint(c[0], c[1]));
+  });
+}
+
+/** Compute axis-aligned bounding box in normalized [0,1] space for pre-culling. */
+function _computeNormBounds(feature) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const ring of feature.projectedCoords) {
+    if (!ring) continue;
+    for (const pt of ring) {
+      if (!pt) continue;
+      if (pt[0] < minX) minX = pt[0];
+      if (pt[0] > maxX) maxX = pt[0];
+      if (pt[1] < minY) minY = pt[1];
+      if (pt[1] > maxY) maxY = pt[1];
+    }
+  }
+  feature._normBounds = { minX, minY, maxX, maxY };
 }
 
 function updateCratersProjection() {
@@ -654,51 +766,116 @@ async function handleImageUpload(e) {
 }
 
 async function loadLayersAsync() {
-  console.log("Loading layers via fetch...");
+  console.log("Loading layers via Web Worker...");
   try {
     const resp = await fetch('calque_geojson/layers.json');
     if (!resp.ok) throw new Error("Could not load layers.json index");
     const layerFiles = await resp.json();
 
-    for (const fileName of layerFiles) {
-      try {
-        const fileResp = await fetch(`calque_geojson/${fileName}`);
-        if (!fileResp.ok) {
-          console.warn(`Could not fetch layer file: ${fileName}`);
-          continue;
-        }
-        const text = await fileResp.text();
-        const newData = GeoJSON.parse(text);
+    // Build layer list with absolute URLs (Worker's base URL differs from page's)
+    const baseUrl = new URL('calque_geojson/', window.location.href).href;
+    const layers = layerFiles.map((fileName, i) => ({
+      url: `${baseUrl}${fileName}`,
+      layerIndex: i,
+      fileName
+    }));
+    layerCount = layers.length;
 
-        const idx = layerCount++;
-        newData.features.forEach(f => f.layerIndex = idx);
-        allRawFeatures = allRawFeatures.concat(newData.features);
-        
-        mergedBounds.minLon = Math.min(mergedBounds.minLon, newData.bounds.minLon);
-        mergedBounds.maxLon = Math.max(mergedBounds.maxLon, newData.bounds.maxLon);
-        mergedBounds.minLat = Math.min(mergedBounds.minLat, newData.bounds.minLat);
-        mergedBounds.maxLat = Math.max(mergedBounds.maxLat, newData.bounds.maxLat);
-        
-        loadedLayerNames.push(fileName);
-        console.log(`Layer loaded: ${fileName} (${newData.features.length} features)`);
-      } catch (err) {
-        console.warn(`Error loading layer ${fileName}:`, err);
+    // Spawn Web Worker for heavy parsing + LOD generation
+    const worker = new Worker('js/geojson_worker.js', { type: 'module' });
+    let receivedCount = 0;
+
+    worker.onmessage = (e) => {
+      const msg = e.data;
+
+      if (msg.type === 'layerReady') {
+        // Integrate features from worker
+        const features = msg.features;
+        allRawFeatures = allRawFeatures.concat(features);
+        loadedLayerNames.push(layers[msg.layerIndex].fileName);
+        receivedCount++;
+
+        console.log(
+          `Layer loaded: ${layers[msg.layerIndex].fileName} ` +
+          `(${features.length} features, LOD: ${msg.stats.totalPerLOD.join('/')} pts)`
+        );
+        showToast(`Calque ${receivedCount}/${layerCount} chargé`);
+
+        // Project all features received so far (projection depends on libration state)
+        projectedFeatures = GeoJSON.project(allRawFeatures);
+        _lodEnabled = true;
+
+        // Project LOD coords for the new features
+        updateGeoJSONProjection();
+
+        // Build cache and render
+        layerTransformDirty = true;
+        updateLayerCache();
+        rebuildScene(true);
+
+      } else if (msg.type === 'allDone') {
+        console.log(
+          `All ${layerCount} layers loaded via Worker. ` +
+          `Vertices — Original: ${msg.totalStats.totalOriginal}, ` +
+          `LOD: [${msg.totalStats.totalPerLOD.join(', ')}]`
+        );
+        worker.terminate();
+
+      } else if (msg.type === 'error') {
+        console.warn(`Worker error on layer ${msg.layerIndex}: ${msg.message}`);
       }
-    }
+    };
 
-    if (allRawFeatures.length > 0) {
-      projectedFeatures = GeoJSON.project(allRawFeatures);
-      console.log(`Total: ${layerCount} layers loaded via fetch.`);
+    worker.onerror = (err) => {
+      console.error('GeoJSON Worker fatal error:', err);
+      showToast('Erreur Worker — fallback synchrone...');
+      worker.terminate();
+      // Fallback: load synchronously if Worker fails
+      _loadLayersFallback(layerFiles);
+    };
 
-      // Initial cache build + scene rebuild done HERE (outside rAF ticker)
-      // to avoid a 50-100ms requestAnimationFrame violation on first frame.
-      layerTransformDirty = true;
-      updateLayerCache();  // allocs Float32Arrays + applies TPS/Transform pipeline
-      rebuildScene(true);  // full initial rebuild (all subsystems)
-    }
+    // Send all layers to the worker
+    worker.postMessage({
+      type: 'processAll',
+      layers: layers.map(l => ({ url: l.url, layerIndex: l.layerIndex }))
+    });
+
   } catch (err) {
     console.error("Failed to load layers.json index:", err);
     showToast("Erreur lors du chargement des calques (Vérifiez le serveur)");
+  }
+}
+
+/** Synchronous fallback if Web Worker is not supported or fails. */
+async function _loadLayersFallback(layerFiles) {
+  for (const fileName of layerFiles) {
+    try {
+      const fileResp = await fetch(`calque_geojson/${fileName}`);
+      if (!fileResp.ok) { console.warn(`Could not fetch: ${fileName}`); continue; }
+      const text = await fileResp.text();
+      const newData = GeoJSON.parse(text);
+
+      const idx = loadedLayerNames.length;
+      newData.features.forEach(f => f.layerIndex = idx);
+
+      // Generate LODs synchronously (fallback)
+      GeoJSONLod.generateLODs(newData.features);
+
+      allRawFeatures = allRawFeatures.concat(newData.features);
+      loadedLayerNames.push(fileName);
+      console.log(`[Fallback] Layer loaded: ${fileName}`);
+    } catch (err) {
+      console.warn(`Error loading layer ${fileName}:`, err);
+    }
+  }
+
+  if (allRawFeatures.length > 0) {
+    projectedFeatures = GeoJSON.project(allRawFeatures);
+    _lodEnabled = true;
+    updateGeoJSONProjection();
+    layerTransformDirty = true;
+    updateLayerCache();
+    rebuildScene(true);
   }
 }
 
@@ -884,7 +1061,7 @@ function enterApp() {
  * Rebuild scene graphics with granular dirty flags.
  * Only rebuilds subsystems that actually changed.
  */
-function rebuildScene(forceAll = false, hadTransformChange = false) {
+function rebuildScene(forceAll = false, hadTransformChange = false, lodChanged = false) {
   const transformFn = Anchors.getTransformFunction();
   const rebuildEphemeris = forceAll || dirtyEphemeris;
   const rebuildTransform = forceAll || hadTransformChange;
@@ -901,9 +1078,9 @@ function rebuildScene(forceAll = false, hadTransformChange = false) {
     PixiRenderer.rebuildTerminator(transformFn, viewport);
   }
 
-  // Grid: only on toggle or transform change
-  if (dirtyGrid || rebuildTransform) {
-    PixiRenderer.rebuildGrid(transformFn, viewport);
+  // Grid: only on toggle, transform change, or LOD change
+  if (dirtyGrid || rebuildTransform || lodChanged) {
+    PixiRenderer.rebuildGrid(transformFn, viewport, _currentLOD);
     dirtyGrid = false;
   }
 
@@ -941,12 +1118,24 @@ function renderTick(ticker) {
   }
   const timeSincePanZoom = Date.now() - _lastPanZoomTime;
 
+  // ─── LOD Change Detection ───
+  // Check if zoom crossed a LOD threshold (requires cache rebuild even without transform change)
+  let lodChanged = false;
+  if (_lodEnabled && projectedFeatures) {
+    const tState = Transform.getState();
+    const newLOD = GeoJSONLod.selectLOD(viewport.scale, tState.scale, tState.layerSize);
+    if (newLOD !== _currentLOD) {
+      lodChanged = true;
+      layerTransformDirty = true; // Force cache rebuild with new LOD
+    }
+  }
+
   // ─── 1. FAST UPDATE (Every frame) ───
   // Update viewport container (GPU-fast transform)
   PixiRenderer.updateViewport(viewport);
   
   // Utiliser uniquement les vrais pan/zoom pour masquer les textes
-  const isInteracting = isDragging || timeSincePanZoom < 150;
+  const isInteracting = isDragging || timeSincePanZoom < PERF.interactionFadeMs;
 
   // Update labels scales immediately so they remain readable during zoom
   if (PixiRenderer.showLabels && PixiRenderer.showLabels()) {
@@ -956,11 +1145,11 @@ function renderTick(ticker) {
   // ─── 2. SLOW QUALITY REBUILD (Debounced) ───
   // If we are idle for 150ms and a change occurred, we rebuild the sharp lines (CPU-heavy)
   if ((layerTransformDirty || viewportZoomChanged || viewportPanChanged) && projectedFeatures) {
-    if (timeSinceLastInteraction > 150 || layerTransformDirty) {
+    if (timeSinceLastInteraction > PERF.rebuildDebounceMs || layerTransformDirty) {
       // Snapshot dirty flag BEFORE updateLayerCache() clears it
       const hadTransformChange = layerTransformDirty;
       if (layerTransformDirty) updateLayerCache();
-      rebuildScene(false, hadTransformChange);
+      rebuildScene(false, hadTransformChange, lodChanged);
       lastViewportScale = viewport.scale;
       _lastViewportTx = viewport.tx;
       _lastViewportTy = viewport.ty;

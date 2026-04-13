@@ -18,18 +18,8 @@ import * as PIXI from 'https://cdn.jsdelivr.net/npm/pixi.js@8.17.1/dist/pixi.min
 import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
+import { GRID, LABELS, CULLING, RENDER, LAYER_PALETTE } from './config.js';
 
-// ─── Layer color palette ───
-const LAYER_PALETTE = [
-  { stroke: 0x00d4ff, alpha: 0.75, fill: 0x00d4ff, fillAlpha: 0.06, name: 'Cyan' },
-  { stroke: 0xff6b35, alpha: 0.75, fill: 0xff6b35, fillAlpha: 0.06, name: 'Orange' },
-  { stroke: 0xa36aff, alpha: 0.75, fill: 0xa36aff, fillAlpha: 0.06, name: 'Violet' },
-  { stroke: 0xffd700, alpha: 0.75, fill: 0xffd700, fillAlpha: 0.06, name: 'Gold' },
-  { stroke: 0x00ff88, alpha: 0.75, fill: 0x00ff88, fillAlpha: 0.06, name: 'Vert' },
-  { stroke: 0xff69b4, alpha: 0.75, fill: 0xff69b4, fillAlpha: 0.06, name: 'Rose' },
-  { stroke: 0x64c8ff, alpha: 0.75, fill: 0x64c8ff, fillAlpha: 0.06, name: 'Bleu clair' },
-  { stroke: 0xffa050, alpha: 0.75, fill: 0xffa050, fillAlpha: 0.06, name: 'Pêche' },
-];
 
 // Scene graph references
 let app = null;
@@ -535,26 +525,28 @@ function rebuildTerminator(transformFn, vp) {
 
 // ─── Grid ───
 
-// Cached grid projection data (only changes with libration)
-let _gridCache = null; // { libKey, linesNorm, horizonNorm }
+// Cached grid projection data (changes with libration OR grid spacing)
+let _gridCache = null; // { cacheKey, linesNorm, horizonNorm }
 
 /**
  * Build or retrieve cached grid normalized coords.
- * Only reprojects when libration changes.
+ * Reprojects when libration or grid spacing changes.
+ * @param {number} spacing - Grid line spacing in degrees (default 10)
  */
-function _getGridCache() {
+function _getGridCache(spacing = 10) {
   const state = window.appMoonState || {};
   const libKey = `${(state.librationLon || 0).toFixed(6)}_${(state.librationLat || 0).toFixed(6)}`;
+  const cacheKey = `${libKey}_${spacing}`;
 
-  if (_gridCache && _gridCache.libKey === libKey) return _gridCache;
+  if (_gridCache && _gridCache.cacheKey === cacheKey) return _gridCache;
 
   // Build grid lines as flat [nx, ny, nx, ny, ...] with NaN separators between lines
   const linesData = [];
 
-  // Longitude lines (19 lines × ~91 points)
-  for (let lon = -90; lon <= 90; lon += 10) {
+  // Longitude lines
+  for (let lon = -90; lon <= 90; lon += spacing) {
     let hasStarted = false;
-    for (let lat = 90; lat >= -90; lat -= 2) {
+    for (let lat = 90; lat >= -90; lat -= GRID.sampleStep) {
       const proj = GeoJSON.projectPoint(lon, lat);
       if (!proj) continue;
       if (!hasStarted) hasStarted = true;
@@ -563,10 +555,10 @@ function _getGridCache() {
     if (hasStarted) linesData.push(NaN, NaN); // separator
   }
 
-  // Latitude lines (19 lines × ~91 points)
-  for (let lat = -90; lat <= 90; lat += 10) {
+  // Latitude lines
+  for (let lat = -90; lat <= 90; lat += spacing) {
     let hasStarted = false;
-    for (let lon = -90; lon <= 90; lon += 2) {
+    for (let lon = -90; lon <= 90; lon += GRID.sampleStep) {
       const proj = GeoJSON.projectPoint(lon, lat);
       if (!proj) continue;
       if (!hasStarted) hasStarted = true;
@@ -575,15 +567,15 @@ function _getGridCache() {
     if (hasStarted) linesData.push(NaN, NaN); // separator
   }
 
-  // Horizon circle (73 points)
+  // Horizon circle
   const horizonData = [];
-  for (let angle = 0; angle <= 360; angle += 5) {
+  for (let angle = 0; angle <= 360; angle += GRID.horizonStep) {
     const rad = angle * Math.PI / 180;
     horizonData.push(0.5 + 0.5 * Math.cos(rad), 0.5 + 0.5 * Math.sin(rad));
   }
 
   _gridCache = {
-    libKey,
+    cacheKey,
     linesNorm: new Float32Array(linesData),
     horizonNorm: new Float32Array(horizonData),
     // Working buffers for transform (avoids allocation)
@@ -594,12 +586,13 @@ function _getGridCache() {
   return _gridCache;
 }
 
-function rebuildGrid(transformFn, vp) {
+function rebuildGrid(transformFn, vp, lodLevel = 0) {
   gridGfx.clear();
   if (!_showGrid) return;
 
   const invScale = 1 / vp.scale;
-  const cache = _getGridCache();
+  const spacing = GRID.spacingByLOD[lodLevel] || 10;
+  const cache = _getGridCache(spacing);
 
   // Copy cached projections to working buffers, then apply TPS + Transform in-place
   cache.linesWork.set(cache.linesNorm);
@@ -617,7 +610,7 @@ function rebuildGrid(transformFn, vp) {
     if (!moved) { gridGfx.moveTo(x, y); moved = true; }
     else gridGfx.lineTo(x, y);
   }
-  gridGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 0.7 });
+  gridGfx.stroke({ width: GRID.lineWidth * invScale, color: GRID.lineColor, alpha: GRID.lineAlpha });
 
   // Draw horizon from transformed buffer
   const hb = cache.horizonWork;
@@ -625,10 +618,9 @@ function rebuildGrid(transformFn, vp) {
   for (let i = 2; i < hb.length; i += 2) {
     gridGfx.lineTo(hb[i], hb[i + 1]);
   }
-  gridGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 0.6 });
+  gridGfx.stroke({ width: GRID.horizonWidth * invScale, color: GRID.horizonColor, alpha: GRID.horizonAlpha });
 }
 
-// ─── Anchors ───
 
 function rebuildAnchors(anchorsData, vp, activeAnchorId) {
   anchorsGfx.clear();
@@ -691,8 +683,8 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   activeLabels = [];
   _activeLabelMap.clear();
 
-  const MAX_DOTS = 250; // Limite stricte absolue pour nettoyer l'écran des petits points
-  const MAX_LABELS = 150; 
+  const MAX_DOTS = LABELS.maxDots;
+  const MAX_LABELS = LABELS.maxLabels; 
   
   const cx = canvasW / 2;
   const cy = canvasH / 2;
@@ -722,7 +714,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   // _dotCandidates inherits that order — no re-sort needed
   
   const dotsCount = Math.min(_dotCandidates.length, MAX_DOTS);
-  const minHoverDiameter = 4 / vp.scale;
+  const minHoverDiameter = LABELS.hoverMinScreenDiameter / vp.scale;
 
   // Pre-compute sun trig ONCE outside the loop
   const DEG2RAD = Math.PI / 180;
@@ -751,7 +743,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     if (op < 0.05) continue;
 
     // Rayon borné entre 2.0 et 3.0 via sqrt
-    const onScreenRadius = Math.max(2.0, Math.min(3.0, Math.sqrt(crater.diameter * vp.scale) * 0.35));
+    const onScreenRadius = Math.max(LABELS.dotRadiusMin, Math.min(LABELS.dotRadiusMax, Math.sqrt(crater.diameter * vp.scale) * LABELS.dotRadiusScale));
 
     dotsGfx.circle(ptX, ptY, onScreenRadius / vp.scale);
     dotsGfx.fill({ color: 0xff4b4b, alpha: op });
@@ -787,7 +779,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     if (activeLabels.length >= MAX_LABELS) break;
 
     // HITBOX INVISIBLE : Force les labels à s'écarter les uns des autres
-    const pad = 30;
+    const pad = LABELS.overlapPadding;
     const hitX = item.boxX - pad;
     const hitY = item.boxY - pad;
     const hitW = item.textWidth + pad * 2;
