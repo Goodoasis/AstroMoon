@@ -189,12 +189,12 @@ async function init() {
     if (locSource !== 'ville') return;
     clearTimeout(locDebounceTimer);
     const query = e.target.value.trim();
-    if (query.length < 3) {
+    if (query.length < PERF.searchMinChars) {
       predictionsList.innerHTML = '';
       predictionsList.classList.add('hidden');
       return;
     }
-    locDebounceTimer = setTimeout(() => fetchPredictions(query), 400);
+    locDebounceTimer = setTimeout(() => fetchPredictions(query), PERF.searchDebounceMs);
   });
 
   document.addEventListener('click', (e) => {
@@ -593,15 +593,12 @@ function updateGeoJSONProjection() {
     if (feature.lodCoords) {
       feature.projectedLodCoords = new Array(feature.lodCoords.length);
       for (let level = 0; level < feature.lodCoords.length; level++) {
-        if (level === 0) {
-          // LOD 0 is always the original data — reuse base projection
-          feature.projectedLodCoords[level] = feature.projectedCoords;
-        } else {
-          feature.projectedLodCoords[level] = _projectRings(feature.lodCoords[level]);
-        }
+        // Always project from lodCoords[level] — per-layer epsilons may
+        // simplify even LOD 0 (e.g. marias with eps=0.008)
+        feature.projectedLodCoords[level] = _projectRings(feature.lodCoords[level]);
       }
 
-      // Compute normalized bounds from LOD 0 projected coords for pre-culling
+      // Compute normalized bounds from finest LOD projected coords for pre-culling
       _computeNormBounds(feature);
     }
   }
@@ -770,19 +767,25 @@ async function loadLayersAsync() {
   try {
     const resp = await fetch('calque_geojson/layers.json');
     if (!resp.ok) throw new Error("Could not load layers.json index");
-    const layerFiles = await resp.json();
+    const layerEntries = await resp.json();
 
     // Build layer list with absolute URLs (Worker's base URL differs from page's)
+    // layers.json supports mixed format: string (default epsilons) or {file, epsilons}
     const baseUrl = new URL('calque_geojson/', window.location.href).href;
-    const layers = layerFiles.map((fileName, i) => ({
-      url: `${baseUrl}${fileName}`,
-      layerIndex: i,
-      fileName
-    }));
+    const layers = layerEntries.map((entry, i) => {
+      const isObj = typeof entry === 'object' && entry !== null;
+      const fileName = isObj ? entry.file : entry;
+      return {
+        url: `${baseUrl}${fileName}`,
+        layerIndex: i,
+        fileName,
+        epsilons: isObj && entry.epsilons ? entry.epsilons : null // null = use default
+      };
+    });
     layerCount = layers.length;
 
-    // Spawn Web Worker for heavy parsing + LOD generation
-    const worker = new Worker('js/geojson_worker.js', { type: 'module' });
+    // Spawn Web Worker for heavy parsing + LOD generation (adding cache buster to force script update)
+    const worker = new Worker(`js/geojson_worker.js?v=${Date.now()}`, { type: 'module' });
     let receivedCount = 0;
 
     worker.onmessage = (e) => {
@@ -831,13 +834,13 @@ async function loadLayersAsync() {
       showToast('Erreur Worker — fallback synchrone...');
       worker.terminate();
       // Fallback: load synchronously if Worker fails
-      _loadLayersFallback(layerFiles);
+      _loadLayersFallback(layers);
     };
 
-    // Send all layers to the worker
+    // Send all layers to the worker (include per-layer epsilons if specified)
     worker.postMessage({
       type: 'processAll',
-      layers: layers.map(l => ({ url: l.url, layerIndex: l.layerIndex }))
+      layers: layers.map(l => ({ url: l.url, layerIndex: l.layerIndex, epsilons: l.epsilons }))
     });
 
   } catch (err) {
@@ -846,26 +849,28 @@ async function loadLayersAsync() {
   }
 }
 
-/** Synchronous fallback if Web Worker is not supported or fails. */
-async function _loadLayersFallback(layerFiles) {
-  for (const fileName of layerFiles) {
+/** Synchronous fallback if Web Worker is not supported or fails.
+ *  @param {Array} layers - Parsed layer descriptors with {url, fileName, epsilons} */
+async function _loadLayersFallback(layers) {
+  for (const layer of layers) {
     try {
-      const fileResp = await fetch(`calque_geojson/${fileName}`);
-      if (!fileResp.ok) { console.warn(`Could not fetch: ${fileName}`); continue; }
+      const fileResp = await fetch(`calque_geojson/${layer.fileName}`);
+      if (!fileResp.ok) { console.warn(`Could not fetch: ${layer.fileName}`); continue; }
       const text = await fileResp.text();
       const newData = GeoJSON.parse(text);
 
       const idx = loadedLayerNames.length;
       newData.features.forEach(f => f.layerIndex = idx);
 
-      // Generate LODs synchronously (fallback)
-      GeoJSONLod.generateLODs(newData.features);
+      // Generate LODs synchronously (with per-layer epsilons if specified)
+      const epsilons = layer.epsilons || undefined; // undefined → use default from config
+      GeoJSONLod.generateLODs(newData.features, epsilons);
 
       allRawFeatures = allRawFeatures.concat(newData.features);
-      loadedLayerNames.push(fileName);
-      console.log(`[Fallback] Layer loaded: ${fileName}`);
+      loadedLayerNames.push(layer.fileName);
+      console.log(`[Fallback] Layer loaded: ${layer.fileName}`);
     } catch (err) {
-      console.warn(`Error loading layer ${fileName}:`, err);
+      console.warn(`Error loading layer ${layer.fileName}:`, err);
     }
   }
 
@@ -1127,6 +1132,8 @@ function renderTick(ticker) {
     if (newLOD !== _currentLOD) {
       lodChanged = true;
       layerTransformDirty = true; // Force cache rebuild with new LOD
+      _currentLOD = newLOD;
+      console.log(`LOD changé vers: ${_currentLOD}`);
     }
   }
 

@@ -17,21 +17,22 @@
 
 export const LOD = {
   /** Douglas-Peucker epsilon per level (degree-space).
-   *  Index 0 = no simplification (original), higher = more aggressive. */
-  epsilons: [0.15, 0.3, 0.5],
+   *  4 levels: 0=original, 1=fine, 2=medium, 3=coarse.
+   *  Heavy layers (e.g. marias) can override via per-layer epsilons in layers.json. */
+  epsilons: [0, 0.03, 0.08, 0.25],
 
   /** effectiveScale thresholds (viewport.scale × transform.scale × layerSize).
-   *  [0] = min scale for LOD 0 (full), [1] = min scale for LOD 1 (medium).
-   *  Below [1] → LOD 2 (coarse). */
-  scaleThresholds: [3000, 1200],
+   *  [0] = min scale for LOD 0, [1] = min for LOD 1, [2] = min for LOD 2.
+   *  Below [2] → LOD 3 (coarsest). */
+  scaleThresholds: [3400, 2200, 1200],
 };
 
 // ─── GRID ──────────────────────────────────────────────
 
 export const GRID = {
   /** Grid line spacing in degrees per LOD level.
-   *  LOD 0 = dense, LOD 2 = sparse. */
-  spacingByLOD: [10, 15, 30],
+   *  LOD 0 = dense, LOD 3 = sparse. */
+  spacingByLOD: [5, 10, 15, 15],
 
   /** Sampling step along each grid line (degrees).
    *  Lower = smoother curves, higher = fewer points. */
@@ -53,7 +54,7 @@ export const GRID = {
 
 export const LABELS = {
   /** Maximum visible crater dots on screen */
-  maxDots: 250,
+  maxDots: 200,
 
   /** Maximum text labels rendered simultaneously */
   maxLabels: 150,
@@ -66,7 +67,7 @@ export const LABELS = {
 
   /** Dot visual radius range (screen px, clamped via sqrt) */
   dotRadiusMin: 2.0,
-  dotRadiusMax: 3.0,
+  dotRadiusMax: 2.5,
   dotRadiusScale: 0.35,
 
   /** Sun incidence opacity */
@@ -97,16 +98,17 @@ export const RENDER = {
   geoPointRadius: 3,
 
   /** Terminator glow line width */
-  terminatorGlowWidth: 3.0,
-  terminatorGlowColor: 0xe0faff,
+  terminatorGlowWidth: 6.5,
+  terminatorGlowColor: 0x4FF2FF,
+  terminatorGlowAlpha: 0.4,
 
   /** Terminator core line width */
-  terminatorCoreWidth: 1.5,
-  terminatorCoreColor: 0xffffff,
+  terminatorCoreWidth: 2.5,
+  terminatorCoreColor: 0xFFFFFF,
 
-  /** Night mask fill */
-  nightMaskColor: 0x06060c,
-  nightMaskAlpha: 0.75,
+  /** Night mask fill 0x06060c*/
+  nightMaskColor: 0x0B0B12,
+  nightMaskAlpha: 0.7,
 
   /** Anchor visuals */
   anchorSrcRadius: 5,

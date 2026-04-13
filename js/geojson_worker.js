@@ -84,9 +84,9 @@ function parseGeoJSON(text) {
 const pendingLayers = [];
 let totalLayers = 0;
 let completedLayers = 0;
-let globalStats = { totalOriginal: 0, totalPerLOD: [0, 0, 0] };
+let globalStats = { totalOriginal: 0, totalPerLOD: [] };
 
-async function processLayer(url, layerIndex) {
+async function processLayer(url, layerIndex, epsilons = undefined) {
   try {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${url}`);
@@ -100,10 +100,15 @@ async function processLayer(url, layerIndex) {
     }
 
     // Generate LOD levels (Douglas-Peucker simplification)
-    const stats = GeoJSONLod.generateLODs(features);
+    // Use per-layer epsilons if provided, otherwise default from config
+    const stats = GeoJSONLod.generateLODs(features, epsilons);
 
     // Accumulate global stats
     globalStats.totalOriginal += stats.totalOriginal;
+    // Grow totalPerLOD array if needed (handles different epsilon counts)
+    while (globalStats.totalPerLOD.length < stats.totalPerLOD.length) {
+      globalStats.totalPerLOD.push(0);
+    }
     for (let i = 0; i < stats.totalPerLOD.length; i++) {
       globalStats.totalPerLOD[i] += stats.totalPerLOD[i];
     }
@@ -128,10 +133,10 @@ async function processLayer(url, layerIndex) {
 async function processAll(layers) {
   totalLayers = layers.length;
   completedLayers = 0;
-  globalStats = { totalOriginal: 0, totalPerLOD: [0, 0, 0] };
+  globalStats = { totalOriginal: 0, totalPerLOD: [] };
 
-  for (const { url, layerIndex } of layers) {
-    await processLayer(url, layerIndex);
+  for (const { url, layerIndex, epsilons } of layers) {
+    await processLayer(url, layerIndex, epsilons || undefined);
     completedLayers++;
   }
 

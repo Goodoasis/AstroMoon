@@ -17,3 +17,5 @@ user_exemple/
 calque_geojson_backup/
 .claude/
 CLAUDE.md
+gemini.md
+implementation_plan.md

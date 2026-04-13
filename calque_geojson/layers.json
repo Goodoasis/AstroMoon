@@ -1,5 +1,13 @@
 [
-  "marias.geojson",
+  {
+    "file": "marias.geojson",
+    "epsilons": [
+      0.008,
+      0.03,
+      0.08,
+      0.25
+    ]
+  },
   "basin ring_500_15.geojson",
   "crest_of_buried_crater_500_15.geojson",
   "crest_of_crater_rim_500_15.geojson"

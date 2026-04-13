@@ -225,9 +225,9 @@ function rebuildGeoJSON(projectedFeatures, vp) {
 
   const invScale = 1 / vp.scale;
 
-  // Viewport bounds en coordonnées "monde" brutes, avec une marge anti-pop (30%)
-  const marginX = app.screen.width * 0.3;
-  const marginY = app.screen.height * 0.3;
+  // Viewport bounds en coordonnées "monde" brutes, avec marge paramétrable
+  const marginX = app.screen.width * CULLING.viewportMargin;
+  const marginY = app.screen.height * CULLING.viewportMargin;
   const vpMinX = (-vp.tx - marginX) * invScale;
   const vpMaxX = (app.screen.width - vp.tx + marginX) * invScale;
   const vpMinY = (-vp.ty - marginY) * invScale;
@@ -298,7 +298,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       }
     }
     if (lineFound) {
-      gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
+      gfx.stroke({ width: RENDER.geoStrokeWidth * invScale, color: colors.stroke, alpha: colors.alpha });
     }
 
     // --- Type 3: Points (Batching) ---
@@ -314,7 +314,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
         for (let i = 0; i < ring.length; i += 2) {
           const rx = ring[i], ry = ring[i + 1];
           if (isNaN(rx)) continue;
-          gfx.circle(rx, ry, 3 * invScale);
+          gfx.circle(rx, ry, RENDER.geoPointRadius * invScale);
         }
       }
     }
@@ -462,7 +462,7 @@ function rebuildNightMask(transformFn) {
   }
 
   nightMaskGfx.closePath();
-  nightMaskGfx.fill({ color: 0x06060c, alpha: 0.75 });
+  nightMaskGfx.fill({ color: RENDER.nightMaskColor, alpha: RENDER.nightMaskAlpha });
 }
 
 // ─── Terminator Line ───
@@ -494,33 +494,31 @@ function rebuildTerminator(transformFn, vp) {
     }
   }
 
-  // Draw glow line from buffer
-  let moved = false;
+  // Trace Glow (Layer 1)
+  let isDrawing = false;
   for (let i = 0; i < len; i++) {
     const px = buf[i * 2], py = buf[i * 2 + 1];
     if (!isNaN(px)) {
-      if (!moved) { terminatorGfx.moveTo(px, py); moved = true; }
+      if (!isDrawing) { terminatorGfx.moveTo(px, py); isDrawing = true; }
       else { terminatorGfx.lineTo(px, py); }
     } else {
-      if (moved) terminatorGfx.stroke({ width: 3.0 * invScale, color: 0xe0faff, alpha: 1.0 });
-      moved = false;
+      isDrawing = false;
     }
   }
-  if (moved) terminatorGfx.stroke({ width: 3.0 * invScale, color: 0xe0faff, alpha: 1.0 });
+  terminatorGfx.stroke({ width: RENDER.terminatorGlowWidth * invScale, color: RENDER.terminatorGlowColor, alpha: RENDER.terminatorGlowAlpha });
 
-  // Draw white core from same buffer
-  moved = false;
+  // Trace Core (Layer 2)
+  isDrawing = false;
   for (let i = 0; i < len; i++) {
     const px = buf[i * 2], py = buf[i * 2 + 1];
     if (!isNaN(px)) {
-      if (!moved) { terminatorGfx.moveTo(px, py); moved = true; }
+      if (!isDrawing) { terminatorGfx.moveTo(px, py); isDrawing = true; }
       else { terminatorGfx.lineTo(px, py); }
     } else {
-      if (moved) terminatorGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 1.0 });
-      moved = false;
+      isDrawing = false;
     }
   }
-  if (moved) terminatorGfx.stroke({ width: 1.5 * invScale, color: 0xffffff, alpha: 1.0 });
+  terminatorGfx.stroke({ width: RENDER.terminatorCoreWidth * invScale, color: RENDER.terminatorCoreColor, alpha: 1.0 });
 }
 
 // ─── Grid ───
@@ -640,24 +638,24 @@ function rebuildAnchors(anchorsData, vp, activeAnchorId) {
       // Connecting dashed line (simplified to solid in PixiJS)
       anchorsGfx.moveTo(srcX, srcY);
       anchorsGfx.lineTo(dst.x, dst.y);
-      anchorsGfx.stroke({ width: 1 * invScale, color: 0xffffff, alpha: 0.3 });
+      anchorsGfx.stroke({ width: RENDER.anchorLineWidth * invScale, color: 0xffffff, alpha: RENDER.anchorLineAlpha });
 
       // Source (orange)
-      anchorsGfx.circle(srcX, srcY, 5 * invScale);
-      anchorsGfx.fill({ color: 0xff6b35 });
-      anchorsGfx.stroke({ width: 1 * invScale, color: 0xffffff, alpha: 0.6 });
+      anchorsGfx.circle(srcX, srcY, RENDER.anchorSrcRadius * invScale);
+      anchorsGfx.fill({ color: RENDER.anchorSrcColor });
+      anchorsGfx.stroke({ width: RENDER.anchorLineWidth * invScale, color: 0xffffff, alpha: 0.6 });
     }
 
     // Active halo
     if (isActive) {
-      anchorsGfx.circle(dst.x, dst.y, 18 * invScale);
-      anchorsGfx.fill({ color: 0x00ff88, alpha: 0.12 });
+      anchorsGfx.circle(dst.x, dst.y, RENDER.anchorHaloRadius * invScale);
+      anchorsGfx.fill({ color: RENDER.anchorDstColor, alpha: RENDER.anchorHaloAlpha });
     }
 
     // Destination (green)
-    const dstRadius = (isActive ? 9 : 7) * invScale;
+    const dstRadius = (isActive ? RENDER.anchorDstActiveRadius : RENDER.anchorDstRadius) * invScale;
     anchorsGfx.circle(dst.x, dst.y, dstRadius);
-    anchorsGfx.fill({ color: 0x00ff88 });
+    anchorsGfx.fill({ color: RENDER.anchorDstColor });
     anchorsGfx.stroke({ width: (isActive ? 2.5 : 1.5) * invScale, color: 0xffffff, alpha: 0.8 });
   }
 }
@@ -736,8 +734,10 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     let op = 1.0;
     if (hasSun) {
       const cosI = crater.sinLat * sinSLat + crater.cosLat * cosSLat * Math.cos(crater.lonRad - sunLonRad);
-      if (cosI < 0) op = 0.25;
-      else if (cosI < 0.1) op = 0.25 + (0.75 * (cosI / 0.1));
+      if (cosI < 0) op = LABELS.nightOpacity;
+      else if (cosI < LABELS.nightTransitionCosI) {
+        op = LABELS.nightOpacity + ((1.0 - LABELS.nightOpacity) * (cosI / LABELS.nightTransitionCosI));
+      }
     }
 
     if (op < 0.05) continue;
@@ -803,7 +803,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const bgWorldW = (item.textWidth + 10) * invScale;
     const bgWorldH = (item.textHeight + 6) * invScale;
     const bgWorldX = item.ptX - bgWorldW / 2;
-    const bgWorldY = (item.ptY - 10 * invScale) - bgWorldH;
+    const bgWorldY = (item.ptY - LABELS.labelOffsetY * invScale) - bgWorldH;
 
     labelsBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 3 * invScale);
     labelsBgGfx.fill({ color: 0x06060c, alpha: item.op * 0.85 });
@@ -825,7 +825,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     }
 
     label.text = item.crater.name;
-    label.position.set(item.ptX, item.ptY - 10 * invScale);
+    label.position.set(item.ptX, item.ptY - LABELS.labelOffsetY * invScale);
     label.scale.set(invScale);
     label.alpha = item.op;
     label.visible = true;
@@ -873,7 +873,7 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       label.visible = false;
     } else {
       label.visible = true;
-      label.position.set(label._worldX, label._worldY - 10 * invScale);
+      label.position.set(label._worldX, label._worldY - LABELS.labelOffsetY * invScale);
       label.scale.set(invScale);
       label.tint = 0xffffff; // Reset le tint obligatoire pour retirer l'effet bleu après un hover
     }

@@ -11,10 +11,14 @@ import { LOD } from './config.js';
  *   - Iterative DP (no recursion → safe on 337K+ point rings)
  *   - Zero external dependencies
  * 
- * LOD Levels:
- *   0 = full resolution (original data)
- *   1 = medium (ε ≈ 0.2 in degree-space, ~33% of vertices)
- *   2 = coarse (ε ≈ 0.6 in degree-space, ~10% of vertices)
+ * LOD Levels (with default epsilons [0, 0.03, 0.08, 0.25]):
+ *   0 = full resolution (original data, eps=0)
+ *   1 = fine (ε ≈ 0.03 in degree-space)
+ *   2 = medium (ε ≈ 0.08 in degree-space)
+ *   3 = coarse (ε ≈ 0.25 in degree-space)
+ * 
+ * Per-layer epsilons (e.g. marias [0.008, 0.03, 0.08, 0.25]) may override:
+ *   0 = near-original (ε ≈ 0.008, sub-pixel simplification)
  */
 
 // ─── Douglas-Peucker (Iterative) ───
@@ -182,9 +186,11 @@ function generateLODs(features, thresholds = LOD.epsilons) {
  */
 function selectLOD(viewportScale, transformScale, layerSize) {
   const effectiveScale = viewportScale * transformScale * layerSize;
-  if (effectiveScale >= LOD.scaleThresholds[0]) return 0; // Full detail
-  if (effectiveScale >= LOD.scaleThresholds[1]) return 1; // Medium
-  return 2; // Coarse
+  const thresholds = LOD.scaleThresholds;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (effectiveScale >= thresholds[i]) return i;
+  }
+  return thresholds.length; // Coarsest level
 }
 
 // ─── Export ───
