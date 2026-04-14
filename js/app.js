@@ -395,12 +395,23 @@ function setTimeSource(src) {
 }
 
 function extractDateFromName(filename) {
-  const rx1 = /(\d{4})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})?[-_]?(\d{2})?[-_]?(\d{2})?/;
-  const m = filename.match(rx1);
+  // Support YYYY-MM-DD-HHhMM etc...
+  const rx1 = /(\d{4})[-\._\s]?(\d{2})[-\._\s]?(\d{2})(?:[-\._\sTt]*(\d{2})[-\._\shH:]*(\d{2})?[-\._\smM:]*(\d{2})?[sS]?)?/;
+  // Support DD-MM-YYYY-HHhMM etc...
+  const rx2 = /(\d{2})[-\._\s]?(\d{2})[-\._\s]?(\d{4})(?:[-\._\sTt]*(\d{2})[-\._\shH:]*(\d{2})?[-\._\smM:]*(\d{2})?[sS]?)?/;
+
+  let m = filename.match(rx1);
   if (m && m[1] >= 1900 && m[1] <= 2100 && m[2] >= 1 && m[2] <= 12 && m[3] >= 1 && m[3] <= 31) {
     const d = new Date(m[1], m[2] - 1, m[3], m[4] || 0, m[5] || 0, m[6] || 0);
     if (!isNaN(d.getTime())) return d;
   }
+
+  m = filename.match(rx2);
+  if (m && m[3] >= 1900 && m[3] <= 2100 && m[2] >= 1 && m[2] <= 12 && m[1] >= 1 && m[1] <= 31) {
+    const d = new Date(m[3], m[2] - 1, m[1], m[4] || 0, m[5] || 0, m[6] || 0);
+    if (!isNaN(d.getTime())) return d;
+  }
+
   return null;
 }
 
