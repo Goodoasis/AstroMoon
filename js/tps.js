@@ -5,194 +5,267 @@
  * It produces a smooth (C¹) deformation that passes exactly through
  * all control points (anchors).
  * 
- * For N control points, we solve two (N+3)×(N+3) linear systems
- * (one for X displacements, one for Y displacements).
- * 
- * Kernel function: U(r) = r² · ln(r)  (with U(0) = 0)
+ * For N control points, we solve an (N+3)×(N+3) linear system
+ * simultaneously for X and Y displacements to halve matrix pivoting work.
  */
 
-const TPS = (() => {
-  'use strict';
+/**
+ * Thin Plate Spline (TPS) Precalculated Fast-Lookup-Table
+ */
+const LUT_SIZE = 100000;
+const LUT_MAX_R2 = 2.0;
+const LUT_INV_STEP = LUT_SIZE / LUT_MAX_R2;
+const LUT = new Float64Array(LUT_SIZE + 1);
 
-  /**
-   * Radial basis function for TPS.
-   * @param {number} r - Distance
-   * @returns {number}
-   */
-  function kernelU(r) {
-    if (r < 1e-10) return 0;
-    return r * r * Math.log(r);
+for (let i = 0; i <= LUT_SIZE; i++) {
+  const r2 = (i / LUT_SIZE) * LUT_MAX_R2;
+  LUT[i] = r2 >= 1e-20 ? 0.5 * r2 * Math.log(r2) : 0;
+}
+
+// Reusable output for apply() — avoids GC in hot loops
+const _tmpPt = { x: 0, y: 0 };
+
+/**
+ * Radial basis function for TPS, mathematically optimized.
+ * U(r) = r² · ln(r)
+ * U(r) = r² · ln( (r²)^0.5 ) = 0.5 · r² · ln(r²)
+ * This safely completely avoids calling Math.sqrt() and uses a LUT to avoid Math.log().
+ * @param {number} r2 - Distance squared
+ * @returns {number}
+ */
+function kernelU_r2(r2) {
+  if (r2 < 1e-20) return 0;
+  if (r2 <= LUT_MAX_R2) {
+    const fnIdx = r2 * LUT_INV_STEP;
+    const idx = fnIdx | 0;
+    const f = fnIdx - idx;
+    return LUT[idx] * (1 - f) + LUT[idx + 1] * f;
+  }
+  return 0.5 * r2 * Math.log(r2);
+}
+
+/**
+ * Legacy wrapper if needed fallback
+ */
+function kernelU(r) {
+  return kernelU_r2(r * r);
+}
+
+/**
+ * Solve the TPS system for a set of control points.
+ * 
+ * @param {Array<{sx: number, sy: number, dx: number, dy: number}>} controlPoints
+ *   sx, sy = source position (in normalized layer coords [0..1])
+ *   dx, dy = destination position (in normalized layer coords [0..1])
+ * @returns {{ weightsX: Float64Array, weightsY: Float64Array, n: number, srcPoints: Array } | null}
+ */
+function solve(controlPoints) {
+  const n = controlPoints.length;
+  if (n === 0) return null;
+
+  const size = n + 3;
+  const L = new Float64Array(size * size);
+  const bx = new Float64Array(size);
+  const by = new Float64Array(size);
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const ddx = controlPoints[i].sx - controlPoints[j].sx;
+      const ddy = controlPoints[i].sy - controlPoints[j].sy;
+      const r2 = ddx * ddx + ddy * ddy; // Direct squared distance
+      const u = kernelU_r2(r2);
+      L[i * size + j] = u;
+      L[j * size + i] = u;
+    }
+    L[i * size + i] = 0;
   }
 
-  /**
-   * Solve the TPS system for a set of control points.
-   * 
-   * @param {Array<{sx: number, sy: number, dx: number, dy: number}>} controlPoints
-   *   sx, sy = source position (in normalized layer coords [0..1])
-   *   dx, dy = destination position (in normalized layer coords [0..1])
-   * @returns {{ weightsX: Float64Array, weightsY: Float64Array, n: number, srcPoints: Array } | null}
-   */
-  function solve(controlPoints) {
-    const n = controlPoints.length;
-    if (n === 0) return null;
+  for (let i = 0; i < n; i++) {
+    L[i * size + n] = 1;
+    L[i * size + n + 1] = controlPoints[i].sx;
+    L[i * size + n + 2] = controlPoints[i].sy;
 
-    // Build the (n+3) × (n+3) matrix L
-    // Layout:
-    //   [ K  P ]   where K[i,j] = U(|p_i - p_j|)
-    //   [ P' 0 ]         P[i,:] = [1, x_i, y_i]
-    const size = n + 3;
-    const L = new Float64Array(size * size);
-    const bx = new Float64Array(size);
-    const by = new Float64Array(size);
-
-    // Fill K (upper-left n×n)
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const ddx = controlPoints[i].sx - controlPoints[j].sx;
-        const ddy = controlPoints[i].sy - controlPoints[j].sy;
-        const r = Math.sqrt(ddx * ddx + ddy * ddy);
-        const u = kernelU(r);
-        L[i * size + j] = u;
-        L[j * size + i] = u;
-      }
-      L[i * size + i] = 0; // diagonal = 0
-    }
-
-    // Fill P (right side of top rows, and bottom-left)
-    for (let i = 0; i < n; i++) {
-      L[i * size + n] = 1;
-      L[i * size + n + 1] = controlPoints[i].sx;
-      L[i * size + n + 2] = controlPoints[i].sy;
-
-      L[n * size + i] = 1;
-      L[(n + 1) * size + i] = controlPoints[i].sx;
-      L[(n + 2) * size + i] = controlPoints[i].sy;
-    }
-
-    // Bottom-right 3×3 = zeros (already zeroed)
-
-    // Fill right-hand side: displacement vectors
-    for (let i = 0; i < n; i++) {
-      bx[i] = controlPoints[i].dx - controlPoints[i].sx;
-      by[i] = controlPoints[i].dy - controlPoints[i].sy;
-    }
-    // Last 3 entries = 0 (already zeroed)
-
-    // Solve L * wx = bx  and  L * wy = by
-    const weightsX = solveLinearSystem(L.slice(), bx, size);
-    const weightsY = solveLinearSystem(L.slice(), by, size);
-
-    if (!weightsX || !weightsY) {
-      console.warn('TPS: Failed to solve linear system');
-      return null;
-    }
-
-    return {
-      weightsX,
-      weightsY,
-      n,
-      srcPoints: controlPoints.map(p => ({ x: p.sx, y: p.sy }))
-    };
+    L[n * size + i] = 1;
+    L[(n + 1) * size + i] = controlPoints[i].sx;
+    L[(n + 2) * size + i] = controlPoints[i].sy;
   }
 
-  /**
-   * Apply TPS deformation to a point.
-   * Returns the deformed position (still in normalized [0..1] space).
-   * 
-   * @param {number} x - Input X (normalized)
-   * @param {number} y - Input Y (normalized)
-   * @param {Object} tpsData - Result from solve()
-   * @returns {{x: number, y: number}}
-   */
-  function apply(x, y, tpsData) {
-    if (!tpsData) return { x, y };
+  for (let i = 0; i < n; i++) {
+    bx[i] = controlPoints[i].dx - controlPoints[i].sx;
+    by[i] = controlPoints[i].dy - controlPoints[i].sy;
+  }
 
-    const { weightsX, weightsY, n, srcPoints } = tpsData;
+  // Solves both X and Y linear combinations against the same symmetric matrix L at once!
+  // Slashes the O(N^3) portion of the algorithm exactly in half.
+  const { x: weightsX, y: weightsY } = solveLinearSystemMultipleRHS(L, bx, by, size);
 
-    // Compute displacement
-    let dispX = weightsX[n] + weightsX[n + 1] * x + weightsX[n + 2] * y;
-    let dispY = weightsY[n] + weightsY[n + 1] * x + weightsY[n + 2] * y;
+  if (!weightsX || !weightsY) {
+    console.warn('TPS: Failed to solve linear system');
+    return null;
+  }
+
+  return {
+    weightsX,
+    weightsY,
+    n,
+    srcPoints: controlPoints.map(p => ({ x: p.sx, y: p.sy }))
+  };
+}
+
+/**
+ * Apply TPS deformation to a point. Modulates the base point by the calculated weights.
+ * @param {number} x - Input X (normalized)
+ * @param {number} y - Input Y (normalized)
+ * @param {Object} tpsData - Result from solve()
+ * @returns {{x: number, y: number}} (Caution: allocates objects, causes GC overhead in render loop)
+ */
+function apply(x, y, tpsData, out) {
+  if (!tpsData) {
+    const o = out || _tmpPt;
+    o.x = x; o.y = y;
+    return o;
+  }
+
+  const { weightsX, weightsY, n, srcPoints } = tpsData;
+
+  let dispX = weightsX[n] + weightsX[n + 1] * x + weightsX[n + 2] * y;
+  let dispY = weightsY[n] + weightsY[n + 1] * x + weightsY[n + 2] * y;
+
+  for (let i = 0; i < n; i++) {
+    const ddx = x - srcPoints[i].x;
+    const ddy = y - srcPoints[i].y;
+    const r2 = ddx * ddx + ddy * ddy;
+    const u = kernelU_r2(r2);
+    dispX += weightsX[i] * u;
+    dispY += weightsY[i] * u;
+  }
+
+  const o = out || _tmpPt;
+  o.x = x + dispX;
+  o.y = y + dispY;
+  return o;
+}
+
+/**
+ * Apply TPS deformation in-place onto a sequence of floats [x0, y0, x1, y1, ...]
+ * @param {Float32Array|Float64Array|Array} buffer - the buffer to deform
+ * @param {Object} tpsData - Result from solve()
+ * @param {number} [length] - Optional boundary index to stop at
+ */
+function applyBuffer(buffer, tpsData, length = buffer.length) {
+  if (!tpsData) return;
+
+  const { weightsX, weightsY, n, srcPoints } = tpsData;
+  const wx_n = weightsX[n], wx_n1 = weightsX[n + 1], wx_n2 = weightsX[n + 2];
+  const wy_n = weightsY[n], wy_n1 = weightsY[n + 1], wy_n2 = weightsY[n + 2];
+
+  for (let ptr = 0; ptr < length; ptr += 2) {
+    const x = buffer[ptr];
+    const y = buffer[ptr + 1];
+    
+    // Quick skip for NaNs (frequently used to split graphic paths in WebGL)
+    if (isNaN(x)) continue;
+
+    let dispX = wx_n + wx_n1 * x + wx_n2 * y;
+    let dispY = wy_n + wy_n1 * x + wy_n2 * y;
 
     for (let i = 0; i < n; i++) {
       const ddx = x - srcPoints[i].x;
       const ddy = y - srcPoints[i].y;
-      const r = Math.sqrt(ddx * ddx + ddy * ddy);
-      const u = kernelU(r);
+      const r2 = ddx * ddx + ddy * ddy;
+      
+      let u = 0;
+      if (r2 >= 1e-20) {
+        if (r2 <= LUT_MAX_R2) {
+          const fnIdx = r2 * LUT_INV_STEP;
+          const idx = fnIdx | 0;
+          const f = fnIdx - idx;
+          u = LUT[idx] * (1 - f) + LUT[idx + 1] * f;
+        } else {
+          u = 0.5 * r2 * Math.log(r2);
+        }
+      }
+      
       dispX += weightsX[i] * u;
       dispY += weightsY[i] * u;
     }
 
-    return { x: x + dispX, y: y + dispY };
+    buffer[ptr] = x + dispX;
+    buffer[ptr + 1] = y + dispY;
   }
+}
 
-  /**
-   * Solve a linear system Ax = b using Gaussian elimination with partial pivoting.
-   * Modifies A and b in place.
-   * @param {Float64Array} A - Flat row-major matrix (n×n)
-   * @param {Float64Array} b - Right-hand side vector (n)
-   * @param {number} n - System size
-   * @returns {Float64Array|null} Solution vector x, or null if singular
-   */
-  function solveLinearSystem(A, b, n) {
-    const x = new Float64Array(n);
+/**
+ * Solve a linear system A * [X, Y] = [BX, BY] using Gaussian elimination
+ * with partial pivoting. Bx and By evaluate sequentially alongside the active row matrix.
+ */
+function solveLinearSystemMultipleRHS(A, bx, by, n) {
+  const x = new Float64Array(n);
+  const y = new Float64Array(n);
 
-    // Forward elimination with partial pivoting
-    for (let col = 0; col < n; col++) {
-      // Find pivot
-      let maxVal = Math.abs(A[col * n + col]);
-      let maxRow = col;
-      for (let row = col + 1; row < n; row++) {
-        const v = Math.abs(A[row * n + col]);
-        if (v > maxVal) {
-          maxVal = v;
-          maxRow = row;
-        }
-      }
-
-      if (maxVal < 1e-12) {
-        // Near-singular; add small regularization
-        A[col * n + col] += 1e-6;
-      }
-
-      // Swap rows if needed
-      if (maxRow !== col) {
-        for (let j = col; j < n; j++) {
-          const tmp = A[col * n + j];
-          A[col * n + j] = A[maxRow * n + j];
-          A[maxRow * n + j] = tmp;
-        }
-        const tmp = b[col];
-        b[col] = b[maxRow];
-        b[maxRow] = tmp;
-      }
-
-      // Eliminate below
-      const pivot = A[col * n + col];
-      for (let row = col + 1; row < n; row++) {
-        const factor = A[row * n + col] / pivot;
-        for (let j = col; j < n; j++) {
-          A[row * n + j] -= factor * A[col * n + j];
-        }
-        b[row] -= factor * b[col];
+  for (let col = 0; col < n; col++) {
+    let maxVal = Math.abs(A[col * n + col]);
+    let maxRow = col;
+    for (let row = col + 1; row < n; row++) {
+      const v = Math.abs(A[row * n + col]);
+      if (v > maxVal) {
+        maxVal = v;
+        maxRow = row;
       }
     }
 
-    // Back substitution
-    for (let row = n - 1; row >= 0; row--) {
-      let sum = b[row];
-      for (let j = row + 1; j < n; j++) {
-        sum -= A[row * n + j] * x[j];
-      }
-      const diag = A[row * n + row];
-      if (Math.abs(diag) < 1e-12) {
-        x[row] = 0;
-      } else {
-        x[row] = sum / diag;
-      }
+    // Singularity protection
+    if (maxVal < 1e-12) {
+      A[col * n + col] += 1e-6;
     }
 
-    return x;
+    if (maxRow !== col) {
+      for (let j = col; j < n; j++) {
+        const tmp = A[col * n + j];
+        A[col * n + j] = A[maxRow * n + j];
+        A[maxRow * n + j] = tmp;
+      }
+      
+      const tmpBx = bx[col];
+      bx[col] = bx[maxRow];
+      bx[maxRow] = tmpBx;
+      
+      const tmpBy = by[col];
+      by[col] = by[maxRow];
+      by[maxRow] = tmpBy;
+    }
+
+    const pivot = A[col * n + col];
+    for (let row = col + 1; row < n; row++) {
+      const factor = A[row * n + col] / pivot;
+      for (let j = col; j < n; j++) {
+        A[row * n + j] -= factor * A[col * n + j];
+      }
+      bx[row] -= factor * bx[col];
+      by[row] -= factor * by[col];
+    }
   }
 
-  return { solve, apply, kernelU };
-})();
+  // Back substitution phase
+  for (let row = n - 1; row >= 0; row--) {
+    let sumX = bx[row];
+    let sumY = by[row];
+    for (let j = row + 1; j < n; j++) {
+      const AVal = A[row * n + j];
+      sumX -= AVal * x[j];
+      sumY -= AVal * y[j];
+    }
+    const diag = A[row * n + row];
+    if (Math.abs(diag) < 1e-12) {
+      x[row] = 0;
+      y[row] = 0;
+    } else {
+      x[row] = sumX / diag;
+      y[row] = sumY / diag;
+    }
+  }
+
+  return { x, y };
+}
+
+export const TPS = { solve, apply, applyBuffer, kernelU, kernelU_r2 };
