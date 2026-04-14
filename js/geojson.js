@@ -1,98 +1,8 @@
 /**
- * AstroMoon — GeoJSON Parser & Projector
- * Handles parsing GeoJSON files and projecting lon/lat to canvas coordinates.
- * Supports multi-layer accumulation with layer index tracking.
+ * AstroMoon — GeoJSON Projector
+ * Contains purely mathematical projections (orthographic with libration).
+ * Note: Parsing and LOD generation is now completely offloaded to geojson_worker.js!
  */
-
-/**
- * Parse a GeoJSON string into normalized features.
- */
-function parse(text) {
-  const data = JSON.parse(text);
-  return _parseData(data);
-}
-
-/**
- * Parse an already-parsed GeoJSON object (no JSON.parse needed).
- */
-function parseObject(data) {
-  return _parseData(data);
-}
-
-function _parseData(data) {
-  if (data.type !== 'FeatureCollection') {
-    throw new Error('Expected a FeatureCollection');
-  }
-
-  const features = [];
-  let minLon = Infinity, maxLon = -Infinity;
-  let minLat = Infinity, maxLat = -Infinity;
-
-  for (const feature of data.features) {
-    const geom = feature.geometry;
-    if (!geom) continue;
-
-    const normalized = normalizeGeometry(geom);
-    if (!normalized) continue;
-
-    for (const ring of normalized.coords) {
-      for (const [lon, lat] of ring) {
-        if (lon < minLon) minLon = lon;
-        if (lon > maxLon) maxLon = lon;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-      }
-    }
-
-    features.push({
-      type: normalized.type,
-      coords: normalized.coords,
-      properties: feature.properties || {},
-      layerIndex: 0
-    });
-  }
-
-  return {
-    features,
-    bounds: { minLon, maxLon, minLat, maxLat },
-    name: data.name || 'unnamed'
-  };
-}
-
-function normalizeGeometry(geom) {
-  switch (geom.type) {
-    case 'Point':
-      return { type: 'point', coords: [[[geom.coordinates[0], geom.coordinates[1]]]] };
-
-    case 'MultiPoint':
-      return { type: 'point', coords: [geom.coordinates.map(c => [c[0], c[1]])] };
-
-    case 'LineString':
-      return { type: 'line', coords: [geom.coordinates.map(c => [c[0], c[1]])] };
-
-    case 'MultiLineString':
-      return {
-        type: 'line',
-        coords: geom.coordinates.map(line => line.map(c => [c[0], c[1]]))
-      };
-
-    case 'Polygon':
-      return {
-        type: 'polygon',
-        coords: geom.coordinates.map(ring => ring.map(c => [c[0], c[1]]))
-      };
-
-    case 'MultiPolygon':
-      return {
-        type: 'polygon',
-        coords: geom.coordinates.flat().map(ring => ring.map(c => [c[0], c[1]]))
-      };
-
-    default:
-      console.warn('Unsupported geometry type:', geom.type);
-      return null;
-  }
-}
 
 /**
  * Project a single point (Lon/Lat) onto normalized [0, 1] orthographic coords.
@@ -114,53 +24,6 @@ function projectPoint(lon, lat) {
   return [(x * 0.5) + 0.5, (-y * 0.5) + 0.5];
 }
 
-function project(features) {
-  return features.map(f => {
-    // "Pass-through" si reçu du Worker
-    if (f.projectedCoords) return f;
-
-    const projectRingsToBuffers = (rings) => {
-      return rings.map(ring => {
-        if (!Array.isArray(ring)) return null;
-        const points = Array.isArray(ring[0]) ? ring : [ring];
-        const buffer = new Float32Array(points.length * 2);
-        for (let i = 0; i < points.length; i++) {
-          const pt = points[i];
-          if (!pt) {
-            buffer[i * 2] = NaN;
-            buffer[i * 2 + 1] = NaN;
-          } else {
-            const p = projectPoint(pt[0], pt[1]);
-            if (p) {
-              buffer[i * 2] = p[0];
-              buffer[i * 2 + 1] = p[1];
-            } else {
-              buffer[i * 2] = NaN;
-              buffer[i * 2 + 1] = NaN;
-            }
-          }
-        }
-        return buffer;
-      });
-    };
-
-    const projected = {
-      type: f.type,
-      properties: f.properties,
-      layerIndex: f.layerIndex,
-      coords: f.coords,
-      projectedCoords: projectRingsToBuffers(f.coords)
-    };
-
-    // Preserve and project LOD data if present
-    if (f.lodCoords) {
-      projected.lodCoords = f.lodCoords;
-      projected.projectedLodCoords = f.lodCoords.map(levelRings => projectRingsToBuffers(levelRings));
-    }
-    return projected;
-  });
-}
-
 /**
  * Inverse Orthographic Projection with libration support.
  */
@@ -180,22 +43,7 @@ function inverseProject(nx, ny) {
   return { lat: lat * 180 / Math.PI, lon: lon * 180 / Math.PI };
 }
 
-function countPoints(features) {
-  let total = 0;
-  for (const f of features) {
-    const coords = f.projectedCoords || f.coords;
-    for (const ring of coords) {
-      total += ring.length;
-    }
-  }
-  return total;
-}
-
 export const GeoJSON = {
-  parse,
-  parseObject,
-  project,
-  inverseProject,
   projectPoint,
-  countPoints
+  inverseProject
 };

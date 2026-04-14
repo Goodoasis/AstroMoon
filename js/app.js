@@ -9,7 +9,7 @@ import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
 import { MiniExif } from './exif.js';
 import { GeoJSONLod } from './geojson_lod.js';
-import { CULLING, PERF } from './config.js';
+import { CULLING, PERF, LOD } from './config.js';
 // TPS is used internally by Anchors, no direct import needed here.
 
 // ─── State ───
@@ -211,7 +211,7 @@ async function init() {
   const now = new Date();
   window.appTemporalTime = now;
   userManualDate = now;
-  
+
   const localISO = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().substring(0, 16);
   document.getElementById('time-input').value = localISO;
 
@@ -287,9 +287,16 @@ function updateLayerCache() {
     if (!feature.renderedCoords || feature.renderedCoords.length !== sourceCoords.length) {
       feature.renderedCoords = new Array(sourceCoords.length);
     }
-    
-    // Initialiser les bounds pour l'optimisation (culling)
-    feature.worldBounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+
+    // Initialiser ou réutiliser les bounds pour l'optimisation (culling) et éviter la pression GC
+    if (!feature.worldBounds) {
+      feature.worldBounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    } else {
+      feature.worldBounds.minX = Infinity;
+      feature.worldBounds.minY = Infinity;
+      feature.worldBounds.maxX = -Infinity;
+      feature.worldBounds.maxY = -Infinity;
+    }
 
     // ─── Pre-culling: estimate bounds via affine transform only (skip TPS) ───
     // Use normalized bounds from the source coords to do cheap frustum test
@@ -316,7 +323,7 @@ function updateLayerCache() {
         continue;
       }
     }
-    
+
     for (let r = 0; r < sourceCoords.length; r++) {
       const ring = sourceCoords[r];
       if (!ring) continue;
@@ -578,11 +585,75 @@ function generateTerminator(sunLon, sunLat) {
 
 function updateGeoJSONProjection() {
   if (!projectedFeatures) return;
-  for (const feature of projectedFeatures) {
-    if (!feature.projectedCoords) continue;
 
-    // Les projections mathématiques (Libration) se font dorénavant en amont via le Worker. 
-    // Cette méthode ne sert plus qu'à calculer les bounds pour l'optimisation (Pre-Culling).
+  const state = window.appMoonState;
+  if (!state) return;
+
+  const lat0 = (state.librationLat || 0) * Math.PI / 180;
+  const lon0 = (state.librationLon || 0) * Math.PI / 180;
+  const sinLat0 = Math.sin(lat0);
+  const cosLat0 = Math.cos(lat0);
+
+  // Mathématiques de projection inlinées pour des performances maximales
+  // Evite de surcharger la Call Stack sur 300 000+ points
+  function projectInplace(lon, lat) {
+    const rLon = lon * Math.PI / 180;
+    const rLat = lat * Math.PI / 180;
+    const sinRLat = Math.sin(rLat);
+    const cosRLat = Math.cos(rLat);
+    const cosLonDiff = Math.cos(rLon - lon0);
+
+    const cosC = sinLat0 * sinRLat + cosLat0 * cosRLat * cosLonDiff;
+    if (cosC < 0) return null;
+
+    const x = cosRLat * Math.sin(rLon - lon0);
+    const y = cosLat0 * sinRLat - sinLat0 * cosRLat * cosLonDiff;
+
+    return { nx: (x * 0.5) + 0.5, ny: (-y * 0.5) + 0.5 };
+  }
+
+  for (const feature of projectedFeatures) {
+    // 1. Reprojection des coords bruts (LOD natif)
+    if (feature.coords && feature.projectedCoords) {
+      for (let r = 0; r < feature.coords.length; r++) {
+        const ring = feature.coords[r];
+        const buf = feature.projectedCoords[r];
+        if (!ring || !buf) continue;
+        for (let i = 0; i < ring.length; i++) {
+          const pt = ring[i];
+          if (!pt) { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
+          else {
+            const p = projectInplace(pt[0], pt[1]);
+            if (p) { buf[i * 2] = p.nx; buf[i * 2 + 1] = p.ny; }
+            else { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
+          }
+        }
+      }
+    }
+
+    // 2. Reprojection des sous-niveaux LOD (s'ils existent)
+    if (feature.lodCoords && feature.projectedLodCoords) {
+      for (let l = 0; l < feature.lodCoords.length; l++) {
+        const lodRings = feature.lodCoords[l];
+        const lodBufs = feature.projectedLodCoords[l];
+        if (!lodRings || !lodBufs) continue;
+        for (let r = 0; r < lodRings.length; r++) {
+          const ring = lodRings[r];
+          const buf = lodBufs[r];
+          if (!ring || !buf) continue;
+          for (let i = 0; i < ring.length; i++) {
+            const pt = ring[i];
+            if (!pt) { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
+            else {
+              const p = projectInplace(pt[0], pt[1]);
+              if (p) { buf[i * 2] = p.nx; buf[i * 2 + 1] = p.ny; }
+              else { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
+            }
+          }
+        }
+      }
+    }
+
     _computeNormBounds(feature);
   }
 }
@@ -745,16 +816,14 @@ async function loadLayersAsync() {
     const layerEntries = await resp.json();
 
     // Build layer list with absolute URLs (Worker's base URL differs from page's)
-    // layers.json supports mixed format: string (default epsilons) or {file, epsilons}
     const baseUrl = new URL('calque_geojson/', window.location.href).href;
     const layers = layerEntries.map((entry, i) => {
-      const isObj = typeof entry === 'object' && entry !== null;
-      const fileName = isObj ? entry.file : entry;
+      const fileName = entry;
       return {
         url: `${baseUrl}${fileName}`,
         layerIndex: i,
         fileName,
-        epsilons: isObj && entry.epsilons ? entry.epsilons : null // null = use default
+        epsilons: LOD.layerOverrides && LOD.layerOverrides[fileName] ? LOD.layerOverrides[fileName] : null
       };
     });
     layerCount = layers.length;
@@ -1120,7 +1189,7 @@ function renderTick(ticker) {
   // ─── 1. FAST UPDATE (Every frame) ───
   // Update viewport container (GPU-fast transform)
   PixiRenderer.updateViewport(viewport);
-  
+
   // Utiliser uniquement les vrais pan/zoom pour masquer les textes
   const isInteracting = isDragging || timeSincePanZoom < PERF.interactionFadeMs;
 

@@ -17,9 +17,13 @@
 
 export const LOD = {
   /** Douglas-Peucker epsilon per level (degree-space).
-   *  4 levels: 0=original, 1=fine, 2=medium, 3=coarse.
-   *  Heavy layers (e.g. marias) can override via per-layer epsilons in layers.json. */
+   *  4 levels: 0=original, 1=fine, 2=medium, 3=coarse. */
   epsilons: [0, 0.03, 0.08, 0.25],
+
+  /** Heavy layers (e.g. marias) override the default epsilons for smoother details. */
+  layerOverrides: {
+    'marias.geojson': [0.008, 0.03, 0.08, 0.25]
+  },
 
   /** effectiveScale thresholds (viewport.scale × transform.scale × layerSize).
    *  [0] = min scale for LOD 0, [1] = min for LOD 1, [2] = min for LOD 2.

@@ -103,20 +103,20 @@ function _projectRingsToBuffers(rings, librationLat, librationLon, transferables
     const points = Array.isArray(ring[0]) ? ring : [ring];
     const buffer = new Float32Array(points.length * 2);
     for (let i = 0; i < points.length; i++) {
-        const pt = points[i];
-        if (!pt) {
-            buffer[i * 2] = NaN;
-            buffer[i * 2 + 1] = NaN;
+      const pt = points[i];
+      if (!pt) {
+        buffer[i * 2] = NaN;
+        buffer[i * 2 + 1] = NaN;
+      } else {
+        const p = projectPoint(pt[0], pt[1], librationLat, librationLon);
+        if (p) {
+          buffer[i * 2] = p[0];
+          buffer[i * 2 + 1] = p[1];
         } else {
-            const p = projectPoint(pt[0], pt[1], librationLat, librationLon);
-            if (p) {
-                buffer[i * 2] = p[0];
-                buffer[i * 2 + 1] = p[1];
-            } else {
-                buffer[i * 2] = NaN;
-                buffer[i * 2 + 1] = NaN;
-            }
+          buffer[i * 2] = NaN;
+          buffer[i * 2 + 1] = NaN;
         }
+      }
     }
     transferables.push(buffer.buffer);
     return buffer;
