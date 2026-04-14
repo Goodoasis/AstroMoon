@@ -1,6 +1,5 @@
-# Gitignore for AstroMoon Web
+# Gitignore for AstroAz Web
 .gemini/
-gemini.md
 .DS_Store
 __pycache__/
 node_modules/
@@ -11,4 +10,13 @@ user_exemple/
 *.tmp
 .history/
 .vscode/
+
+# Large binary/data files (optional, but recommended if not needed for versioning)
+# data/LRO_*.png  # Exclude source images if they are huge
+# data/*.json     # Exclude raw data if it's huge
 calque_geojson_backup/
+.claude/
+CLAUDE.md
+gemini.md
+implementation_plan.md
+ROADMAP.md
