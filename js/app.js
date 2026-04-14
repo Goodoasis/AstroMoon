@@ -319,26 +319,21 @@ function updateLayerCache() {
     
     for (let r = 0; r < sourceCoords.length; r++) {
       const ring = sourceCoords[r];
-      // Reuse or allocate Float32Array (2 floats per point)
-      if (!feature.renderedCoords[r] || feature.renderedCoords[r].length !== ring.length * 2) {
-        feature.renderedCoords[r] = new Float32Array(ring.length * 2);
+      if (!ring) continue;
+
+      // Reuse or allocate Float32Array
+      // Note: ring is now already a Float32Array sent by the Worker!
+      if (!feature.renderedCoords[r] || feature.renderedCoords[r].length !== ring.length) {
+        feature.renderedCoords[r] = new Float32Array(ring.length);
       }
       const cachedRing = feature.renderedCoords[r];
-      
-      // Step 1: Copy raw projected coords into buffer flat floats
-      for (let i = 0; i < ring.length; i++) {
-        if (ring[i] === null) {
-          cachedRing[i * 2] = NaN; // Use NaN for separators
-          cachedRing[i * 2 + 1] = NaN;
-        } else {
-          cachedRing[i * 2] = ring[i][0];
-          cachedRing[i * 2 + 1] = ring[i][1];
-        }
-      }
-      
-      // Step 2: Apply the full TPS and Transform pipeline in-place (Zero Allocation!)
+
+      // Step 1: Copy raw projected coords into buffer flat floats (Zero Allocation, ultra fast)
+      cachedRing.set(ring);
+
+      // Step 2: Apply the full TPS and Transform pipeline in-place 
       Anchors.applyBuffer(cachedRing);
-      
+
       // Step 3: Compute World Bounds for fast geometry culling
       const bounds = feature.worldBounds;
       for (let i = 0; i < cachedRing.length; i += 2) {
@@ -584,35 +579,12 @@ function generateTerminator(sunLon, sunLat) {
 function updateGeoJSONProjection() {
   if (!projectedFeatures) return;
   for (const feature of projectedFeatures) {
-    if (!feature.coords) continue;
+    if (!feature.projectedCoords) continue;
 
-    // Project the base coords (LOD 0 / original)
-    feature.projectedCoords = _projectRings(feature.coords);
-
-    // Project all LOD levels if available
-    if (feature.lodCoords) {
-      feature.projectedLodCoords = new Array(feature.lodCoords.length);
-      for (let level = 0; level < feature.lodCoords.length; level++) {
-        // Always project from lodCoords[level] — per-layer epsilons may
-        // simplify even LOD 0 (e.g. marias with eps=0.008)
-        feature.projectedLodCoords[level] = _projectRings(feature.lodCoords[level]);
-      }
-
-      // Compute normalized bounds from finest LOD projected coords for pre-culling
-      _computeNormBounds(feature);
-    }
+    // Les projections mathématiques (Libration) se font dorénavant en amont via le Worker. 
+    // Cette méthode ne sert plus qu'à calculer les bounds pour l'optimisation (Pre-Culling).
+    _computeNormBounds(feature);
   }
-}
-
-/** Project an array of rings from lon/lat to normalized coords. */
-function _projectRings(rings) {
-  return rings.map(ring => {
-    if (!Array.isArray(ring)) return null;
-    if (!Array.isArray(ring[0])) {
-      return GeoJSON.projectPoint(ring[0], ring[1]);
-    }
-    return ring.map(c => GeoJSON.projectPoint(c[0], c[1]));
-  });
 }
 
 /** Compute axis-aligned bounding box in normalized [0,1] space for pre-culling. */
@@ -620,12 +592,15 @@ function _computeNormBounds(feature) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const ring of feature.projectedCoords) {
     if (!ring) continue;
-    for (const pt of ring) {
-      if (!pt) continue;
-      if (pt[0] < minX) minX = pt[0];
-      if (pt[0] > maxX) maxX = pt[0];
-      if (pt[1] < minY) minY = pt[1];
-      if (pt[1] > maxY) maxY = pt[1];
+    // Ring est désormais un Float32Array [x0, y0, x1, y1, ...]
+    for (let i = 0; i < ring.length; i += 2) {
+      const x = ring[i];
+      const y = ring[i + 1];
+      if (isNaN(x)) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
     }
   }
   feature._normBounds = { minX, minY, maxX, maxY };
@@ -804,11 +779,11 @@ async function loadLayersAsync() {
         );
         showToast(`Calque ${receivedCount}/${layerCount} chargé`);
 
-        // Project all features received so far (projection depends on libration state)
-        projectedFeatures = GeoJSON.project(allRawFeatures);
+        // Worker has already projected and simplified the coordinates!
+        projectedFeatures = allRawFeatures;
         _lodEnabled = true;
 
-        // Project LOD coords for the new features
+        // Compute pre-cull bounds for the new features
         updateGeoJSONProjection();
 
         // Build cache and render
@@ -837,10 +812,15 @@ async function loadLayersAsync() {
       _loadLayersFallback(layers);
     };
 
-    // Send all layers to the worker (include per-layer epsilons if specified)
+    // Send all layers to the worker (include per-layer epsilons and libration state)
+    const libLat = window.appMoonState ? (window.appMoonState.librationLat || 0) : 0;
+    const libLon = window.appMoonState ? (window.appMoonState.librationLon || 0) : 0;
+
     worker.postMessage({
       type: 'processAll',
-      layers: layers.map(l => ({ url: l.url, layerIndex: l.layerIndex, epsilons: l.epsilons }))
+      layers: layers.map(l => ({ url: l.url, layerIndex: l.layerIndex, epsilons: l.epsilons })),
+      librationLat: libLat,
+      librationLon: libLon
     });
 
   } catch (err) {

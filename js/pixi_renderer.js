@@ -18,8 +18,13 @@ import * as PIXI from 'https://cdn.jsdelivr.net/npm/pixi.js@8.17.1/dist/pixi.min
 import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
-import { GRID, LABELS, CULLING, RENDER, LAYER_PALETTE } from './config.js';
+import { GRID, LABELS, CULLING, RENDER, LAYER_PALETTE, configEvents } from './config.js';
 
+// Cache for reactive redraws
+let _lastProjectedFeatures = null;
+let _lastVp = null;
+let _lastTransformFn = null;
+let _lastLodLevel = 0;
 
 // Scene graph references
 let app = null;
@@ -146,7 +151,33 @@ async function init(container) {
   hoverLabel.visible = false;
   labelsContainer.addChild(hoverLabel);
 
+  // Live Config Update Listeners
+  configEvents.addEventListener('configChanged', (e) => {
+    const { section, key } = e.detail;
+    if (section === 'RENDER') {
+      redrawAllLayers();
+    } else if (section === 'GRID') {
+      redrawGrid();
+    }
+  });
+
   return app;
+}
+
+function redrawAllLayers() {
+  if (_lastProjectedFeatures && _lastVp) {
+    rebuildGeoJSON(_lastProjectedFeatures, _lastVp);
+  }
+  if (_lastTransformFn && _lastVp) {
+    rebuildNightMask(_lastTransformFn);
+    rebuildTerminator(_lastTransformFn, _lastVp);
+  }
+}
+
+function redrawGrid() {
+  if (_lastTransformFn && _lastVp) {
+    rebuildGrid(_lastTransformFn, _lastVp, _lastLodLevel);
+  }
 }
 
 /**
@@ -205,6 +236,9 @@ function updateViewport(vp) {
  * Called only when data changes (dirty flag), not every frame.
  */
 function rebuildGeoJSON(projectedFeatures, vp) {
+  _lastProjectedFeatures = projectedFeatures;
+  _lastVp = vp;
+
   if (!projectedFeatures || projectedFeatures.length === 0) {
     geojsonContainer.visible = false;
     return;
@@ -352,6 +386,7 @@ function _getTerminatorProjections() {
 }
 
 function rebuildNightMask(transformFn) {
+  _lastTransformFn = transformFn;
   nightMaskGfx.clear();
 
   const projCache = _getTerminatorProjections();
@@ -466,6 +501,8 @@ function rebuildNightMask(transformFn) {
 // ─── Terminator Line ───
 
 function rebuildTerminator(transformFn, vp) {
+  _lastTransformFn = transformFn;
+  _lastVp = vp;
   terminatorGfx.clear();
 
   const projCache = _getTerminatorProjections();
@@ -583,6 +620,10 @@ function _getGridCache(spacing = 10) {
 }
 
 function rebuildGrid(transformFn, vp, lodLevel = 0) {
+  _lastTransformFn = transformFn;
+  _lastVp = vp;
+  _lastLodLevel = lodLevel;
+
   gridGfx.clear();
   if (!_showGrid) return;
 

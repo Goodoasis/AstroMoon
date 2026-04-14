@@ -8,8 +8,8 @@ AstroMoon est un outil web interactif (superposition sélénographique) conçu p
 - **Moteur de Rendu :** **PixiJS (v8)**. Accélération matérielle (WebGL/WebGPU) pour le rendu haute performance de l'image de base, des géométries vectorielles GeoJSON (via `Graphics`) et du texte (via `BitmapText` ou `Text`).
 - **Formats de Données :**
   - **GeoJSON** : Chargement dynamique asynchrone via `fetch()`. L'architecture s'appuie sur le fichier de configuration central `calque_geojson/layers.json` pour la découverte et le chargement à la volée des calques géologiques.
-- **Configuration Centralisée :** `js/config.js` — Toutes les constantes tunables (LOD, grille, labels, culling, rendu, performance) sont centralisées dans un seul fichier. Ne jamais hardcoder de magic numbers dans les modules.
-- **LOD Multi-Résolution :** Simplification Douglas-Peucker itérative (niveaux dynamiques configurables par calque, typiquement 4) générée au chargement via Web Worker. Sélection dynamique selon le zoom. Les epsilons sont en **espace degrés** (lon/lat), pas normalisé.
+- **Configuration Centralisée & Réactive :** `js/config.js` — Toutes les constantes tunables (LOD, grille, labels, culling, rendu, performance) sont centralisées dans un seul fichier, adossées à un `EventTarget` (`configEvents`). L'appel à `AppConfig.updateConfig()` en console met à jour la scène PixiJS à la volée. Ne jamais hardcoder de magic numbers dans les modules.
+- **Worker Offload & Zéro-Copie :** Le système de géométrie s'appuie sur le Web Worker (`geojson_worker.js`) pour la simplification Douglas-Peucker itérative ET les projections mathématiques lourdes. Les données sont envoyées au Main Thread via l'API Transferables (`Float32Array`), garantissant une allocation mémoire minimale (Zero-Copy) et évitant la pression sur le Garbage Collector.
 - **Ajustement Spatial (Image) :**
   - Manipulations spatiales : Pan, Zoom, Rotation.
   - Déformation non-linéaire : Système d'ancrages interactifs (punaises) manipulant une grille via l'algorithme **Thin Plate Spline (TPS)**.

@@ -153,3 +153,44 @@ export const LAYER_PALETTE = [
   { stroke: 0x64c8ff, alpha: 0.75, fill: 0x64c8ff, fillAlpha: 0.06, name: 'Bleu clair' },
   { stroke: 0xffa050, alpha: 0.75, fill: 0xffa050, fillAlpha: 0.06, name: 'Pêche' },
 ];
+
+// ─── CONFIG EVENTS ─────────────────────────────────────
+
+export const configEvents = new EventTarget();
+
+/**
+ * Updates a configuration value and triggers a 'configChanged' event.
+ * @param {string} section - e.g. 'RENDER', 'GRID'
+ * @param {string} key - e.g. 'geoStrokeWidth'
+ * @param {any} value - The new value
+ */
+export function updateConfig(section, key, value) {
+  let confObj;
+  switch (section) {
+    case 'LOD': confObj = LOD; break;
+    case 'GRID': confObj = GRID; break;
+    case 'LABELS': confObj = LABELS; break;
+    case 'CULLING': confObj = CULLING; break;
+    case 'RENDER': confObj = RENDER; break;
+    case 'PERF': confObj = PERF; break;
+    default: return false;
+  }
+  
+  if (confObj && key in confObj) {
+    const oldValue = confObj[key];
+    confObj[key] = value;
+    
+    // Dispatch event so that listeners (like renderer) can partially redraw
+    const event = new CustomEvent('configChanged', {
+      detail: { section, key, oldValue, newValue: value }
+    });
+    configEvents.dispatchEvent(event);
+    return true;
+  }
+  return false;
+}
+
+// Expose for console testing
+if (typeof window !== 'undefined') {
+  window.AppConfig = { updateConfig };
+}
