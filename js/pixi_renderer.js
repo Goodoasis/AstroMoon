@@ -62,7 +62,7 @@ async function init(container) {
     const fontUrl = `assets/bitmap/bitmap_SpaceGrotesk_white.fnt?v=${Date.now()}`;
     PIXI.Assets.add({ alias: 'SpaceGrotesk', src: fontUrl });
     await PIXI.Assets.load('SpaceGrotesk');
-    
+
     // Optimisation de la texture pour le downscaling (Mipmaps + Linear filtering)
     const font = PIXI.Assets.get('SpaceGrotesk');
     if (font && font.pages) {
@@ -71,9 +71,7 @@ async function init(container) {
           page.texture.source.style.magFilter = 'linear';
           page.texture.source.style.minFilter = 'linear';
           page.texture.source.style.mipmapMode = 'on';
-          // Force la résolution pour correspondre au ratio physique
-          page.texture.source.resolution = window.devicePixelRatio || 2;
-          page.texture.source.alphaMode = 'premultiplied-alpha';
+          // Le forçage de 'resolution' ici casse les UVs de la BitmapFont, on le supprime.
           page.texture.source.update();
         }
       });
@@ -257,7 +255,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       // Culling
       if (feature.worldBounds) {
         if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
-            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
+          feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
       }
       polyFound = true;
       for (const ring of feature.renderedCoords) {
@@ -283,7 +281,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       if (feature.type !== 'line') continue;
       if (feature.worldBounds) {
         if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
-            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
+          feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
       }
       lineFound = true;
       for (const ring of feature.renderedCoords) {
@@ -307,7 +305,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       if (feature.type !== 'point') continue;
       if (feature.worldBounds) {
         if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
-            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
+          feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
       }
       ptFound = true;
       for (const ring of feature.renderedCoords) {
@@ -682,12 +680,12 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   _activeLabelMap.clear();
 
   const MAX_DOTS = LABELS.maxDots;
-  const MAX_LABELS = LABELS.maxLabels; 
-  
+  const MAX_LABELS = LABELS.maxLabels;
+
   const cx = canvasW / 2;
   const cy = canvasH / 2;
   const maxScreenDistSq = cx * cx + cy * cy;
-  
+
   _allVisibleCraterPoints.length = 0;
   _dotCandidates.length = 0;
   _candidates.length = 0;
@@ -710,7 +708,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
   // cratersDB is pre-sorted by diameter descending (done once at init)
   // _dotCandidates inherits that order — no re-sort needed
-  
+
   const dotsCount = Math.min(_dotCandidates.length, MAX_DOTS);
   const minHoverDiameter = LABELS.hoverMinScreenDiameter / vp.scale;
 
@@ -847,13 +845,22 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   if (!_showLabels) return;
   const invScale = 1 / vp.scale;
 
-  // 1. Interpolation Alpha (Tempo / Fondu)
+  // 1. Visibilité & Fondu (Optimisation GPU)
   _labelsTargetAlpha = isDragging ? 0 : 1;
-  const alphaDiff = _labelsTargetAlpha - labelsContainer.alpha;
-  if (Math.abs(alphaDiff) > 0.01) {
-    labelsContainer.alpha += alphaDiff * 0.15; // Smooth Damping
+
+  if (isDragging) {
+    // Disparition instantanée pour soulager le "blender" GPU pendant les mouvements
+    labelsContainer.alpha = 0;
+    labelsContainer.visible = false;
   } else {
-    labelsContainer.alpha = _labelsTargetAlpha;
+    // Apparition en fondu doux au relâchement
+    labelsContainer.visible = true;
+    const alphaDiff = _labelsTargetAlpha - labelsContainer.alpha;
+    if (Math.abs(alphaDiff) > 0.01) {
+      labelsContainer.alpha += alphaDiff * LABELS.fadeInSpeed; // Smooth Damping (controlled by config)
+    } else {
+      labelsContainer.alpha = _labelsTargetAlpha;
+    }
   }
 
   const w = app.screen.width;

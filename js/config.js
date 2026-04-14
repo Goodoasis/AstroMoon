@@ -59,6 +59,9 @@ export const LABELS = {
   /** Maximum text labels rendered simultaneously */
   maxLabels: 150,
 
+  /** Speed of label fade-in after a drag (0.01 = very slow, 0.2 = fast) */
+  fadeInSpeed: 0.05,
+
   /** Label anti-overlap hitbox padding (screen pixels) */
   overlapPadding: 30,
 
