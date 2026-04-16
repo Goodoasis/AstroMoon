@@ -145,6 +145,22 @@ export const PERF = {
   searchMinChars: 3,
 };
 
+// ─── WEATHER ───────────────────────────────────────────
+
+export const WEATHER = {
+  /** OpenWeatherMap API Key (chargée depuis les variables d'environnement) */
+  owmApiKey: import.meta.env.VITE_OWM_API_KEY,
+
+  /** Visual Crossing API Key (chargée depuis les variables d'environnement) */
+  visualCrossingApiKey: import.meta.env.VITE_VISUAL_CROSSING_API_KEY,
+
+  /** Age threshold in days before falling back to Visual Crossing */
+  owmMaxAgeDays: 45,
+
+  /** Age threshold in days to strictly use Visual Crossing */
+  vcForceAgeDays: 47,
+};
+
 // ─── LAYER PALETTE ─────────────────────────────────────
 
 export const LAYER_PALETTE = [

@@ -14,11 +14,12 @@
  *           └── annotationsContainer (Text + Graphics dots)
  */
 
-import * as PIXI from 'https://cdn.jsdelivr.net/npm/pixi.js@8.17.1/dist/pixi.min.mjs';
+import * as PIXI from 'pixi.js';
 import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
 import { GRID, LABELS, CULLING, RENDER, LAYER_PALETTE, configEvents } from './config.js';
+import { moonState } from '../stores/moonState.svelte.js';
 
 // Cache for reactive redraws
 let _lastProjectedFeatures = null;
@@ -366,7 +367,7 @@ let _termProjCache = null; // { geoPointsRef, libKey, projNorm: Array<[nx,ny]|nu
  * Cached per ephemeris change (terminatorGeoPoints ref + libration).
  */
 function _getTerminatorProjections() {
-  const state = window.appMoonState;
+  const state = moonState;
   if (!state || !state.terminatorGeoPoints || state.terminatorGeoPoints.length === 0) return null;
 
   const geoPoints = state.terminatorGeoPoints;
@@ -393,7 +394,7 @@ function rebuildNightMask(transformFn) {
   if (!projCache) return;
 
   const pts = projCache.projNorm;
-  const state = window.appMoonState;
+  const state = moonState;
   const n = pts.length;
   let startIdx = 0;
   let found = false;
@@ -567,7 +568,7 @@ let _gridCache = null; // { cacheKey, linesNorm, horizonNorm }
  * @param {number} spacing - Grid line spacing in degrees (default 10)
  */
 function _getGridCache(spacing = 10) {
-  const state = window.appMoonState || {};
+  const state = moonState || {};
   const libKey = `${(state.librationLon || 0).toFixed(6)}_${(state.librationLat || 0).toFixed(6)}`;
   const cacheKey = `${libKey}_${spacing}`;
 
@@ -755,11 +756,11 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
   // Pre-compute sun trig ONCE outside the loop
   const DEG2RAD = Math.PI / 180;
-  const hasSun = window.appMoonState && typeof window.appMoonState.sunLon === 'number';
+  const hasSun = moonState && typeof moonState.sunLon === 'number';
   let sinSLon = 0, cosSLon = 0, sinSLat = 0, cosSLat = 0, sunLonRad = 0;
   if (hasSun) {
-    sunLonRad = window.appMoonState.sunLon * DEG2RAD;
-    const sLatR = (window.appMoonState.sunLat || 0) * DEG2RAD;
+    sunLonRad = moonState.sunLon * DEG2RAD;
+    const sLatR = (moonState.sunLat || 0) * DEG2RAD;
     sinSLon = Math.sin(sunLonRad); cosSLon = Math.cos(sunLonRad);
     sinSLat = Math.sin(sLatR); cosSLat = Math.cos(sLatR);
   }

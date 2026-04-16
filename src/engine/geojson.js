@@ -4,13 +4,14 @@
  * Note: Parsing and LOD generation is now completely offloaded to geojson_worker.js!
  */
 
+import { moonState } from '@/stores/moonState.svelte.js';
+
 /**
  * Project a single point (Lon/Lat) onto normalized [0, 1] orthographic coords.
  */
 function projectPoint(lon, lat) {
-  if (!window.appMoonState) return null;
-  const lat0 = (window.appMoonState.librationLat || 0) * Math.PI / 180;
-  const lon0 = (window.appMoonState.librationLon || 0) * Math.PI / 180;
+  const lat0 = (moonState.librationLat || 0) * Math.PI / 180;
+  const lon0 = (moonState.librationLon || 0) * Math.PI / 180;
 
   const rLon = lon * Math.PI / 180;
   const rLat = lat * Math.PI / 180;
@@ -33,8 +34,8 @@ function inverseProject(nx, ny) {
   const rho = Math.hypot(x, y);
   if (rho > 1.0) return null;
 
-  const lat0 = (window.appMoonState.librationLat || 0) * Math.PI / 180;
-  const lon0 = (window.appMoonState.librationLon || 0) * Math.PI / 180;
+  const lat0 = (moonState.librationLat || 0) * Math.PI / 180;
+  const lon0 = (moonState.librationLon || 0) * Math.PI / 180;
   const c = Math.asin(rho);
 
   const lat = Math.asin(Math.cos(c) * Math.sin(lat0) + (y * Math.sin(c) * Math.cos(lat0)) / rho);
