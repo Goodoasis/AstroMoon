@@ -10,19 +10,58 @@
   let showPredictions = $state(false);
   let debounceTimer = null;
 
+  let cachedGeolocCity = null;
+  let cachedExifCity = null;
+
+  async function resolveCityName(lat, lon, isExif = false) {
+    if (isExif && cachedExifCity) {
+      spatialState.city = cachedExifCity;
+      return;
+    }
+    if (!isExif && cachedGeolocCity) {
+      spatialState.city = cachedGeolocCity;
+      return;
+    }
+    try {
+      spatialState.city = 'Recherche en cours...';
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`);
+      const data = await res.json();
+      const name = data && data.display_name ? data.display_name.split(',').slice(0, 3).join(',') : (isExif ? "Localisation Exif" : "Position GPS");
+      
+      if (isExif) cachedExifCity = name;
+      else cachedGeolocCity = name;
+
+      // Update if user hasn't switched mode during fetch
+      if (spatialState.source === (isExif ? 'exif-loc' : 'geoloc')) {
+        spatialState.city = name;
+      }
+    } catch (e) {
+      const fallback = isExif ? "Trouvé dans l'image (Exif)" : "Position du navigateur";
+      if (isExif) cachedExifCity = fallback;
+      else cachedGeolocCity = fallback;
+      
+      if (spatialState.source === (isExif ? 'exif-loc' : 'geoloc')) {
+        spatialState.city = fallback;
+      }
+    }
+  }
+
   function setLocSource(src) {
     spatialState.source = src;
     if (src === 'ville') {
       spatialState.lat = spatialState.userManualLocation.lat;
       spatialState.lon = spatialState.userManualLocation.lon;
+      spatialState.city = spatialState.userManualLocation.name || '';
     } else if (src === 'geoloc') {
       if (!spatialState.geolocGps) {
+        spatialState.city = 'Recherche GPS...';
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             spatialState.geolocGps = { lat: pos.coords.latitude, lon: pos.coords.longitude };
             spatialState.lat = spatialState.geolocGps.lat;
             spatialState.lon = spatialState.geolocGps.lon;
             dispatch('ephemerisUpdate');
+            resolveCityName(spatialState.lat, spatialState.lon, false);
           },
           () => { setLocSource(spatialState.parsedExifGps ? 'exif-loc' : 'ville'); }
         );
@@ -30,9 +69,11 @@
       }
       spatialState.lat = spatialState.geolocGps.lat;
       spatialState.lon = spatialState.geolocGps.lon;
+      resolveCityName(spatialState.lat, spatialState.lon, false);
     } else if (src === 'exif-loc' && spatialState.parsedExifGps) {
       spatialState.lat = spatialState.parsedExifGps.lat;
       spatialState.lon = spatialState.parsedExifGps.lon;
+      resolveCityName(spatialState.lat, spatialState.lon, true);
     }
     dispatch('ephemerisUpdate');
   }
@@ -99,7 +140,12 @@
       placeholder="Lieu..."
       autocomplete="off"
       oninput={handleInput}
-      onclick={() => { if (spatialState.source !== 'ville') return; }} />
+      onclick={(e) => { 
+        if (spatialState.source !== 'ville') {
+          setLocSource('ville');
+        }
+        e.target.select(); 
+      }} />
     {#if showPredictions && predictionsList.length > 0}
       <ul class="loc-predictions-list">
         {#each predictionsList as pred}

@@ -60,7 +60,7 @@ function extractMetaData(file) {
               for (let j = 0; j < strLen - 1; j++) dateStr += String.fromCharCode(view.getUint8(strOffset + j));
               const match = dateStr.match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
               if (match) {
-                const d = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}`);
+                const d = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`);
                 if (!isNaN(d.getTime())) result.date = d;
               }
             }
@@ -123,7 +123,7 @@ function parseFallbackDate(buffer) {
   const text = new TextDecoder('ascii').decode(new Uint8Array(buffer));
   const match = text.match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
   if (match) {
-    const d = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}`);
+    const d = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`);
     if (!isNaN(d.getTime())) return { date: d, gps: null };
   }
   return { date: null, gps: null };
