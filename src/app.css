@@ -1,0 +1,118 @@
+/* ============================================================
+   AstroMoon — Global Design System (Svelte Migration)
+   CSS Variables and reset — imported globally via main.js
+   Component-specific styles live in their .svelte files
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ---------- CSS Variables ---------- */
+:root {
+  --color-bg: #06060c;
+  --color-surface: rgba(16, 16, 32, 0.65);
+  --color-surface-hover: rgba(24, 24, 48, 0.8);
+  --color-border: rgba(120, 140, 255, 0.12);
+  --color-border-hover: rgba(120, 180, 255, 0.3);
+
+  --color-cyan: #00d4ff;
+  --color-cyan-dim: rgba(0, 212, 255, 0.5);
+  --color-violet: #7b2ff7;
+  --color-accent-grad: linear-gradient(135deg, #00d4ff 0%, #7b2ff7 100%);
+  --color-anchor-src: #ff6b35;
+  --color-anchor-dst: #00ff88;
+  --color-danger: #ff3b5c;
+
+  --color-text: #e8ecf4;
+  --color-text-dim: rgba(200, 210, 230, 0.55);
+  --color-text-bright: #ffffff;
+
+  --font-main: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 100px;
+
+  --blur: 20px;
+  --shadow-glow-cyan: 0 0 20px rgba(0, 212, 255, 0.15);
+  --shadow-glow-violet: 0 0 20px rgba(123, 47, 247, 0.15);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-hud-glow: 0 0 12px rgba(0, 212, 255, 0.08), 0 0 4px rgba(123, 47, 247, 0.06);
+
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-med: 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 450ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  cursor: default;
+  user-select: none;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(120, 140, 255, 0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(120, 140, 255, 0.4); }
+
+/* ---------- Canvas cursors ---------- */
+body.cursor-grab { cursor: grab; }
+body.cursor-grabbing { cursor: grabbing; }
+body.cursor-crosshair { cursor: crosshair; }
+body.cursor-rotate { cursor: alias; }
+
+/* ---------- File input (hidden) ---------- */
+.hidden-input { display: none; }
+
+/* ---------- Animation Keyframes ---------- */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(0, 212, 255, 0.3); opacity: 0.7; }
+  50% { box-shadow: 0 0 10px rgba(0, 212, 255, 0.6); opacity: 1; }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.05; }
+  50% { opacity: var(--twinkle-peak, 0.6); }
+}
+
+@keyframes title-fade-in {
+  0% { opacity: 0; transform: scale(0.9) translateY(-15px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes hero-glow {
+  0% { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 30px rgba(0, 212, 255, 0.3)) drop-shadow(0 0 60px rgba(123, 47, 247, 0.2)); }
+  100% { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 50px rgba(0, 212, 255, 0.5)) drop-shadow(0 0 100px rgba(123, 47, 247, 0.4)); }
+}
+
+@keyframes welcome-fade-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}

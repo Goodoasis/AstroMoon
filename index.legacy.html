@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AstroMoon — Outil de superposition sélénographique pour l'astrophotographie lunaire. Alignez des calques géologiques GeoJSON sur vos photos de la Lune.">
+  <title>AstroMoon — Superposition Sélénographique</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌙</text></svg>">
+</head>
+<body class="cursor-grab">
+
+  <!-- PixiJS canvas container (replaces the old <canvas>) -->
+  <div id="pixi-container"></div>
+
+  <!-- Hidden file inputs -->
+  <input type="file" id="input-image" class="hidden-input" accept="image/*">
+
+  <!-- Starfield (behind welcome, fades on image load) -->
+  <div id="starfield"></div>
+
+  <!-- Toolbar -->
+  <nav id="toolbar" role="toolbar" aria-label="Outils">
+    <div class="toolbar-brand">
+      <span class="logo-icon">🌙</span>
+      <span>AstroMoon</span>
+    </div>
+
+    <button id="btn-upload-image" class="tb-btn" aria-label="Charger une image">
+      🖼️
+      <span class="tooltip">Charger image</span>
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button id="btn-anchor-mode" class="tb-btn" aria-label="Mode ancrage (punaise)">
+      📌
+      <span class="tooltip">Mode Ancrage (A)</span>
+    </button>
+
+    <button id="btn-grid" class="tb-btn" aria-label="Grille de déformation">
+      🔲
+      <span class="tooltip">Grille debug (G)</span>
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button id="btn-reset" class="tb-btn" aria-label="Réinitialiser le calque">
+      ↺
+      <span class="tooltip">Reset</span>
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <button id="btn-labels" class="tb-btn" aria-label="Afficher les noms des cratères">
+      🏷️
+      <span class="tooltip">Noms Cratères (L)</span>
+    </button>
+    
+    <div class="tb-sep"></div>
+
+    <span id="fps-display">-- FPS</span>
+
+    <div class="tb-sep"></div>
+    <span id="coords-display" style="display: inline-block; font-family: monospace; font-size: 13px; color: #a8b2c4; width: 240px; text-align: left;">Lat: --- | Lon: ---</span>
+  </nav>
+
+  <!-- Time Bar (Top Right) -->
+  <div id="time-bar" class="hud-pill-bar">
+    <div class="time-sources">
+      <button class="source-btn" id="src-name">Nom</button>
+      <button class="source-btn" id="src-exif">Exif</button>
+      <button class="source-btn" id="src-manual">Manuel</button>
+    </div>
+    <div class="tb-sep"></div>
+    <input type="datetime-local" id="time-input" aria-label="Date et heure de capture">
+  </div>
+
+  <!-- Location Bar (Top Right) -->
+  <div id="location-bar" class="hud-pill-bar">
+    <div class="time-sources">
+      <button class="source-btn" id="src-geoloc" title="Utiliser la position du navigateur">Auto</button>
+      <button class="source-btn" id="src-exif-loc" title="Trouvé dans l'image">Exif</button>
+      <button class="source-btn" id="src-ville" title="Saisie par ville ou coordonnées">Ville</button>
+    </div>
+    <div class="tb-sep"></div>
+    <div id="loc-search-container" class="loc-group" style="position: relative;">
+      <span class="loc-icon">📍</span>
+      <input type="text" id="loc-city-input" placeholder="Lieu..." autocomplete="off">
+      <ul id="loc-predictions" class="loc-predictions-list hidden"></ul>
+    </div>
+  </div>
+
+  <!-- Mount Mode Switch -->
+  <div id="mount-bar" class="hud-pill-bar">
+    <span class="mount-label" id="mount-label-eq">Équatoriale</span>
+    <label class="switch" id="mount-switch" title="Bascule Équatoriale / Alt-Az (O)">
+      <input type="checkbox" id="mount-toggle">
+      <span class="switch-slider"></span>
+    </label>
+    <span class="mount-label" id="mount-label-az">Trépied</span>
+  </div>
+
+  <!-- Anchor Side Panel -->
+  <aside id="anchor-panel">
+    <h3>📌 Punaises</h3>
+    <div id="anchor-list"></div>
+  </aside>
+
+  <!-- Info Bar (Bottom) -->
+  <div id="info-bar">
+    <div class="info-hint">
+      <kbd>Drag</kbd> Calque
+    </div>
+    <div class="info-hint">
+      <kbd>Scroll</kbd> Zoom calque
+    </div>
+    <div class="info-hint">
+      <kbd>Shift</kbd>+<kbd>Drag</kbd> Rotation
+    </div>
+    <div class="info-hint hint-sep"></div>
+    <div class="info-hint">
+      <kbd>Clic-droit</kbd> Naviguer
+    </div>
+    <div class="info-hint">
+      <kbd>Ctrl</kbd>+<kbd>Scroll</kbd> Zoom vue
+    </div>
+    <div class="info-hint">
+      <kbd>F</kbd> Recentrer
+    </div>
+    <div class="info-hint hint-sep"></div>
+    <div class="info-hint">
+      <kbd>A</kbd> Ancrage
+    </div>
+    <div class="info-hint">
+      <kbd>G</kbd> Grille
+    </div>
+  </div>
+
+  <!-- Status Toast -->
+  <div id="status-toast"></div>
+
+  <!-- Welcome Overlay -->
+  <div id="welcome-overlay">
+    <div class="welcome-content">
+      <h1>🌙 AstroMoon</h1>
+      <div class="welcome-actions">
+        <button id="btn-welcome-image" class="welcome-btn welcome-btn-delayed">
+          <span class="btn-icon">🖼️</span>
+          Charger votre photo lunaire
+        </button>
+        <p class="welcome-drop-hint welcome-btn-delayed">ou glissez-déposez une image ici</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heavy data scripts (classic, expose window globals) -->
+  <script src="js/astronomy.js?v=19"></script>
+  <script src="js/craters_data.js?v=19"></script>
+
+  <!-- App entry point (ES module — imports all other modules) -->
+  <script type="module" src="js/app.js?v=19"></script>
+
+</body>
+</html>

@@ -1,8 +1,10 @@
 # Gitignore for AstroAz Web
+.agents/
 .gemini/
 .DS_Store
 __pycache__/
 node_modules/
+dist/
 temp/
 data/
 user_exemple/
@@ -10,12 +12,9 @@ user_exemple/
 *.tmp
 .history/
 .vscode/
-
-# Large binary/data files (optional, but recommended if not needed for versioning)
-# data/LRO_*.png  # Exclude source images if they are huge
-# data/*.json     # Exclude raw data if it's huge
 calque_geojson_backup/
 .claude/
+.agents/
 CLAUDE.md
 gemini.md
 implementation_plan.md
