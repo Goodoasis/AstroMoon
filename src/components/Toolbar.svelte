@@ -49,7 +49,7 @@
   }
 </script>
 
-<nav id="toolbar" class:visible={viewportState.appReady} role="toolbar" aria-label="Outils">
+<div id="toolbar" class:visible={viewportState.appReady} role="toolbar" aria-label="Outils">
   <div class="toolbar-brand">
     <span class="logo-icon">🌙</span>
     <span>AstroMoon</span>
@@ -92,7 +92,7 @@
 
   <div class="tb-sep"></div>
   <span id="coords-display">Lat: --- | Lon: ---</span>
-</nav>
+</div>
 
 <style>
   #toolbar {
@@ -109,7 +109,7 @@
     -webkit-backdrop-filter: blur(var(--blur));
     border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);
-    box-shadow: var(--shadow-card), var(--shadow-glow-cyan);
+    box-shadow: var(--shadow-card), var(--shadow-hud-glow);
     z-index: 100;
     opacity: 0;
     transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),

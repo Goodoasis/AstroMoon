@@ -40,6 +40,8 @@
 
 <!-- Welcome Overlay -->
 <div id="welcome-overlay" class:hidden={viewportState.appReady}
+  role="region"
+  aria-label="Zone de dépôt d'image"
   on:dragover|preventDefault
   on:drop={handleDrop}>
   <div class="welcome-content">

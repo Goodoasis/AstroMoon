@@ -45,6 +45,7 @@
       await handleImageUpload(file, showToast);
       viewportState.appReady = true;
       document.body.classList.add('app-ready');
+      handleEphemerisUpdate(); // Force Svelte à digérer l'Exif immédiatement !
     }
   }
 
@@ -63,6 +64,11 @@
 
     // Initial ephemeris calculation
     updateEphemeris(viewportState.isAltAzMode);
+    // Force premier calcul (puisque plus de .then())
+    updateGeoJSONProjection();
+    updateCratersProjection();
+    layerState.dirtyEphemeris = true;
+    layerState.layerTransformDirty = true;
 
     loadLayersAsync();
     initCraters();
@@ -77,9 +83,11 @@
     };
 
     window.addEventListener('resize', onResize);
+    document.addEventListener('ephemeris-async-refresh', handleEphemerisUpdate);
 
     return () => {
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('ephemeris-async-refresh', handleEphemerisUpdate);
     };
   });
 </script>

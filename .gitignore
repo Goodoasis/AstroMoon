@@ -1,4 +1,5 @@
 # Gitignore for AstroAz Web
+.env.local
 .agents/
 .gemini/
 .DS_Store

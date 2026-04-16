@@ -12,7 +12,32 @@ import {
 import { moonState } from '@/stores/moonState.svelte.js';
 import { temporalState } from '@/stores/temporalState.svelte.js';
 import { spatialState } from '@/stores/spatialState.svelte.js';
+import { viewportState } from '@/stores/viewportState.svelte.js';
 import { Transform } from './transform.js';
+import { WeatherProvider } from './WeatherProvider.js';
+
+// Cache en RAM pour éviter d'appeler asynchronement le cache du moteur ou de ping l'API
+let lastWeatherFetch = { lat: null, lon: null, time: null, data: null };
+let weatherDebounceTimer = null;
+let isApplyingWeatherRefresh = false; // LATCH ANTI-INFINILOOP
+let lastLoggedSquashY = null; // Suivi pour affichage sélectif de la réfraction
+
+/**
+ * Calcule la réfraction atmosphérique (Formule empirique de Bennett).
+ * Retourne la réfraction en degrés.
+ */
+function getRefractionDegrees(altitudeDeg, tempC, pressureHpa) {
+  if (altitudeDeg <= -0.5) return 0; // Sous l'horizon
+  const h = Math.max(0, altitudeDeg); // Clamped pour Bennett
+  // Formule de Bennett pour l'angle de réfraction en arcminutes (cotangente = 1 / tan)
+  const rArcmin = 1.0 / Math.tan((h + 7.31 / (h + 4.4)) * Math.PI / 180);
+  
+  // Correction météo de Saastamoinen (Pression atmosphérique standard = 1013.25 hPa)
+  const cW = (pressureHpa / 1013.25) * (283.15 / (273.15 + tempC));
+  const R_actual = rArcmin * cW;
+  
+  return R_actual / 60.0; // Conversion en degrés
+}
 
 /**
  * Recalculate all ephemeris from current temporal + spatial state.
@@ -75,6 +100,97 @@ export function updateEphemeris(isAltAzMode = false) {
 
       const rotationPA = isAltAzMode ? (pa + q) : pa;
       Transform.setRotation(rotationPA * Math.PI / 180);
+
+      // Calcul de l'altitude vraie
+      const sinH = Math.sin(phi) * Math.sin(delta) + Math.cos(phi) * Math.cos(delta) * Math.cos(lha);
+      const hTrueDeg = Math.asin(sinH) * RAD2DEG;
+
+      // 4b. Refraction Atmosphérique & Écrasement
+      let squashY = 1.0;
+      
+      const dt = validDate.getTime();
+      let weather = lastWeatherFetch.data;
+      
+      const latState = Number(spatialState.lat) || 0;
+      const lonState = Number(spatialState.lon) || 0;
+      
+      const timeDiff = Math.abs((lastWeatherFetch.time || 0) - dt);
+      const latDiff = Math.abs((lastWeatherFetch.lat || 0) - latState);
+      const lonDiff = Math.abs((lastWeatherFetch.lon || 0) - lonState);
+      
+      // La tolérance de l'utilisateur : 5 heures (18 000 000 ms) et ~50km (0.5 degrés)
+      const needsWeatherUpdate = (latDiff > 0.5 || lonDiff > 0.5 || timeDiff > 18000000);
+      
+      if (isApplyingWeatherRefresh) {
+          // INTERCEPTION STADIQUE POUR EMPÊCHER LE INFINILOOP
+          isApplyingWeatherRefresh = false; // On reset le lock
+      } else if (needsWeatherUpdate) { 
+          
+          if (weatherDebounceTimer) clearTimeout(weatherDebounceTimer);
+          
+          weatherDebounceTimer = setTimeout(async () => {
+              // L'API ne se déclenche QUE si la localisation provient d'une source vérifiée :
+              // - EXIF détecté ('exif-loc')
+              // - GPS du navigateur ('geoloc')
+              // - Ville sélectionnée via la barre de recherche Nominatim (city n'est ni vide, ni la tour eiffel par defaut)
+              const hasExplicitLocation = (
+                  spatialState.source === 'geoloc' || 
+                  spatialState.source === 'exif-loc' || 
+                  (spatialState.source === 'ville' && spatialState.city && spatialState.city !== 'Eiffel Tower, Paris')
+              );
+
+              if (!viewportState.appReady || !hasExplicitLocation) {
+                  console.log("[Réfraction] Appel API en attente : L'utilisateur n'a pas encore défini son lieu.");
+                  lastWeatherFetch = { lat: latState, lon: lonState, time: dt, data: null };
+              } else {
+                  console.log("[Réfraction] Fin du Debounce, évaluation de la Météo...");
+                  const newWeather = await WeatherProvider.getWeatherData(latState, lonState, dt);
+                  lastWeatherFetch = { lat: latState, lon: lonState, time: dt, data: newWeather };
+                  
+                  if (newWeather) {
+                      if (newWeather.isFromCache) {
+                          console.log(`[Réfraction] ⚡ INSTANTANÉ: Données piochées dans le Cache Navigateur. (Redraw)`);
+                      } else {
+                          console.log(`[Réfraction] 🌍 API RÉSEAU APPELÉE avec succès -> Mise en Cache RAM. (Redraw)`);
+                      }
+                      isApplyingWeatherRefresh = true; // ON LOCK LE PROCHAIN PASSAGE DE LA FONCTION
+                      document.dispatchEvent(new CustomEvent('ephemeris-async-refresh'));
+                  }
+              }
+          }, 1500); // 1.5s de DELAI pour laisser le temps de taper une date complète au clavier
+      }
+      
+      if (weather && hTrueDeg > 0 && hTrueDeg < 80) {
+        // La taille apparente de la lune est ~0.5°
+        const hTop = hTrueDeg + 0.25;
+        const hBottom = hTrueDeg - 0.25;
+        
+        const rTop = getRefractionDegrees(hTop, weather.temperature, weather.pressure);
+        const rBottom = getRefractionDegrees(hBottom, weather.temperature, weather.pressure);
+        
+        const angularDiameter = 0.5;
+        const apparentDiameter = angularDiameter + rTop - rBottom;
+        squashY = Math.max(0.5, Math.min(1.0, apparentDiameter / angularDiameter));
+      }
+
+      // Appliquer la déformation.
+      // - L'axe de Zénith (celui écrasé par l'atmosphère) a un angle -q en mode équatorial, 
+      // ou 0 en mode Alt-Az (car on a déjà tourné la lune de q).
+      const zenithAngle = isAltAzMode ? 0 : -q * Math.PI / 180;
+      
+      // Log de debug uniquement en cas de changement notable (évite le spam)
+      if (Math.abs((lastLoggedSquashY || 0) - squashY) > 0.0001) {
+          lastLoggedSquashY = squashY;
+          if (squashY < 1.0) {
+              const squashPercent = ((1.0 - squashY) * 100).toFixed(4);
+              console.log(`[Physique] Écrasement Atmosphérique mis à jour : Ratio k = ${squashY.toFixed(5)} (-${squashPercent}%)`);
+          } else {
+              console.log(`[Physique] Écrasement Atmosphérique Inactif (Altitude négative ou absence de météo). Ratio k = 1.0`);
+          }
+      }
+      
+      Transform.setRefraction(squashY, zenithAngle);
+
     }
   } catch (e) { console.warn("Ephemeris [Rotation]:", e.message); }
 

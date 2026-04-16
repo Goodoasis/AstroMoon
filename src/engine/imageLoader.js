@@ -49,9 +49,11 @@ export async function handleImageUpload(file, dispatchToast) {
   if (parsedNameDate) {
     temporalState.source = 'name';
     temporalState.time = parsedNameDate;
+    temporalState.userManualDate = new Date(parsedNameDate.getTime());
   } else if (temporalState.parsedExifDate) {
     temporalState.source = 'exif';
     temporalState.time = temporalState.parsedExifDate;
+    temporalState.userManualDate = new Date(temporalState.parsedExifDate.getTime());
   } else {
     temporalState.source = 'manual';
     const now = new Date();
