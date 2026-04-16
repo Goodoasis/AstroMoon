@@ -243,7 +243,7 @@
     display: inline-block;
     font-family: monospace;
     font-size: 13px;
-    color: #a8b2c4;
+    color: var(--color-text-dim);
     width: 240px;
     text-align: left;
   }

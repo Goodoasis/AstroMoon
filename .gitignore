@@ -1,4 +1,5 @@
 # Gitignore for AstroAz Web
+.env
 .env.local
 .agents/
 .gemini/
