@@ -4,6 +4,7 @@
   import { layerState } from '../stores/layerState.svelte.js';
   import { Transform } from '../engine/transform.js';
   import { updateCursor } from '../engine/inputHandler.js';
+  import AuthModule from './AuthModule.svelte';
 
   const phases = $derived([
     { id: 'IMPORT', label: 'Import', color: '#94a3b8' },
@@ -53,46 +54,109 @@
   }
 </script>
 
-<div class="phase-tabs-container">
-  {#each phases as phase}
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div 
-      class="phase-tab {uiState.currentPhase === phase.id ? 'active' : ''}"
-      style:--tab-color={phase.color}
-      onclick={() => setPhase(phase.id)}
-      data-text={phase.label}
-    >
-      {phase.label}
-    </div>
-  {/each}
-</div>
+<header class="app-header">
+  <!-- Left: Branding -->
+  <div class="header-brand">
+    <svg class="logo-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#00E5FF" />
+          <stop offset="100%" stop-color="#7C4DFF" />
+        </linearGradient>
+      </defs>
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" fill="url(#logo-grad)"/>
+    </svg>
+    <span class="brand-name">AstroMoon</span>
+  </div>
+
+  <!-- Center: Phase Navigation -->
+  <nav class="phase-tabs-container">
+    {#each phases as phase}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div 
+        class="phase-tab {uiState.currentPhase === phase.id ? 'active' : ''}"
+        style:--tab-color={phase.color}
+        onclick={() => setPhase(phase.id)}
+        data-text={phase.label}
+      >
+        {phase.label}
+      </div>
+    {/each}
+  </nav>
+
+  <!-- Right: Authentication -->
+  <div class="header-auth">
+    <AuthModule />
+  </div>
+</header>
 
 <style>
-  .phase-tabs-container {
+  .app-header {
     position: absolute;
     top: 5px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 780px; /* Large enough for all elements */
     background: rgba(10, 11, 16, 0.7); /* Deep Obsidian with opacity */
     backdrop-filter: blur(8px);
-    padding: 6px;
+    padding: 4px 12px;
     border-radius: 9999px; /* Pill-shaped */
     z-index: 10001; /* Above the global glow border (9999) */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.05);
     transition: all 0.5s ease;
   }
 
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-left: 8px;
+    min-width: 150px;
+  }
+
+  .logo-svg {
+    width: 24px;
+    height: 24px;
+    filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.4));
+  }
+
+  .brand-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #00E5FF, #7C4DFF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header-auth {
+    min-width: 150px;
+    display: flex;
+    justify-content: flex-end;
+    padding-right: 4px;
+  }
+
+  .phase-tabs-container {
+    display: flex;
+    gap: 4px;
+    padding: 2px;
+  }
+
   .phase-tab {
-    padding: 6px 16px;
+    padding: 6px 14px;
     border-radius: 9999px;
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 600;
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(255, 255, 255, 0.5);
     cursor: pointer;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     user-select: none;
@@ -101,7 +165,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-width: 85px; /* Prevent shrinking/expanding during label change */
+    min-width: 80px; /* Prevent shrinking/expanding during label change */
   }
 
   /* Trick to reserve space for bold text without shifting layout */
@@ -125,7 +189,7 @@
     background: rgba(255, 255, 255, 0.05); /* Flat background */
     box-shadow: 
       0 0 15px rgba(0, 0, 0, 0.4), 
-      0 0 10px var(--tab-color); /* The discreet glow */
+      0 0 10px var(--tab-color); /* Discreet glow */
     text-shadow: 0 0 5px var(--tab-color);
     border: 1px solid var(--tab-color);
     font-weight: 700;

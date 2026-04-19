@@ -16,6 +16,7 @@ let _mouseY = $state(-1000);
 let _canvasW = $state(0);
 let _canvasH = $state(0);
 let _appReady = $state(false);
+let _isMountVerified = $state(false);
 
 export const viewportState = {
   /** Background image loaded (NOT reactive) */
@@ -33,5 +34,6 @@ export const viewportState = {
   get mouseY() { return _mouseY; }, set mouseY(v) { _mouseY = v; },
   get canvasW() { return _canvasW; }, set canvasW(v) { _canvasW = v; },
   get canvasH() { return _canvasH; }, set canvasH(v) { _canvasH = v; },
-  get appReady() { return _appReady; }, set appReady(v) { _appReady = v; }
+  get appReady() { return _appReady; }, set appReady(v) { _appReady = v; },
+  get isMountVerified() { return _isMountVerified; }, set isMountVerified(v) { _isMountVerified = v; }
 };

@@ -2,10 +2,8 @@
   import { onMount } from 'svelte';
   import PixiCanvas from './components/PixiCanvas.svelte';
   import Toolbar from './components/Toolbar.svelte';
-  import TimeBar from './components/TimeBar.svelte';
-  import LocationBar from './components/LocationBar.svelte';
-  import MountSwitch from './components/MountSwitch.svelte';
   import AnchorPanel from './components/AnchorPanel.svelte';
+  import AstroContextPanel from './components/AstroContextPanel.svelte';
   import InfoBar from './components/InfoBar.svelte';
   import StatusToast from './components/StatusToast.svelte';
   import WelcomeOverlay from './components/WelcomeOverlay.svelte';
@@ -22,9 +20,9 @@
   import { loadLayersAsync, initCraters, updateGeoJSONProjection, updateCratersProjection } from './engine/layerLoader.js';
   import { uiState } from './stores/uiState.svelte.js';
   import PhaseTabs from './components/PhaseTabs.svelte';
-  import AuthModule from './components/AuthModule.svelte';
   import StudioToolbar from './components/StudioToolbar.svelte';
   import ExportPanel from './components/ExportPanel.svelte';
+  import { equipmentState } from './stores/equipmentState.svelte.js';
   import { PixiRenderer } from './engine/pixi_renderer.js';
 
   let toastMessage = $state('');
@@ -50,6 +48,13 @@
       await handleImageUpload(file, showToast);
       viewportState.appReady = true;
       document.body.classList.add('app-ready');
+      
+      // Reset verification states for the new image
+      equipmentState.resetVerification();
+      temporalState.timeVerified = false;
+      spatialState.cityVerified = false;
+      viewportState.isMountVerified = false;
+
       handleEphemerisUpdate(); // Force Svelte à digérer l'Exif immédiatement !
       uiState.currentPhase = 'ALIGN'; // Move to Align phase after import
     }
@@ -118,11 +123,6 @@
 <!-- Phase Tabs / Navigation -->
 <PhaseTabs />
 
-<!-- Authentication (Mock) -->
-{#if uiState.currentPhase === 'IMPORT'}
-  <AuthModule />
-{/if}
-
 <!-- PixiJS rendering canvas -->
 <PixiCanvas
   on:toast={(e) => showToast(e.detail)}
@@ -137,10 +137,8 @@
   <!-- Toolbar (top center) -->
   <Toolbar on:toast={(e) => showToast(e.detail)} />
 
-  <!-- HUD Pill Bars (top right) -->
-  <MountSwitch on:ephemerisUpdate={handleEphemerisUpdate} />
-  <TimeBar on:ephemerisUpdate={handleEphemerisUpdate} />
-  <LocationBar on:ephemerisUpdate={handleEphemerisUpdate} />
+  <!-- Astro Context Panel (top right, vertical) -->
+  <AstroContextPanel on:ephemerisUpdate={handleEphemerisUpdate} />
 
   <!-- Anchor Panel (right side) -->
   <AnchorPanel />

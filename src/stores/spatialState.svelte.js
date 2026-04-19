@@ -15,5 +15,7 @@ export const spatialState = $state({
   /** GPS from EXIF metadata */
   parsedExifGps: null,
   /** GPS from Geolocation API */
-  geolocGps: null
+  geolocGps: null,
+  /** Persistence flags */
+  cityVerified: false
 });

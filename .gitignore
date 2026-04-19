@@ -8,7 +8,7 @@ __pycache__/
 node_modules/
 dist/
 temp/
-data/
+/data/
 user_exemple/
 *.log
 *.tmp

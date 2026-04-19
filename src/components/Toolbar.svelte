@@ -50,11 +50,6 @@
 </script>
 
 <div id="toolbar" class="visible" role="toolbar" aria-label="Outils">
-  <div class="toolbar-brand">
-    <span class="logo-icon">🌙</span>
-    <span>AstroMoon</span>
-  </div>
-
   <button class="tb-btn" onclick={handleUpload} aria-label="Charger une image">
     🖼️
     <span class="tooltip">Charger image</span>
@@ -118,30 +113,6 @@
   #toolbar:hover {
     box-shadow: var(--shadow-card), var(--shadow-glow-violet);
     border-color: var(--color-border-hover);
-  }
-
-  .toolbar-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-right: 10px;
-    border-right: 1px solid var(--color-border);
-    margin-right: 4px;
-  }
-
-  .toolbar-brand .logo-icon {
-    font-size: 20px;
-    filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.4));
-  }
-
-  .toolbar-brand span {
-    font-weight: 600;
-    font-size: 15px;
-    background: var(--color-accent-grad);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    letter-spacing: 0.5px;
   }
 
   .tb-btn {

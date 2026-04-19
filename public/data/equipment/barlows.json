@@ -1,0 +1,61 @@
+[
+  {"name":"TeleVue Powermate 2x","brand":"TeleVue","type":"barlow","multiplier":2.0},
+  {"name":"TeleVue Powermate 2.5x","brand":"TeleVue","type":"barlow","multiplier":2.5},
+  {"name":"TeleVue Powermate 4x","brand":"TeleVue","type":"barlow","multiplier":4.0},
+  {"name":"TeleVue Powermate 5x","brand":"TeleVue","type":"barlow","multiplier":5.0},
+  {"name":"TeleVue Barlow 2x","brand":"TeleVue","type":"barlow","multiplier":2.0},
+  {"name":"TeleVue Barlow 3x","brand":"TeleVue","type":"barlow","multiplier":3.0},
+  {"name":"TeleVue Barlow 5x","brand":"TeleVue","type":"barlow","multiplier":5.0},
+
+  {"name":"Baader Planetarium VIP 2.25x","brand":"Baader","type":"barlow","multiplier":2.25},
+  {"name":"Baader Planetarium Q-Barlow 2.25x","brand":"Baader","type":"barlow","multiplier":2.25},
+  {"name":"Baader Classic Barlow 2x","brand":"Baader","type":"barlow","multiplier":2.0},
+  {"name":"Baader MPCC III (Coma)","brand":"Baader","type":"reducer","multiplier":1.0},
+
+  {"name":"Explore Scientific Focal Extender 2x","brand":"Explore Scientific","type":"barlow","multiplier":2.0},
+  {"name":"Explore Scientific Focal Extender 3x","brand":"Explore Scientific","type":"barlow","multiplier":3.0},
+  {"name":"Explore Scientific Focal Extender 5x","brand":"Explore Scientific","type":"barlow","multiplier":5.0},
+
+  {"name":"Celestron X-Cel LX 2x","brand":"Celestron","type":"barlow","multiplier":2.0},
+  {"name":"Celestron X-Cel LX 3x","brand":"Celestron","type":"barlow","multiplier":3.0},
+  {"name":"Celestron Omni 2x","brand":"Celestron","type":"barlow","multiplier":2.0},
+  {"name":"Celestron Reducer 0.63x","brand":"Celestron","type":"reducer","multiplier":0.63},
+  {"name":"Celestron Reducer 0.7x","brand":"Celestron","type":"reducer","multiplier":0.7},
+
+  {"name":"Sky-Watcher Barlow ED 2x","brand":"Sky-Watcher","type":"barlow","multiplier":2.0},
+  {"name":"Sky-Watcher Barlow Achro 2x","brand":"Sky-Watcher","type":"barlow","multiplier":2.0},
+  {"name":"Sky-Watcher Barlow Achro 2.5x","brand":"Sky-Watcher","type":"barlow","multiplier":2.5},
+  {"name":"Sky-Watcher Barlow 5x","brand":"Sky-Watcher","type":"barlow","multiplier":5.0},
+  {"name":"Sky-Watcher Reducer 0.85x","brand":"Sky-Watcher","type":"reducer","multiplier":0.85},
+  {"name":"Sky-Watcher Flattener/Reducer 0.8x","brand":"Sky-Watcher","type":"reducer","multiplier":0.8},
+
+  {"name":"APM Barlow 2.7x ED","brand":"APM","type":"barlow","multiplier":2.7},
+  {"name":"APM Barlow 1.5x","brand":"APM","type":"barlow","multiplier":1.5},
+
+  {"name":"GSO Barlow 2x ED","brand":"GSO","type":"barlow","multiplier":2.0},
+  {"name":"GSO Barlow 2.5x","brand":"GSO","type":"barlow","multiplier":2.5},
+  {"name":"GSO Barlow 3x","brand":"GSO","type":"barlow","multiplier":3.0},
+  {"name":"GSO Barlow 5x","brand":"GSO","type":"barlow","multiplier":5.0},
+
+  {"name":"Omegon Barlow 2x","brand":"Omegon","type":"barlow","multiplier":2.0},
+  {"name":"Omegon Barlow 2x Pro","brand":"Omegon","type":"barlow","multiplier":2.0},
+  {"name":"Omegon Barlow 3x","brand":"Omegon","type":"barlow","multiplier":3.0},
+
+  {"name":"Starizona SCT Reducer 0.63x","brand":"Starizona","type":"reducer","multiplier":0.63},
+  {"name":"Starizona SCT Reducer 0.75x","brand":"Starizona","type":"reducer","multiplier":0.75},
+  {"name":"Starizona Night Owl 0.4x","brand":"Starizona","type":"reducer","multiplier":0.4},
+  {"name":"Starizona HyperStar C8 0.5x","brand":"Starizona","type":"reducer","multiplier":0.5},
+
+  {"name":"Meade 140 2x","brand":"Meade","type":"barlow","multiplier":2.0},
+  {"name":"Meade 126 2x","brand":"Meade","type":"barlow","multiplier":2.0},
+  {"name":"Meade Reducer 0.63x","brand":"Meade","type":"reducer","multiplier":0.63},
+
+  {"name":"TS-Optics Flattener/Reducer 0.79x","brand":"TS-Optics","type":"reducer","multiplier":0.79},
+  {"name":"TS-Optics Barlow 2.5x","brand":"TS-Optics","type":"barlow","multiplier":2.5},
+
+  {"name":"Svbony Barlow 2x","brand":"Svbony","type":"barlow","multiplier":2.0},
+  {"name":"Svbony Barlow 3x","brand":"Svbony","type":"barlow","multiplier":3.0},
+  {"name":"Svbony Barlow 5x","brand":"Svbony","type":"barlow","multiplier":5.0},
+
+  {"name":"Aucun (1x)","brand":"—","type":"none","multiplier":1.0}
+]

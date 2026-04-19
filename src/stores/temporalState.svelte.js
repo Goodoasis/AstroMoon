@@ -13,5 +13,7 @@ export const temporalState = $state({
   /** Date parsed from image filename */
   parsedNameDate: null,
   /** Date parsed from EXIF metadata */
-  parsedExifDate: null
+  parsedExifDate: null,
+  /** Persistence flags */
+  timeVerified: false
 });
