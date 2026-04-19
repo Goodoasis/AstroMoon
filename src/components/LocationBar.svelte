@@ -116,7 +116,7 @@
   }
 </script>
 
-<div id="location-bar" class="hud-pill-bar" class:visible={viewportState.appReady}>
+<div id="location-bar" class="hud-pill-bar visible">
   <div class="time-sources">
     <button class="source-btn"
       class:active={spatialState.source === 'geoloc'}
@@ -171,12 +171,9 @@
     border-radius: var(--radius-pill);
     box-shadow: var(--shadow-card), var(--shadow-hud-glow);
     z-index: 100;
-    transform: translateX(350px);
-    opacity: 0;
-    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s,
-                opacity 0.7s ease-out 0.15s;
+    transform: translateX(0);
+    opacity: 1;
   }
-  .hud-pill-bar.visible { transform: translateX(0); opacity: 1; }
   #location-bar { top: 102px; }
   .time-sources { display: flex; background: rgba(0, 0, 0, 0.3); border-radius: var(--radius-pill); padding: 3px; }
   .source-btn { border: none; background: transparent; color: var(--color-text-dim); font-family: var(--font-main); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius-pill); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all var(--transition-fast); }

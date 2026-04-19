@@ -6,8 +6,12 @@
 import { viewportState } from '../stores/viewportState.svelte.js';
 import { temporalState } from '../stores/temporalState.svelte.js';
 import { spatialState } from '../stores/spatialState.svelte.js';
+import { layerState } from '../stores/layerState.svelte.js';
 import { MiniExif } from './exif.js';
 import { PixiRenderer } from './pixi_renderer.js';
+import { uiState } from '../stores/uiState.svelte.js';
+import { Transform } from './transform.js';
+import { Anchors } from './anchors.js';
 
 export function extractDateFromName(filename) {
   // Support YYYY-MM-DD-HHhMM etc...
@@ -80,6 +84,25 @@ export async function handleImageUpload(file, dispatchToast) {
       img.onload = () => {
         viewportState.backgroundImage = img;
         PixiRenderer.setBackgroundImage(img, viewportState.canvasW, viewportState.canvasH);
+        
+        // Reset layer transformation and viewport for the new image
+        Transform.reset(viewportState.canvasW, viewportState.canvasH);
+        viewportState.tx = 0;
+        viewportState.ty = 0;
+        viewportState.scale = 1;
+        
+        // Clear old phase snapshots
+        uiState.cameraSnapshots = {
+          IMPORT: { tx: null, ty: null, scale: null },
+          ALIGN: { tx: null, ty: null, scale: null },
+          STUDIO: { tx: null, ty: null, scale: null },
+          EXPORT: { tx: null, ty: null, scale: null }
+        };
+        
+        // Clear all previous anchors/punaises
+        Anchors.clear();
+        layerState.layerTransformDirty = true;
+        layerState.anchorRevision++;
         
         if (dispatchToast) {
           dispatchToast(`Image: ${file.name}`);

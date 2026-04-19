@@ -37,7 +37,7 @@
   let displayValue = $derived(formatForDatetimeLocal(temporalState.time));
 </script>
 
-<div id="time-bar" class="hud-pill-bar" class:visible={viewportState.appReady}>
+<div id="time-bar" class="hud-pill-bar visible">
   <div class="time-sources">
     <button class="source-btn"
       class:active={temporalState.source === 'name'}
@@ -74,13 +74,6 @@
     border-radius: var(--radius-pill);
     box-shadow: var(--shadow-card), var(--shadow-hud-glow);
     z-index: 100;
-    transform: translateX(350px);
-    opacity: 0;
-    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
-                opacity 0.7s ease-out 0.1s;
-  }
-
-  .hud-pill-bar.visible {
     transform: translateX(0);
     opacity: 1;
   }

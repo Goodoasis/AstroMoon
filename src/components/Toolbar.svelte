@@ -49,7 +49,7 @@
   }
 </script>
 
-<div id="toolbar" class:visible={viewportState.appReady} role="toolbar" aria-label="Outils">
+<div id="toolbar" class="visible" role="toolbar" aria-label="Outils">
   <div class="toolbar-brand">
     <span class="logo-icon">🌙</span>
     <span>AstroMoon</span>
@@ -97,9 +97,9 @@
 <style>
   #toolbar {
     position: fixed;
-    top: 16px;
+    top: 74px; /* Déplacé sous les PhaseTabs */
     left: 50%;
-    transform: translateX(-50%) translateY(-80px);
+    transform: translateX(-50%) translateY(0);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -111,15 +111,8 @@
     border-radius: var(--radius-pill);
     box-shadow: var(--shadow-card), var(--shadow-hud-glow);
     z-index: 100;
-    opacity: 0;
-    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-                opacity 0.7s ease-out,
-                box-shadow var(--transition-med);
-  }
-
-  #toolbar.visible {
-    transform: translateX(-50%) translateY(0);
     opacity: 1;
+    transition: box-shadow var(--transition-med);
   }
 
   #toolbar:hover {

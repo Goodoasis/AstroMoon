@@ -9,6 +9,7 @@ import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
 import { PixiRenderer } from './pixi_renderer.js';
 import { GeoJSON } from './geojson.js';
+import { uiState } from '../stores/uiState.svelte.js';
 import { setLastInteractionTime } from './renderLoop.js';
 
 let dragStart = { x: 0, y: 0 };
@@ -44,13 +45,13 @@ export function updateCursor() {
 
 export function onMouseDown(e) {
   setLastInteractionTime();
-  if (!viewportState.backgroundImage) return;
   const mx = e.clientX, my = e.clientY;
   viewportState.isDragging = true; 
   dragStart = { x: mx, y: my };
   const locked = Anchors.count() > 0;
+  const isStudioExport = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
 
-  if (e.button === 2 || (e.button === 0 && e.ctrlKey) || (e.button === 0 && viewportState.mode === 'navigate' && locked)) {
+  if (e.button === 2 || (e.button === 0 && e.ctrlKey) || isStudioExport || (e.button === 0 && viewportState.mode === 'navigate' && locked)) {
     viewportState.dragType = 'viewport'; 
     updateCursor(); 
     return;
@@ -93,7 +94,6 @@ export function onMouseDown(e) {
 }
 
 export function onMouseMove(e) {
-  if (!viewportState.backgroundImage) return;
   setLastInteractionTime();
   const mx = e.clientX, my = e.clientY;
   viewportState.mouseX = mx; 
@@ -132,17 +132,17 @@ export function onMouseMove(e) {
 }
 
 export function onMouseUp() { 
-  if (!viewportState.backgroundImage) return; 
   viewportState.isDragging = false; 
   viewportState.dragType = null; 
   updateCursor(); 
 }
 
 export function onWheel(e) {
-  if (!viewportState.backgroundImage) return;
   setLastInteractionTime();
   const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-  if (e.ctrlKey || Anchors.count() > 0) {
+  const isStudioExport = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+
+  if (e.ctrlKey || isStudioExport || Anchors.count() > 0) {
     viewportState.tx = e.clientX - (e.clientX - viewportState.tx) * factor;
     viewportState.ty = e.clientY - (e.clientY - viewportState.ty) * factor;
     viewportState.scale *= factor;
@@ -155,7 +155,6 @@ export function onWheel(e) {
 }
 
 export function onDoubleClick(e) {
-  if (!viewportState.backgroundImage) return;
   if (viewportState.mode === 'anchor') {
     const near = Anchors.findNear(e.clientX, e.clientY, viewportState);
     if (near) { 
@@ -167,7 +166,6 @@ export function onDoubleClick(e) {
 }
 
 export function onKeyDown(e) {
-  if (!viewportState.backgroundImage) return;
   if (e.target.tagName === 'INPUT') return;
   if (e.key === 'a' || e.key === 'A') toggleAnchorMode();
   if (e.key === 'g' || e.key === 'G') {

@@ -20,6 +20,11 @@
   import { bindInputHandlers } from './engine/inputHandler.js';
   import { handleImageUpload } from './engine/imageLoader.js';
   import { loadLayersAsync, initCraters, updateGeoJSONProjection, updateCratersProjection } from './engine/layerLoader.js';
+  import { uiState } from './stores/uiState.svelte.js';
+  import PhaseTabs from './components/PhaseTabs.svelte';
+  import AuthModule from './components/AuthModule.svelte';
+  import StudioToolbar from './components/StudioToolbar.svelte';
+  import ExportPanel from './components/ExportPanel.svelte';
   import { PixiRenderer } from './engine/pixi_renderer.js';
 
   let toastMessage = $state('');
@@ -46,6 +51,7 @@
       viewportState.appReady = true;
       document.body.classList.add('app-ready');
       handleEphemerisUpdate(); // Force Svelte à digérer l'Exif immédiatement !
+      uiState.currentPhase = 'ALIGN'; // Move to Align phase after import
     }
   }
 
@@ -90,10 +96,32 @@
       document.removeEventListener('ephemeris-async-refresh', handleEphemerisUpdate);
     };
   });
+  let glowColor = $derived(
+    uiState.currentPhase === 'IMPORT' ? '#94a3b8' :
+    (uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor') ? '#00FF88' : // Neon Green in anchor mode
+    uiState.currentPhase === 'ALIGN' ? '#00E5FF' :
+    uiState.currentPhase === 'STUDIO' ? '#FF4081' :
+    uiState.currentPhase === 'EXPORT' ? '#F59E0B' : 'transparent'
+  );
+
+  let isAnchorActive = $derived(uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor');
 </script>
+
+<!-- Global Glow Container -->
+<main class="app-container" 
+  class:anchor-active={isAnchorActive}
+  style:--glow-color={glowColor}>
 
 <!-- Hidden file input -->
 <input type="file" id="input-image" name="inputImage" class="hidden-input" accept="image/*" onchange={handleFileInput} />
+
+<!-- Phase Tabs / Navigation -->
+<PhaseTabs />
+
+<!-- Authentication (Mock) -->
+{#if uiState.currentPhase === 'IMPORT'}
+  <AuthModule />
+{/if}
 
 <!-- PixiJS rendering canvas -->
 <PixiCanvas
@@ -101,22 +129,76 @@
   on:ready={handlePixiReady}
 />
 
-<!-- Toolbar (top center) -->
-<Toolbar on:toast={(e) => showToast(e.detail)} />
+{#if uiState.currentPhase === 'IMPORT'}
+  <WelcomeOverlay />
+{/if}
 
-<!-- HUD Pill Bars (top right) -->
-<MountSwitch on:ephemerisUpdate={handleEphemerisUpdate} />
-<TimeBar on:ephemerisUpdate={handleEphemerisUpdate} />
-<LocationBar on:ephemerisUpdate={handleEphemerisUpdate} />
+{#if uiState.currentPhase === 'ALIGN'}
+  <!-- Toolbar (top center) -->
+  <Toolbar on:toast={(e) => showToast(e.detail)} />
 
-<!-- Anchor Panel (right side) -->
-<AnchorPanel />
+  <!-- HUD Pill Bars (top right) -->
+  <MountSwitch on:ephemerisUpdate={handleEphemerisUpdate} />
+  <TimeBar on:ephemerisUpdate={handleEphemerisUpdate} />
+  <LocationBar on:ephemerisUpdate={handleEphemerisUpdate} />
 
-<!-- Info Bar (bottom) -->
-<InfoBar />
+  <!-- Anchor Panel (right side) -->
+  <AnchorPanel />
+{/if}
 
-<!-- Status Toast -->
+{#if uiState.currentPhase === 'STUDIO'}
+  <StudioToolbar />
+{/if}
+
+{#if uiState.currentPhase === 'EXPORT'}
+  <ExportPanel />
+{/if}
+
+{#if uiState.currentPhase !== 'IMPORT'}
+  <!-- Info Bar (bottom) (Global) -->
+  <InfoBar />
+{/if}
+
+<!-- Status Toast (Global) -->
 <StatusToast message={toastMessage} visible={toastVisible} />
 
-<!-- Welcome Overlay -->
-<WelcomeOverlay />
+</main>
+
+<style>
+  .app-container {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  /* Glow effect: petite bande fine mais très lumineuse DESSUS le canvas */
+  .app-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    border: 2px solid var(--glow-color, transparent);
+    box-shadow: inset 0 0 20px var(--glow-color, transparent), 
+                inset 0 0 5px var(--glow-color, transparent);
+    transition: box-shadow 0.6s ease, border-color 0.6s ease;
+  }
+
+  .app-container.anchor-active::after {
+    animation: border-pulse-anchor 1.5s ease-in-out infinite alternate;
+    border-width: 3px;
+  }
+
+  @keyframes border-pulse-anchor {
+    0% {
+      box-shadow: inset 0 0 15px var(--glow-color), inset 0 0 5px var(--glow-color);
+      opacity: 0.7;
+    }
+    100% {
+      box-shadow: inset 0 0 40px var(--glow-color), inset 0 0 15px var(--glow-color);
+      opacity: 1;
+    }
+  }
+</style>

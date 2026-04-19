@@ -2,7 +2,7 @@
   import { viewportState } from '@/stores/viewportState.svelte.js';
 </script>
 
-<div id="info-bar" class:visible={viewportState.appReady}>
+<div id="info-bar" class="visible">
   <div class="info-hint"><kbd>Drag</kbd> Calque</div>
   <div class="info-hint"><kbd>Scroll</kbd> Zoom calque</div>
   <div class="info-hint"><kbd>Shift</kbd>+<kbd>Drag</kbd> Rotation</div>

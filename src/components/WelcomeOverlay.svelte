@@ -18,36 +18,59 @@
     }
   });
 
+  let isDraggingFile = $state(false);
+
   function handleUpload() {
-    document.getElementById('input-image').click();
+    const input = document.getElementById('input-image');
+    if (input) input.click();
   }
 
   function handleDrop(e) {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const dt = new DataTransfer();
-      dt.items.add(file);
+    isDraggingFile = false;
+    
+    // Extraction du fichier
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0 && files[0].type.startsWith('image/')) {
       const input = document.getElementById('input-image');
-      input.files = dt.files;
-      input.dispatchEvent(new Event('change'));
+      if (input) {
+        // Transfert via DataTransfer (requis pour modifier input.files)
+        const dt = new DataTransfer();
+        dt.items.add(files[0]);
+        input.files = dt.files;
+        // Déclenchement manuel de l'événement change pour Svelte
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  }
+
+  function handleDragLeave(e) {
+    // Si on quitte vraiment la fenêtre (pas juste un survol d'élément enfant)
+    if (!e.relatedTarget || e.relatedTarget === null) {
+      isDraggingFile = false;
     }
   }
 </script>
 
+<svelte:window 
+  ondragenter={() => { isDraggingFile = true; }}
+  ondragleave={handleDragLeave}
+  ondragover={e => e.preventDefault()}
+  ondrop={handleDrop}
+/>
+
 <!-- Starfield -->
-<div id="starfield" class:faded={viewportState.appReady} bind:this={starfieldEl}></div>
+<div id="starfield" bind:this={starfieldEl}></div>
 
 <!-- Welcome Overlay -->
-<div id="welcome-overlay" class:hidden={viewportState.appReady}
+<div id="welcome-overlay"
+  class:active-drop={isDraggingFile}
   role="region"
-  aria-label="Zone de dépôt d'image"
-  on:dragover|preventDefault
-  on:drop={handleDrop}>
+  aria-label="Zone de dépôt d'image">
   <div class="welcome-content">
     <h1>🌙 AstroMoon</h1>
     <div class="welcome-actions">
-      <button class="welcome-btn welcome-btn-delayed" on:click={handleUpload}>
+      <button class="welcome-btn welcome-btn-delayed" onclick={handleUpload}>
         <span class="btn-icon">🖼️</span>
         Charger votre photo lunaire
       </button>
@@ -58,15 +81,24 @@
 
 <style>
   #starfield { position: fixed; inset: 0; z-index: 1; pointer-events: none; transition: opacity 1.2s ease-out; }
-  #starfield.faded { opacity: 0; }
   #starfield :global(.star) { position: absolute; width: 2px; height: 2px; background: #ffffff; border-radius: 50%; animation: twinkle var(--twinkle-dur, 3s) ease-in-out infinite; animation-delay: var(--twinkle-delay, 0s); opacity: 0; }
   #starfield :global(.star.bright) { width: 3px; height: 3px; box-shadow: 0 0 4px rgba(180, 210, 255, 0.6); }
 
   #welcome-overlay {
     position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: transparent; z-index: 300; transition: opacity 0.8s ease-out, visibility 0.8s; pointer-events: none;
+    background: transparent; z-index: 300; transition: opacity 0.8s ease-out, visibility 0.8s;
+    pointer-events: none; /* Laisse passer les clics vers PixiJS par défaut */
   }
-  #welcome-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  
+  #welcome-overlay.active-drop {
+    pointer-events: auto;
+    background: rgba(0, 229, 255, 0.08); /* Feedback visuel au survol d'un fichier */
+    box-shadow: inset 0 0 50px rgba(0, 229, 255, 0.2), 
+                inset 0 0 10px rgba(0, 229, 255, 0.4);
+    border: 2px dashed rgba(0, 229, 255, 0.5);
+    outline: 10px solid rgba(0, 229, 255, 0.05);
+    outline-offset: -12px;
+  }
 
   .welcome-content { text-align: center; max-width: 520px; pointer-events: auto; }
 

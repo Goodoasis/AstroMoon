@@ -10,7 +10,7 @@
   }
 </script>
 
-<div id="mount-bar" class="hud-pill-bar" class:visible={viewportState.appReady}>
+<div id="mount-bar" class="hud-pill-bar visible">
   <span class="mount-label" class:active={!viewportState.isAltAzMode}>Équatoriale</span>
   <label class="switch" title="Bascule Équatoriale / Alt-Az (O)">
     <input type="checkbox" id="mount-toggle" name="mountToggle" checked={viewportState.isAltAzMode} onchange={toggle} />
@@ -24,11 +24,10 @@
     position: fixed; right: 16px; display: flex; align-items: center; gap: 8px; padding: 6px 12px;
     background: var(--color-surface); backdrop-filter: blur(var(--blur)); -webkit-backdrop-filter: blur(var(--blur));
     border: 1px solid var(--color-border); border-radius: var(--radius-pill);
-    box-shadow: var(--shadow-card), var(--shadow-hud-glow); z-index: 100;
-    transform: translateX(350px); opacity: 0;
-    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.05s, opacity 0.7s ease-out 0.05s;
+    z-index: 100;
+    transform: translateX(0);
+    opacity: 1;
   }
-  .hud-pill-bar.visible { transform: translateX(0); opacity: 1; }
   #mount-bar { top: 16px; }
   .mount-label { font-family: var(--font-main); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-dim); transition: color var(--transition-fast); }
   .mount-label.active { color: var(--color-cyan); text-shadow: 0 0 8px rgba(0, 212, 255, 0.4); }
