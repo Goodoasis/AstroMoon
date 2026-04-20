@@ -139,16 +139,22 @@ export function onMouseUp() {
 
 export function onWheel(e) {
   setLastInteractionTime();
-  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  
+  // Precision mode if SHIFT is held
+  const zoomStep = e.shiftKey ? 0.008 : 0.08;
+  const factor = e.deltaY < 0 ? (1 + zoomStep) : 1 / (1 + zoomStep);
+  
   const isStudioExport = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
 
   if (e.ctrlKey || isStudioExport || Anchors.count() > 0) {
+    // Zoom the GLOBAL viewport (photo + layer)
     viewportState.tx = e.clientX - (e.clientX - viewportState.tx) * factor;
     viewportState.ty = e.clientY - (e.clientY - viewportState.ty) * factor;
     viewportState.scale *= factor;
   } else {
+    // Zoom only the LAYER (vector overlay)
     const w = screenToWorld(e.clientX, e.clientY);
-    Transform.zoom(e.deltaY < 0 ? 1.08 : 1 / 1.08, w.x, w.y); 
+    Transform.zoom(factor, w.x, w.y); 
     layerState.layerTransformDirty = true;
   }
   e.preventDefault();

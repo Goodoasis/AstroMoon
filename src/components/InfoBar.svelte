@@ -5,6 +5,7 @@
 <div id="info-bar" class="visible">
   <div class="info-hint"><kbd>Drag</kbd> Calque</div>
   <div class="info-hint"><kbd>Scroll</kbd> Zoom calque</div>
+  <div class="info-hint"><kbd>Shift</kbd>+<kbd>Scroll</kbd> Précis</div>
   <div class="info-hint"><kbd>Shift</kbd>+<kbd>Drag</kbd> Rotation</div>
   <div class="info-hint hint-sep"></div>
   <div class="info-hint"><kbd>Clic-droit</kbd> Naviguer</div>

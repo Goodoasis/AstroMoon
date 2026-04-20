@@ -145,6 +145,32 @@ export const PERF = {
   searchMinChars: 3,
 };
 
+// ─── GOTO ──────────────────────────────────────────────
+
+export const GOTO = {
+  /** Fraction of canvas width the crater should fill (0.6 = 60%) */
+  fillFactor: 0.6,
+
+  /** Mean Earth–Moon distance (km) */
+  lunarDistKm: 384400,
+
+  /** Lunar diameter (km) */
+  lunarDiamKm: 3474.8,
+
+  /** Zoom clamp bounds */
+  minZoom: 0.5,
+  maxZoom: 30,
+
+  /** Smooth animation duration (ms) */
+  animationMs: 400,
+
+  /** Max autocomplete results */
+  searchMaxResults: 8,
+
+  /** Min characters before searching */
+  searchMinChars: 1,
+};
+
 // ─── WEATHER ───────────────────────────────────────────
 
 export const WEATHER = {

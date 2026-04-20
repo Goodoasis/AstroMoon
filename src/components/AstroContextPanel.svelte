@@ -6,6 +6,7 @@
   import { equipmentState } from '@/stores/equipmentState.svelte.js';
   import { PERF } from '@/engine/config.js';
   import EquipmentSearch from './EquipmentSearch.svelte';
+  import GoToCrater from './GoToCrater.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -16,6 +17,8 @@
   let predictionsList = $state([]);
   let showPredictions = $state(false);
   let searchDebounceTimer = null;
+  let panelRef = $state(null);
+  let scrollContainerRef = $state(null);
 
   // --- EQUIPMENT DATABASE ---
   let telescopeDb = $state([]);
@@ -293,282 +296,275 @@
   function toggleManualMode() {
     equipmentState.setManualMode(!equipmentState.isManualMode);
   }
+
+  const INFO_TEXTS = {
+    mount: "Définit le mode de suivi : Équatoriale (polaire) ou Trépied (horizontal).",
+    time: "Détermine la phase et la libration exacte de la Lune.",
+    loc: "Calcule la parallaxe topocentrique selon votre position terrestre.",
+    gear: "Calcule l'échantillonnage selon votre focale et la taille des pixels.",
+    goto: "Localise un cratère et ajuste le zoom à l'échelle optique attendue."
+  };
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div 
-  class="context-panel" 
-  class:open={isOpen}
-  onmouseenter={handleMouseEnter}
-  onmouseleave={handleMouseLeave}
->
-  <!-- Summary / Launcher Pill -->
-  <div class="panel-trigger" onclick={toggleOpen}>
-    <div class="trigger-icon">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
-    <div class="trigger-summary">
-      <span class="summary-item">
-        {viewportState.isAltAzMode ? 'Alt-Az' : 'Eq'}
-      </span>
-      {#if !isOpen}
-        <span class="summary-sep">|</span>
-        <span class="summary-item">{equipmentState.effectiveFocal}mm</span>
-        <span class="summary-sep">|</span>
-        <span class="summary-item truncate">{spatialState.city || 'Lieu'}</span>
-      {/if}
-    </div>
-  </div>
+  <div class="panel-layout">
 
-  <!-- Content (Organic Growth) -->
-  <div class="panel-content">
-    <div class="scroll-container">
-      <!-- MOUNT SECTION -->
-      <section class="panel-section">
-        <h3 class="section-title" class:verified={isMountVerified}>
-          <span class="status-dot" class:verified={isMountVerified}></span>
-          Monture
-        </h3>
-        <div class="mount-toggle-group" class:unverified={!isMountVerified}>
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <span class="label clickable" class:active={!viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(false)}>Équatoriale</span>
-          <label class="switch">
-            <input type="checkbox" checked={viewportState.isAltAzMode} onchange={() => toggleMount()} />
-            <span class="slider"></span>
-          </label>
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <span class="label clickable" class:active={viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(true)}>Trépied</span>
+    <div 
+      bind:this={panelRef}
+      class="context-panel" 
+      class:open={isOpen}
+      onmouseenter={handleMouseEnter}
+      onmouseleave={handleMouseLeave}
+    >
+      <!-- Summary / Launcher Pill -->
+      <div class="panel-trigger" onclick={toggleOpen}>
+        <div class="trigger-icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
-      </section>
-
-      <div class="divider"></div>
-
-      <!-- TIME SECTION -->
-      <section class="panel-section">
-        <h3 class="section-title" class:verified={isTimeVerified}>
-          <span class="status-dot" class:verified={isTimeVerified}></span>
-          Temps
-        </h3>
-        <div class="source-pills">
-          <button class="pill" class:active={temporalState.source === 'name'} class:disabled={!temporalState.parsedNameDate} onclick={() => setTimeSource('name')}>Nom</button>
-          <button class="pill" class:active={temporalState.source === 'exif'} class:disabled={!temporalState.parsedExifDate} onclick={() => setTimeSource('exif')}>Exif</button>
-          <button class="pill" class:active={temporalState.source === 'manual'} onclick={() => setTimeSource('manual')}>Manuel</button>
-        </div>
-        <input type="datetime-local" class="panel-input mt-2" class:readonly={temporalState.source !== 'manual'} value={timeDisplayValue} onchange={handleTimeChange} />
-      </section>
-
-      <div class="divider"></div>
-
-      <!-- LOCATION SECTION -->
-      <section class="panel-section">
-        <h3 class="section-title" class:verified={isLocationVerified}>
-          <span class="status-dot" class:verified={isLocationVerified}></span>
-          Localisation
-        </h3>
-        <div class="source-pills">
-          <button class="pill" class:active={spatialState.source === 'geoloc'} onclick={() => setLocSource('geoloc')}>Auto</button>
-          <button class="pill" class:active={spatialState.source === 'exif-loc'} class:disabled={!spatialState.parsedExifGps} onclick={() => setLocSource('exif-loc')}>Exif</button>
-          <button class="pill" class:active={spatialState.source === 'ville'} onclick={() => setLocSource('ville')}>Ville</button>
-        </div>
-        <div class="input-with-icon mt-2">
-          <span class="icon">📍</span>
-          <input 
-            type="text" 
-            class="panel-input" 
-            value={spatialState.city} 
-            readonly={spatialState.source !== 'ville'} 
-            placeholder="Lieu..." 
-            oninput={handleLocInput}
-            onclick={(e) => { if (spatialState.source !== 'ville') setLocSource('ville'); e.target.select(); }} 
-          />
-        </div>
-        {#if showPredictions && predictionsList.length > 0}
-          <ul class="predictions">
-            {#each predictionsList as pred}
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <li onclick={() => selectPrediction(pred)} role="presentation">{pred.display}</li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-
-      <div class="divider"></div>
-
-      <!-- EQUIPMENT SECTION -->
-      <section class="panel-section">
-        <div class="section-header">
-          <h3 class="section-title" class:verified={isEquipmentVerified}>
-            <span class="status-dot" class:verified={isEquipmentVerified}></span>
-            Matériel
-          </h3>
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <span class="mode-toggle" class:active={equipmentState.isManualMode} onclick={toggleManualMode} title="Basculer saisie manuelle">
-            {equipmentState.isManualMode ? '📋 Catalogue' : '✏️ Manuel'}
+        <div class="trigger-summary">
+          <span class="summary-item">
+            {viewportState.isAltAzMode ? 'Alt-Az' : 'Eq'}
           </span>
+          {#if !isOpen}
+            <span class="summary-sep">|</span>
+            <span class="summary-item">{equipmentState.effectiveFocal}mm</span>
+            <span class="summary-sep">|</span>
+            <span class="summary-item truncate">{spatialState.city || 'Lieu'}</span>
+          {/if}
         </div>
+      </div>
 
-        {#if equipmentState.isManualMode}
-          <!-- MANUAL MODE: Raw numeric inputs -->
-          <div class="grid-inputs">
-            <div class="field">
-              <label for="focal">Focale (mm)</label>
-              <input id="focal" type="number" bind:value={equipmentState.focalLength} oninput={() => touchGear('focal')} onfocus={() => touchGear('focal')} />
+      <!-- Content -->
+      <div class="panel-content">
+        <div 
+          class="scroll-container" 
+          bind:this={scrollContainerRef}
+        >
+          <!-- MOUNT SECTION -->
+          <section class="panel-section">
+            <h3 class="section-title" class:verified={isMountVerified}>
+              <span class="status-dot" class:verified={isMountVerified}></span>
+              Monture
+              <span class="info-icon" data-tooltip={INFO_TEXTS.mount}>?</span>
+            </h3>
+            <div class="mount-toggle-group" class:unverified={!isMountVerified}>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <span class="label clickable" class:active={!viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(false)}>Équatoriale</span>
+              <label class="switch">
+                <input type="checkbox" checked={viewportState.isAltAzMode} onchange={() => toggleMount()} />
+                <span class="slider"></span>
+              </label>
+              <span class="label clickable" class:active={viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(true)}>Trépied</span>
             </div>
-            <div class="field">
-              <label for="aperture">Ouverture (mm)</label>
-              <input id="aperture" type="number" bind:value={equipmentState.aperture} oninput={() => touchGear('focal')} onfocus={() => touchGear('focal')} />
-            </div>
-            <div class="field">
-              <label for="mult">Barlow/Réd.</label>
-              <input id="mult" type="number" step="0.1" bind:value={equipmentState.multiplier} oninput={() => touchGear('mult')} onfocus={() => touchGear('mult')} />
-            </div>
-            <div class="field">
-              <label for="pixel">Pixel (µm)</label>
-              <input id="pixel" type="number" step="0.01" bind:value={equipmentState.pixelSize} oninput={() => touchGear('pixel')} onfocus={() => touchGear('pixel')} />
-            </div>
-            <div class="field">
-              <label for="sensorW">Capteur W (px)</label>
-              <input id="sensorW" type="number" bind:value={equipmentState.sensorWidth} oninput={() => touchGear('sensor')} onfocus={() => touchGear('sensor')} />
-            </div>
-            <div class="field">
-              <label for="sensorH">Capteur H (px)</label>
-              <input id="sensorH" type="number" bind:value={equipmentState.sensorHeight} oninput={() => touchGear('sensor')} onfocus={() => touchGear('sensor')} />
-            </div>
-          </div>
-        {:else}
-          <!-- CATALOGUE MODE: Autocomplete search -->
-          {#if eqDbLoaded}
-            <EquipmentSearch
-              items={telescopeDb}
-              placeholder="Chercher un télescope..."
-              value={equipmentState.selectedTelescope}
-              customName={equipmentState.customTelescopeName}
-              onSelect={handleTelescopeSelect}
-              onManual={handleTelescopeManual}
-              icon="🔭"
-              label="Télescope"
-            />
+          </section>
 
-            <EquipmentSearch
-              items={cameraDb}
-              placeholder="Chercher une caméra..."
-              value={equipmentState.selectedCamera}
-              customName={equipmentState.customCameraName}
-              onSelect={handleCameraSelect}
-              onManual={handleCameraManual}
-              icon="📷"
-              label="Caméra"
-            />
+          <div class="divider"></div>
 
-            <EquipmentSearch
-              items={barlowDb}
-              placeholder="Chercher barlow/réducteur..."
-              value={equipmentState.selectedBarlow}
-              customName={equipmentState.customBarlowName}
-              onSelect={handleBarlowSelect}
-              onManual={handleBarlowManual}
-              icon="🔍"
-              label="Barlow / Réducteur"
-            />
-          {:else}
-            <div class="eq-loading">Chargement catalogue...</div>
-          {/if}
+          <!-- TIME SECTION -->
+          <section class="panel-section">
+            <h3 class="section-title" class:verified={isTimeVerified}>
+              <span class="status-dot" class:verified={isTimeVerified}></span>
+              Temps
+              <span class="info-icon" data-tooltip={INFO_TEXTS.time}>?</span>
+            </h3>
+            <div class="source-pills">
+              <button class="pill" class:active={temporalState.source === 'name'} class:disabled={!temporalState.parsedNameDate} onclick={() => setTimeSource('name')}>Nom</button>
+              <button class="pill" class:active={temporalState.source === 'exif'} class:disabled={!temporalState.parsedExifDate} onclick={() => setTimeSource('exif')}>Exif</button>
+              <button class="pill" class:active={temporalState.source === 'manual'} onclick={() => setTimeSource('manual')}>Manuel</button>
+            </div>
+            <input type="datetime-local" class="panel-input mt-2" class:readonly={temporalState.source !== 'manual'} value={timeDisplayValue} onchange={handleTimeChange} />
+          </section>
 
-          <!-- Computed specs readout -->
-          {#if equipmentState.focalVerified || equipmentState.pixelVerified || equipmentState.multiplierVerified}
-            <div class="eq-specs">
-              <div class="eq-spec-row">
-                <span class="eq-spec-label">F.eff</span>
-                <span class="eq-spec-value">{equipmentState.effectiveFocal}mm</span>
+          <div class="divider"></div>
+
+          <!-- LOCATION SECTION -->
+          <section class="panel-section">
+            <h3 class="section-title" class:verified={isLocationVerified}>
+              <span class="status-dot" class:verified={isLocationVerified}></span>
+              Localisation
+              <span class="info-icon" data-tooltip={INFO_TEXTS.loc}>?</span>
+            </h3>
+            <div class="source-pills">
+              <button class="pill" class:active={spatialState.source === 'geoloc'} onclick={() => setLocSource('geoloc')}>Auto</button>
+              <button class="pill" class:active={spatialState.source === 'exif-loc'} class:disabled={!spatialState.parsedExifGps} onclick={() => setLocSource('exif-loc')}>Exif</button>
+              <button class="pill" class:active={spatialState.source === 'ville'} onclick={() => setLocSource('ville')}>Ville</button>
+            </div>
+            <div class="input-with-icon mt-2">
+              <span class="icon">📍</span>
+              <input 
+                type="text" 
+                class="panel-input" 
+                value={spatialState.city} 
+                readonly={spatialState.source !== 'ville'} 
+                placeholder="Lieu..." 
+                oninput={handleLocInput}
+                onclick={(e) => { if (spatialState.source !== 'ville') setLocSource('ville'); e.target.select(); }} 
+              />
+            </div>
+            {#if showPredictions && predictionsList.length > 0}
+              <ul class="predictions">
+                {#each predictionsList as pred}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <li onclick={() => selectPrediction(pred)} role="presentation">{pred.display}</li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
+
+          <div class="divider"></div>
+
+          <!-- EQUIPMENT SECTION -->
+          <section class="panel-section">
+            <div class="section-header">
+              <h3 class="section-title" class:verified={isEquipmentVerified}>
+                <span class="status-dot" class:verified={isEquipmentVerified}></span>
+                Matériel
+                <span class="info-icon" data-tooltip={INFO_TEXTS.gear}>?</span>
+              </h3>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <span class="mode-toggle" class:active={equipmentState.isManualMode} onclick={toggleManualMode} title="Basculer saisie manuelle">
+                {equipmentState.isManualMode ? '📋 Catalogue' : '✏️ Manuel'}
+              </span>
+            </div>
+
+            {#if equipmentState.isManualMode}
+              <div class="grid-inputs">
+                <div class="field">
+                  <label for="focal">Focale (mm)</label>
+                  <input id="focal" type="number" bind:value={equipmentState.focalLength} oninput={() => touchGear('focal')} />
+                </div>
+                <div class="field">
+                  <label for="aperture">Ouverture (mm)</label>
+                  <input id="aperture" type="number" bind:value={equipmentState.aperture} oninput={() => touchGear('focal')} />
+                </div>
+                <div class="field">
+                  <label for="mult">Barlow/Réd.</label>
+                  <input id="mult" type="number" step="0.1" bind:value={equipmentState.multiplier} oninput={() => touchGear('mult')} />
+                </div>
+                <div class="field">
+                  <label for="pixel">Pixel (µm)</label>
+                  <input id="pixel" type="number" step="0.01" bind:value={equipmentState.pixelSize} oninput={() => touchGear('pixel')} />
+                </div>
+                <div class="field">
+                  <label for="sensorW">Capteur W (px)</label>
+                  <input id="sensorW" type="number" bind:value={equipmentState.sensorWidth} oninput={() => touchGear('sensor')} />
+                </div>
+                <div class="field">
+                  <label for="sensorH">Capteur H (px)</label>
+                  <input id="sensorH" type="number" bind:value={equipmentState.sensorHeight} oninput={() => touchGear('sensor')} />
+                </div>
               </div>
-              {#if equipmentState.aperture > 0}
-                <div class="eq-spec-row">
-                  <span class="eq-spec-label">F/D</span>
-                  <span class="eq-spec-value">f/{equipmentState.fRatio}</span>
-                </div>
+            {:else}
+              {#if eqDbLoaded}
+                <EquipmentSearch
+                  items={telescopeDb}
+                  placeholder="Chercher un télescope..."
+                  value={equipmentState.selectedTelescope}
+                  customName={equipmentState.customTelescopeName}
+                  onSelect={handleTelescopeSelect}
+                  onManual={handleTelescopeManual}
+                  icon="🔭"
+                  label="Télescope"
+                />
+                <EquipmentSearch
+                  items={cameraDb}
+                  placeholder="Chercher une caméra..."
+                  value={equipmentState.selectedCamera}
+                  customName={equipmentState.customCameraName}
+                  onSelect={handleCameraSelect}
+                  onManual={handleCameraManual}
+                  icon="📷"
+                  label="Caméra"
+                />
+                <EquipmentSearch
+                  items={barlowDb}
+                  placeholder="Chercher barlow/réducteur..."
+                  value={equipmentState.selectedBarlow}
+                  customName={equipmentState.customBarlowName}
+                  onSelect={handleBarlowSelect}
+                  onManual={handleBarlowManual}
+                  icon="🔍"
+                  label="Barlow / Réducteur"
+                />
+              {:else}
+                <div class="eq-loading">Chargement catalogue...</div>
               {/if}
-              {#if equipmentState.pixelVerified}
-                <div class="eq-spec-row">
-                  <span class="eq-spec-label">Pixel</span>
-                  <span class="eq-spec-value">{equipmentState.pixelSize}µm</span>
-                </div>
-                <div class="eq-spec-row">
-                  <span class="eq-spec-label">Capteur</span>
-                  <span class="eq-spec-value">{equipmentState.sensorWidth}×{equipmentState.sensorHeight}</span>
-                </div>
-              {/if}
-            </div>
-          {/if}
 
-          <!-- Manual fields for custom equipment -->
-          {#if equipmentState.customTelescopeName || equipmentState.customCameraName || equipmentState.customBarlowName}
-            <div class="eq-manual-fields">
-              <div class="eq-manual-title">Paramètres manuels</div>
-              {#if equipmentState.customTelescopeName}
-                <div class="grid-inputs">
-                  <div class="field">
-                    <label for="focal">Focale (mm)</label>
-                    <input id="focal" type="number" bind:value={equipmentState.focalLength} oninput={() => touchGear('focal')} />
-                  </div>
-                  <div class="field">
-                    <label for="aperture">Ouverture (mm)</label>
-                    <input id="aperture" type="number" bind:value={equipmentState.aperture} oninput={() => touchGear('focal')} />
-                  </div>
+              {#if equipmentState.focalVerified || equipmentState.pixelVerified || equipmentState.multiplierVerified}
+                <div class="eq-specs">
+                  <div class="eq-spec-row"><span class="eq-spec-label">F.eff</span><span class="eq-spec-value">{equipmentState.effectiveFocal}mm</span></div>
+                  {#if equipmentState.aperture > 0}<div class="eq-spec-row"><span class="eq-spec-label">F/D</span><span class="eq-spec-value">f/{equipmentState.fRatio}</span></div>{/if}
+                  {#if equipmentState.pixelVerified}<div class="eq-spec-row"><span class="eq-spec-label">Pixel</span><span class="eq-spec-value">{equipmentState.pixelSize}µm</span></div>
+                  <div class="eq-spec-row"><span class="eq-spec-label">Capteur</span><span class="eq-spec-value">{equipmentState.sensorWidth}×{equipmentState.sensorHeight}</span></div>{/if}
                 </div>
               {/if}
-              {#if equipmentState.customCameraName}
-                <div class="grid-inputs">
-                  <div class="field">
-                    <label for="pixel">Pixel (µm)</label>
-                    <input id="pixel" type="number" step="0.01" bind:value={equipmentState.pixelSize} oninput={() => touchGear('pixel')} />
-                  </div>
-                  <div class="field">
-                    <label for="sensorW">W (px)</label>
-                    <input id="sensorW" type="number" bind:value={equipmentState.sensorWidth} oninput={() => touchGear('sensor')} />
-                  </div>
-                  <div class="field">
-                    <label for="sensorH">H (px)</label>
-                    <input id="sensorH" type="number" bind:value={equipmentState.sensorHeight} oninput={() => touchGear('sensor')} />
-                  </div>
+
+              {#if equipmentState.customTelescopeName || equipmentState.customCameraName || equipmentState.customBarlowName}
+                <div class="eq-manual-fields">
+                  <div class="eq-manual-title">Paramètres manuels</div>
+                  {#if equipmentState.customTelescopeName}
+                    <div class="grid-inputs">
+                      <div class="field"><label for="focal">Focale (mm)</label><input id="focal" type="number" bind:value={equipmentState.focalLength} oninput={() => touchGear('focal')} /></div>
+                      <div class="field"><label for="aperture">Ouverture (mm)</label><input id="aperture" type="number" bind:value={equipmentState.aperture} oninput={() => touchGear('focal')} /></div>
+                    </div>
+                  {/if}
+                  {#if equipmentState.customCameraName}
+                    <div class="grid-inputs">
+                      <div class="field"><label for="pixel">Pixel (µm)</label><input id="pixel" type="number" step="0.01" bind:value={equipmentState.pixelSize} oninput={() => touchGear('pixel')} /></div>
+                      <div class="field"><label for="sensorW">W (px)</label><input id="sensorW" type="number" bind:value={equipmentState.sensorWidth} oninput={() => touchGear('sensor')} /></div>
+                      <div class="field"><label for="sensorH">H (px)</label><input id="sensorH" type="number" bind:value={equipmentState.sensorHeight} oninput={() => touchGear('sensor')} /></div>
+                    </div>
+                  {/if}
+                  {#if equipmentState.customBarlowName}
+                    <div class="grid-inputs">
+                      <div class="field"><label for="mult">Multiplicateur</label><input id="mult" type="number" step="0.1" bind:value={equipmentState.multiplier} oninput={() => touchGear('mult')} /></div>
+                    </div>
+                  {/if}
                 </div>
               {/if}
-              {#if equipmentState.customBarlowName}
-                <div class="grid-inputs">
-                  <div class="field">
-                    <label for="mult">Multiplicateur</label>
-                    <input id="mult" type="number" step="0.1" bind:value={equipmentState.multiplier} oninput={() => touchGear('mult')} />
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/if}
-        {/if}
-      </section>
+            {/if}
+          </section>
+
+          <div class="divider"></div>
+
+          <!-- GO TO CRATER -->
+          <section class="panel-section">
+            <GoToCrater on:toast />
+          </section>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
+  </div> <!-- End layout -->
 
 <style>
-  .context-panel {
+  /* Layout for Side Dock */
+  .panel-layout {
     position: fixed;
-    top: 60px; /* Below the main header */
+    top: 60px;
     right: 16px;
-    width: 240px; /* Reduced width as requested */
-    max-height: 48px; /* Collapsed height */
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  .context-panel {
+    width: 240px; 
+    max-height: 48px; 
     background: rgba(10, 11, 16, 0.7);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 24px;
-    z-index: 1000;
     overflow: hidden;
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), 0 0 10px rgba(0, 229, 255, 0.1);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
   }
 
   .context-panel.open {
@@ -576,6 +572,7 @@
     border-radius: 16px;
     border-color: rgba(0, 229, 255, 0.3);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 229, 255, 0.15);
+    overflow: visible; /* Allow tooltips to show outside */
   }
 
   /* Trigger / Summary Area */
@@ -677,7 +674,16 @@
 
   .divider {
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    transition: all 0.4s ease;
+    margin: 4px 0;
+  }
+
+  .divider.active {
+    background: #00E5FF;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+    transform: scaleX(1.05);
   }
 
   /* Components specific to sections */
@@ -868,5 +874,67 @@
     font-size: 10px;
     color: rgba(255, 255, 255, 0.2);
     font-style: italic;
+  }
+  /* Info Icons & Tooltips */
+  :global(.info-icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-dim);
+    font-size: 10px;
+    font-family: 'Inter', sans-serif; /* Cleaner for centering than mono */
+    cursor: help;
+    margin-left: 8px;
+    transition: all 0.2s;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    vertical-align: middle;
+    pointer-events: auto !important;
+    line-height: 0; /* Crucial for vertical center */
+    text-shadow: none !important;
+    box-shadow: none !important;
+    padding: 0;
+  }
+
+  :global(.info-icon:hover) {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: none !important;
+  }
+
+  :global(.info-icon::after) {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    transform: translateY(-10px);
+    background: rgba(10, 11, 16, 0.98);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 11px;
+    width: 220px;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 9999;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.4;
+  }
+
+  :global(.info-icon:hover::after) {
+    opacity: 1;
+    transform: translateY(-8px);
   }
 </style>

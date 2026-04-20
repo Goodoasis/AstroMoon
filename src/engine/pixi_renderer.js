@@ -223,6 +223,16 @@ function setBackgroundImage(htmlImage, canvasW, canvasH) {
 }
 
 /**
+ * Get the displayed size of the background image on canvas.
+ * Returns null if no image is loaded.
+ * @returns {{ width: number, height: number } | null}
+ */
+function getBackgroundDisplaySize() {
+  if (!bgSprite || !bgSprite.visible) return null;
+  return { width: bgSprite.width, height: bgSprite.height };
+}
+
+/**
  * Update the viewport container transform (pan/zoom).
  */
 function updateViewport(vp) {
@@ -1020,6 +1030,7 @@ export const PixiRenderer = {
   getApp,
   getScreenSize,
   setBackgroundImage,
+  getBackgroundDisplaySize,
   updateViewport,
   rebuildGeoJSON,
   rebuildNightMask,
