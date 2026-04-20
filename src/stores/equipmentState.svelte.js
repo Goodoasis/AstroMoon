@@ -11,10 +11,18 @@ let _sensorHeight = $state(4176); // pixels
 let _multiplier = $state(1.0); // Barlow/Reducer
 let _aperture = $state(200); // mm (telescope aperture)
 
+// Sentinel item for "no barlow" — shown as selected by default
+export const BARLOW_NONE = Object.freeze({
+  name: 'Aucun',
+  brand: '',
+  type: 'none',
+  multiplier: 1.0
+});
+
 // --- Equipment selection ---
 let _selectedTelescope = $state(null); // { name, brand, type, aperture, focal }
 let _selectedCamera = $state(null);    // { name, brand, type, sensor, pixel_size, sensor_width, sensor_height, color }
-let _selectedBarlow = $state(null);    // { name, brand, type, multiplier }
+let _selectedBarlow = $state(BARLOW_NONE); // Default: no barlow (×1.0)
 let _isManualMode = $state(false);     // true = raw manual inputs, no autocomplete
 
 // --- Custom equipment names (when "manual / not listed") ---
@@ -26,7 +34,7 @@ let _customBarlowName = $state('');
 let _focalVerified = $state(false);
 let _pixelVerified = $state(false);
 let _sensorVerified = $state(false);
-let _multiplierVerified = $state(false);
+let _multiplierVerified = $state(true); // "Aucun" (×1.0) is valid by default
 
 export const equipmentState = {
   // --- Numeric parameters ---
@@ -133,10 +141,8 @@ export const equipmentState = {
   applyBarlow(item) {
     _selectedBarlow = item;
     _customBarlowName = '';
-    if (item) {
-      _multiplier = item.multiplier;
-      _multiplierVerified = true;
-    }
+    _multiplier = item ? item.multiplier : 1.0;
+    _multiplierVerified = true;
   },
 
   /**
@@ -155,10 +161,11 @@ export const equipmentState = {
     _focalVerified = false;
     _pixelVerified = false;
     _sensorVerified = false;
-    _multiplierVerified = false;
+    _multiplierVerified = true; // Reset to "Aucun" (×1.0)
     _selectedTelescope = null;
     _selectedCamera = null;
-    _selectedBarlow = null;
+    _selectedBarlow = BARLOW_NONE;
+    _multiplier = 1.0;
     _customTelescopeName = '';
     _customCameraName = '';
     _customBarlowName = '';

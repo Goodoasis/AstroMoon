@@ -21,6 +21,7 @@
   import { temporalState } from '@/stores/temporalState.svelte.js';
   import { spatialState } from '@/stores/spatialState.svelte.js';
   import { createEventDispatcher } from 'svelte';
+  import { tooltip } from '@/actions/tooltip.js';
 
   const dispatch = createEventDispatcher();
 
@@ -261,13 +262,18 @@
     const lonDir = lon >= 0 ? 'E' : 'W';
     return `${Math.abs(lat).toFixed(1)}°${latDir} ${Math.abs(lon).toFixed(1)}°${lonDir}`;
   }
+
+  let isLocked = $derived(layerState.anchorCount > 0);
+  let tooltipText = $derived(isLocked 
+    ? "Le Go To est désactivé car vous avez commencé l'alignement manuel par ancrage." 
+    : "Recherchez un cratère par son nom pour centrer automatiquement la carte dessus et ajuster le zoom à l'échelle optique réelle de votre photo.");
 </script>
 
-<div class="goto-section" bind:this={wrapperRef}>
+<div class="goto-section" bind:this={wrapperRef} class:locked={isLocked}>
   <div class="goto-header">
     <h3 class="goto-title">
-      Aller à un cratère
-      <span class="info-icon" data-tooltip="Localise un cratère et ajuste le zoom à l'échelle optique attendue.">?</span>
+      Go to
+      <span class="info-icon" use:tooltip={tooltipText}>?</span>
     </h3>
   </div>
   <div class="goto-input-group">
@@ -284,6 +290,7 @@
       onkeydown={handleKeydown}
       autocomplete="off"
       id="goto-crater-search"
+      disabled={isLocked}
     />
   </div>
 
@@ -332,6 +339,17 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .locked {
+    opacity: 0.5;
+    pointer-events: none;
+    filter: grayscale(0.5);
+  }
+
+  .locked .info-icon {
+    pointer-events: auto !important; /* Allow tooltip on '?' even when locked */
+    cursor: help;
   }
 
 

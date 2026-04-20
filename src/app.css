@@ -118,3 +118,32 @@ body.cursor-rotate { cursor: alias; }
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
 }
+
+/* ---------- Tooltip Portal (use:tooltip action) ---------- */
+.astro-tooltip-portal {
+  position: fixed;
+  z-index: 99999;
+  pointer-events: none;
+  background: rgba(10, 11, 16, 0.98);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  max-width: 240px;
+  white-space: normal;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 212, 255, 0.15);
+  animation: tooltip-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

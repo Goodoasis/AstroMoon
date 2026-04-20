@@ -7,6 +7,7 @@
   import { PERF } from '@/engine/config.js';
   import EquipmentSearch from './EquipmentSearch.svelte';
   import GoToCrater from './GoToCrater.svelte';
+  import { tooltip } from '@/actions/tooltip.js';
 
   const dispatch = createEventDispatcher();
 
@@ -298,11 +299,11 @@
   }
 
   const INFO_TEXTS = {
-    mount: "Définit le mode de suivi : Équatoriale (polaire) ou Trépied (horizontal).",
-    time: "Détermine la phase et la libration exacte de la Lune.",
-    loc: "Calcule la parallaxe topocentrique selon votre position terrestre.",
-    gear: "Calcule l'échantillonnage selon votre focale et la taille des pixels.",
-    goto: "Localise un cratère et ajuste le zoom à l'échelle optique attendue."
+    mount: "Indiquez si vous utilisez une monture équatoriale (compensant la rotation terrestre) ou un simple trépied Alt-Az. Cela détermine l'orientation de la superposition et les corrections de rotation à appliquer.",
+    time: "La phase lunaire et la libration changent chaque heure. Renseignez l'heure exacte de votre prise de vue pour que la carte géologique soit orientée correctement et corresponde à ce que vous avez photographié.",
+    loc: "Votre position géographique influence légèrement la position apparente de la Lune (parallaxe topocentrique). Indiquez votre lieu d'observation pour affiner la correspondance de la carte.",
+    gear: "Votre focale effective et la taille de vos pixels définissent l'échelle de votre photo. Sans ces données, l'outil Go To ne peut pas calculer le bon niveau de zoom pour faire correspondre la carte à votre image.",
+    goto: "Recherchez un cratère par son nom pour centrer automatiquement la carte dessus et ajuster le zoom à l'échelle optique réelle de votre photo."
   };
 </script>
 
@@ -348,7 +349,7 @@
             <h3 class="section-title" class:verified={isMountVerified}>
               <span class="status-dot" class:verified={isMountVerified}></span>
               Monture
-              <span class="info-icon" data-tooltip={INFO_TEXTS.mount}>?</span>
+              <span class="info-icon" use:tooltip={INFO_TEXTS.mount}>?</span>
             </h3>
             <div class="mount-toggle-group" class:unverified={!isMountVerified}>
               <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -369,7 +370,7 @@
             <h3 class="section-title" class:verified={isTimeVerified}>
               <span class="status-dot" class:verified={isTimeVerified}></span>
               Temps
-              <span class="info-icon" data-tooltip={INFO_TEXTS.time}>?</span>
+              <span class="info-icon" use:tooltip={INFO_TEXTS.time}>?</span>
             </h3>
             <div class="source-pills">
               <button class="pill" class:active={temporalState.source === 'name'} class:disabled={!temporalState.parsedNameDate} onclick={() => setTimeSource('name')}>Nom</button>
@@ -386,7 +387,7 @@
             <h3 class="section-title" class:verified={isLocationVerified}>
               <span class="status-dot" class:verified={isLocationVerified}></span>
               Localisation
-              <span class="info-icon" data-tooltip={INFO_TEXTS.loc}>?</span>
+              <span class="info-icon" use:tooltip={INFO_TEXTS.loc}>?</span>
             </h3>
             <div class="source-pills">
               <button class="pill" class:active={spatialState.source === 'geoloc'} onclick={() => setLocSource('geoloc')}>Auto</button>
@@ -423,7 +424,7 @@
               <h3 class="section-title" class:verified={isEquipmentVerified}>
                 <span class="status-dot" class:verified={isEquipmentVerified}></span>
                 Matériel
-                <span class="info-icon" data-tooltip={INFO_TEXTS.gear}>?</span>
+                <span class="info-icon" use:tooltip={INFO_TEXTS.gear}>?</span>
               </h3>
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -870,8 +871,8 @@
     color: rgba(255, 255, 255, 0.2);
     font-style: italic;
   }
-  /* Info Icons & Tooltips */
-  :global(.info-icon) {
+  /* Info Icons */
+  .info-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -881,55 +882,22 @@
     background: rgba(255, 255, 255, 0.05);
     color: var(--color-text-dim);
     font-size: 10px;
-    font-family: 'Inter', sans-serif; /* Cleaner for centering than mono */
+    font-family: 'Inter', sans-serif;
     cursor: help;
     margin-left: 8px;
-    transition: all 0.2s;
-    position: relative;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
     border: 1px solid rgba(255, 255, 255, 0.1);
     vertical-align: middle;
     pointer-events: auto !important;
-    line-height: 0; /* Crucial for vertical center */
-    text-shadow: none !important;
-    box-shadow: none !important;
+    line-height: 0;
+    text-shadow: none;
     padding: 0;
+    flex-shrink: 0;
   }
 
-  :global(.info-icon:hover) {
+  .info-icon:hover {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
     border-color: rgba(255, 255, 255, 0.2);
-    box-shadow: none !important;
-  }
-
-  :global(.info-icon::after) {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 100%;
-    right: 0;
-    transform: translateY(-10px);
-    background: rgba(10, 11, 16, 0.98);
-    backdrop-filter: blur(15px);
-    border: 1px solid rgba(0, 229, 255, 0.4);
-    color: #fff;
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 11px;
-    width: 220px;
-    white-space: normal;
-    pointer-events: none;
-    opacity: 0;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    z-index: 9999;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    text-transform: none;
-    letter-spacing: 0;
-    font-family: 'Inter', sans-serif;
-    line-height: 1.4;
-  }
-
-  :global(.info-icon:hover::after) {
-    opacity: 1;
-    transform: translateY(-8px);
   }
 </style>

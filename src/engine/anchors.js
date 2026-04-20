@@ -10,6 +10,7 @@
 
 import { Transform } from './transform.js';
 import { TPS } from './tps.js';
+import { layerState } from '../stores/layerState.svelte.js';
 
 let anchors = [];
 let nextId = 1;
@@ -29,6 +30,7 @@ function add(sx, sy, dx, dy) {
   const id = nextId++;
   anchors.push({ id, sx, sy, dx, dy });
   dirty = true;
+  layerState.anchorCount = anchors.length;
   return id;
 }
 
@@ -44,6 +46,7 @@ function moveDestination(id, nx, ny) {
 function remove(id) {
   anchors = anchors.filter(a => a.id !== id);
   dirty = true;
+  layerState.anchorCount = anchors.length;
 }
 
 function clear() {
@@ -51,6 +54,7 @@ function clear() {
   nextId = 1;
   tpsData = null;
   dirty = true;
+  layerState.anchorCount = 0;
 }
 
 function getAll() {

@@ -11,6 +11,7 @@ let _layerTransformDirty = $state(true);
 let _dirtyEphemeris = $state(true);
 let _dirtyGrid = $state(false);
 let _anchorRevision = $state(0);
+let _anchorCount = $state(0);
 
 export const layerState = {
   /** All raw features from loaded GeoJSON layers (NOT reactive to avoid proxy overhead) */
@@ -42,5 +43,8 @@ export const layerState = {
   set dirtyGrid(v) { _dirtyGrid = v; },
 
   get anchorRevision() { return _anchorRevision; },
-  set anchorRevision(v) { _anchorRevision = v; }
+  set anchorRevision(v) { _anchorRevision = v; },
+
+  get anchorCount() { return _anchorCount; },
+  set anchorCount(v) { _anchorCount = v; }
 };
