@@ -680,11 +680,6 @@
     margin: 4px 0;
   }
 
-  .divider.active {
-    background: #00E5FF;
-    box-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
-    transform: scaleX(1.05);
-  }
 
   /* Components specific to sections */
   .mount-toggle-group {
