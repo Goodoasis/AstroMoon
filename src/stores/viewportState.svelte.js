@@ -19,6 +19,7 @@ class ViewportState {
   canvasH = $state(0);
   appReady = $state(false);
   isMountVerified = $state(false);
+  isRKeyDown = $state(false);
 
   // --- Non-reactive properties ---
   /** Background image loaded (NOT reactive) */
@@ -38,6 +39,7 @@ class ViewportState {
     // We explicitly do not reset canvasW/H as they are tied to window dimensions
     this.appReady = false;
     this.isMountVerified = false;
+    this.isRKeyDown = false;
     this.backgroundImage = null;
   }
 }

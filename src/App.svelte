@@ -1,7 +1,6 @@
 <script>
   import { onMount } from 'svelte';
   import PixiCanvas from './components/PixiCanvas.svelte';
-  import Toolbar from './components/Toolbar.svelte';
   import AnchorPanel from './components/AnchorPanel.svelte';
   import EmergencyPanel from './components/EmergencyPanel.svelte';
   import AstroContextPanel from './components/AstroContextPanel.svelte';
@@ -112,6 +111,16 @@
   );
 
   let isAnchorActive = $derived(uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor');
+
+  // Calculates the screen position of the layer center for the rotation guide UI
+  let rotCenterScreen = $derived.by(() => {
+    if (!viewportState.isRKeyDown) return { x: 0, y: 0 };
+    const c = Transform.getLayerCenter();
+    return {
+      x: c.x * viewportState.scale + viewportState.tx,
+      y: c.y * viewportState.scale + viewportState.ty
+    };
+  });
 </script>
 
 <!-- Global Glow Container -->
@@ -136,9 +145,6 @@
 {/if}
 
 {#if uiState.currentPhase === 'ALIGN'}
-  <!-- Toolbar (top center) -->
-  <Toolbar on:toast={(e) => showToast(e.detail)} />
-
   <!-- Astro Context Panel (top right, vertical) -->
   <AstroContextPanel on:ephemerisUpdate={handleEphemerisUpdate} />
 
@@ -159,12 +165,30 @@
 {/if}
 
 {#if uiState.currentPhase !== 'IMPORT'}
-  <!-- Info Bar (bottom) (Global) -->
-  <InfoBar />
+  <!-- Bottom Dock (Global Info & Action Bar) -->
+  <InfoBar on:toast={(e) => showToast(e.detail)} />
 {/if}
 
 <!-- Status Toast (Global) -->
 <StatusToast message={toastMessage} visible={toastVisible} />
+
+{#if uiState.currentPhase === 'ALIGN' && viewportState.isRKeyDown && viewportState.mouseX > 0}
+  <svg class="rotation-guide">
+    <line 
+      x1={rotCenterScreen.x} 
+      y1={rotCenterScreen.y} 
+      x2={viewportState.mouseX} 
+      y2={viewportState.mouseY} 
+      stroke="var(--color-cyan)" 
+      stroke-width="1.5" 
+      stroke-dasharray="6,6" 
+    />
+    <!-- Center Pivot -->
+    <circle cx={rotCenterScreen.x} cy={rotCenterScreen.y} r="4" fill="var(--color-cyan)" />
+    <!-- Mouse Pos -->
+    <circle cx={viewportState.mouseX} cy={viewportState.mouseY} r="6" fill="transparent" stroke="var(--color-cyan)" stroke-width="1.5" />
+  </svg>
+{/if}
 
 </main>
 
@@ -175,6 +199,15 @@
     overflow: hidden;
     position: relative;
     box-sizing: border-box;
+  }
+
+  .rotation-guide {
+    position: absolute;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 10;
   }
 
   /* Glow effect: petite bande fine mais très lumineuse DESSUS le canvas */

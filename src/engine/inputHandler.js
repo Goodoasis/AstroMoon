@@ -34,8 +34,10 @@ export function toggleAnchorMode() {
 
 export function updateCursor() {
   document.body.classList.remove('cursor-grab', 'cursor-grabbing', 'cursor-crosshair', 'cursor-rotate');
-  if (viewportState.isDragging) {
-    document.body.classList.add(viewportState.dragType === 'rotate' ? 'cursor-rotate' : 'cursor-grabbing');
+  if (viewportState.isRKeyDown) {
+    document.body.classList.add('cursor-rotate');
+  } else if (viewportState.isDragging) {
+    document.body.classList.add('cursor-grabbing');
   } else if (viewportState.mode === 'anchor') {
     document.body.classList.add('cursor-crosshair');
   } else {
@@ -122,11 +124,7 @@ export function onMouseDown(e) {
       }
     }
   } else {
-    if (e.shiftKey && !locked) {
-      viewportState.dragType = 'rotate';
-      const c = Transform.getLayerCenter();
-      lastRotationAngle = Math.atan2(my - (c.y * viewportState.scale + viewportState.ty), mx - (c.x * viewportState.scale + viewportState.tx));
-    } else if (e.shiftKey && locked) { 
+    if (viewportState.isRKeyDown) { 
       viewportState.isDragging = false; 
     } else {
       viewportState.dragType = 'translate';
@@ -147,7 +145,38 @@ export function onMouseMove(e) {
     const geo = GeoJSON.inverseProject(src.x, src.y);
     // Ideally we dispatch this to a UI component instead of direct DOM manipulation
     const display = document.getElementById('coords-display');
-    if (display) display.textContent = geo ? `Lat: ${geo.lat.toFixed(4)}° | Lon: ${geo.lon.toFixed(4)}°` : '---';
+    if (display) {
+      if (geo) {
+        const latStr = geo.lat.toFixed(4).padStart(8, ' ');
+        const lonStr = geo.lon.toFixed(4).padStart(9, ' ');
+        display.textContent = `Lat: ${latStr}°\nLon: ${lonStr}°`;
+      } else {
+        display.textContent = 'En attente';
+      }
+    }
+  }
+
+  const locked = Anchors.count() > 0;
+
+  if (viewportState.isRKeyDown && !locked) {
+    const c = Transform.getLayerCenter();
+    const angle = Math.atan2(my - (c.y * viewportState.scale + viewportState.ty), mx - (c.x * viewportState.scale + viewportState.tx));
+    
+    let deltaAngle = angle - lastRotationAngle;
+    
+    // Normalize wrap-around at PI / -PI boundary
+    if (deltaAngle > Math.PI) deltaAngle -= Math.PI * 2;
+    if (deltaAngle < -Math.PI) deltaAngle += Math.PI * 2;
+
+    // Apply precision modifier
+    if (e.shiftKey) {
+      deltaAngle *= 0.1;
+    }
+
+    Transform.rotate(deltaAngle); 
+    lastRotationAngle = angle; 
+    layerState.layerTransformDirty = true;
+    return;
   }
 
   if (!viewportState.isDragging) return;
@@ -157,14 +186,14 @@ export function onMouseMove(e) {
     viewportState.tx += dx; 
     viewportState.ty += dy; 
   } else if (viewportState.dragType === 'translate') { 
-    Transform.translate(dx / viewportState.scale, dy / viewportState.scale); 
+    let moveX = dx / viewportState.scale;
+    let moveY = dy / viewportState.scale;
+    if (e.shiftKey) {
+      moveX *= 0.1;
+      moveY *= 0.1;
+    }
+    Transform.translate(moveX, moveY); 
     layerState.layerTransformDirty = true; 
-  } else if (viewportState.dragType === 'rotate') {
-    const c = Transform.getLayerCenter();
-    const angle = Math.atan2(my - (c.y * viewportState.scale + viewportState.ty), mx - (c.x * viewportState.scale + viewportState.tx));
-    Transform.rotate(angle - lastRotationAngle); 
-    lastRotationAngle = angle; 
-    layerState.layerTransformDirty = true;
   } else if (viewportState.dragType === 'anchor' && dragAnchorId !== null) {
     const norm = screenToNormalized(mx - dragAnchorOffset.x, my - dragAnchorOffset.y);
     Anchors.moveDestination(dragAnchorId, norm.x, norm.y); 
@@ -242,6 +271,21 @@ export function onKeyDown(e) {
   if (e.key === 'Escape' && viewportState.mode === 'anchor') {
     toggleAnchorMode();
   }
+  if (e.key === 'r' || e.key === 'R') {
+    if (!viewportState.isRKeyDown) {
+      viewportState.isRKeyDown = true;
+      const c = Transform.getLayerCenter();
+      lastRotationAngle = Math.atan2(viewportState.mouseY - (c.y * viewportState.scale + viewportState.ty), viewportState.mouseX - (c.x * viewportState.scale + viewportState.tx));
+      updateCursor();
+    }
+  }
+}
+
+export function onKeyUp(e) {
+  if (e.key === 'r' || e.key === 'R') {
+    viewportState.isRKeyDown = false;
+    updateCursor();
+  }
 }
 
 export function bindInputHandlers(canvas) {
@@ -253,4 +297,5 @@ export function bindInputHandlers(canvas) {
   canvas.addEventListener('dblclick', onDoubleClick);
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
 }

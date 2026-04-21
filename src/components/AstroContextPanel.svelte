@@ -583,7 +583,7 @@
   /* Layout for Side Dock */
   .panel-layout {
     position: fixed;
-    top: 60px;
+    top: 74px;
     right: 16px;
     display: flex;
     align-items: flex-start;

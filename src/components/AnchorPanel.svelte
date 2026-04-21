@@ -73,7 +73,7 @@
 <style>
   #anchor-panel {
     position: fixed;
-    top: 110px;
+    top: 74px;
     left: 16px;
     width: 220px;
     max-height: calc(100vh - 150px);
