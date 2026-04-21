@@ -248,8 +248,26 @@
     uiState.emergencyMode = false;
     uiState.emergencyValidated = true;
     uiState.pivotAnchor = null;
-    // Don't restore saved ephemeris — values stay as-is
-    // Re-project with final values to ensure consistency
+    updateGeoJSONProjection();
+    updateCratersProjection();
+    generateTerminator(moonState.sunLon, 0);
+    layerState.dirtyEphemeris = true;
+    layerState.layerTransformDirty = true;
+    if (viewportState.mode === 'anchor') toggleAnchorMode();
+  }
+
+  function cancelAndExit() {
+    // Revert to the snapshot taken when opening the panel
+    moonState.librationLat = initialStates.libLat;
+    moonState.librationLon = initialStates.libLon;
+    moonState.sunLon = initialStates.sunLon;
+    
+    Transform.setRotation(initialStates.rotation * Math.PI / 180);
+    Transform.setRefraction(initialStates.refractionSquash, initialStates.refractionAngle * Math.PI / 180);
+    
+    uiState.emergencyMode = false;
+    uiState.pivotAnchor = null;
+    
     updateGeoJSONProjection();
     updateCratersProjection();
     generateTerminator(moonState.sunLon, 0);
@@ -374,12 +392,21 @@
   </section>
 
   <!-- Validate & Exit -->
-  <button class="em-btn em-btn-validate" onclick={validateAndExit}>
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <polyline points="3,8 7,12 13,4"/>
-    </svg>
-    Valider & Quitter
-  </button>
+  <div class="em-action-row">
+    <button class="em-btn em-btn-cancel" onclick={cancelAndExit} title="Annuler les ajustements en cours">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+      Quitter
+    </button>
+    <button class="em-btn em-btn-validate" onclick={validateAndExit}>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <polyline points="3,8 7,12 13,4"/>
+      </svg>
+      Valider
+    </button>
+  </div>
 </aside>
 {/if}
 
@@ -697,11 +724,31 @@
     box-shadow: 0 0 12px rgba(255, 59, 92, 0.3);
   }
 
+  .em-action-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .em-btn-cancel {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-dim);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .em-btn-cancel:hover {
+    background: rgba(255, 59, 92, 0.1);
+    color: var(--color-danger);
+    border-color: rgba(255, 59, 92, 0.3);
+    box-shadow: 0 0 12px rgba(255, 59, 92, 0.2);
+  }
+
   .em-btn-validate {
+    flex: 1;
     background: rgba(0, 255, 136, 0.08);
     color: #00FF88;
     border: 1px solid rgba(0, 255, 136, 0.25);
-    margin-top: 10px;
     font-size: 11px;
   }
 

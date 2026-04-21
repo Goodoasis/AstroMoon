@@ -72,12 +72,13 @@
   <!-- Center: Phase Navigation -->
   <nav class="phase-tabs-container">
     {#each phases as phase}
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div 
         class="phase-tab {uiState.currentPhase === phase.id ? 'active' : ''}"
+        role="button"
+        tabindex="0"
         style:--tab-color={phase.color}
         onclick={() => setPhase(phase.id)}
+        onkeydown={(e) => e.key === 'Enter' && setPhase(phase.id)}
         data-text={phase.label}
       >
         {phase.label}

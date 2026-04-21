@@ -3,37 +3,43 @@
  * Replaces scattered viewport/interaction state from app.js.
  */
 
-let _tx = $state(0);
-let _ty = $state(0);
-let _scale = $state(1);
-let _mode = $state('navigate');
-let _isAltAzMode = $state(false);
-let _isDragging = $state(false);
-let _dragType = $state(null);
-let _fps = $state(0);
-let _mouseX = $state(-1000);
-let _mouseY = $state(-1000);
-let _canvasW = $state(0);
-let _canvasH = $state(0);
-let _appReady = $state(false);
-let _isMountVerified = $state(false);
+class ViewportState {
+  // --- Reactive properties ---
+  tx = $state(0);
+  ty = $state(0);
+  scale = $state(1);
+  mode = $state('navigate');
+  isAltAzMode = $state(false);
+  isDragging = $state(false);
+  dragType = $state(null);
+  fps = $state(0);
+  mouseX = $state(-1000);
+  mouseY = $state(-1000);
+  canvasW = $state(0);
+  canvasH = $state(0);
+  appReady = $state(false);
+  isMountVerified = $state(false);
 
-export const viewportState = {
+  // --- Non-reactive properties ---
   /** Background image loaded (NOT reactive) */
-  backgroundImage: null,
+  backgroundImage = null;
 
-  get tx() { return _tx; }, set tx(v) { _tx = v; },
-  get ty() { return _ty; }, set ty(v) { _ty = v; },
-  get scale() { return _scale; }, set scale(v) { _scale = v; },
-  get mode() { return _mode; }, set mode(v) { _mode = v; },
-  get isAltAzMode() { return _isAltAzMode; }, set isAltAzMode(v) { _isAltAzMode = v; },
-  get isDragging() { return _isDragging; }, set isDragging(v) { _isDragging = v; },
-  get dragType() { return _dragType; }, set dragType(v) { _dragType = v; },
-  get fps() { return _fps; }, set fps(v) { _fps = v; },
-  get mouseX() { return _mouseX; }, set mouseX(v) { _mouseX = v; },
-  get mouseY() { return _mouseY; }, set mouseY(v) { _mouseY = v; },
-  get canvasW() { return _canvasW; }, set canvasW(v) { _canvasW = v; },
-  get canvasH() { return _canvasH; }, set canvasH(v) { _canvasH = v; },
-  get appReady() { return _appReady; }, set appReady(v) { _appReady = v; },
-  get isMountVerified() { return _isMountVerified; }, set isMountVerified(v) { _isMountVerified = v; }
-};
+  reset() {
+    this.tx = 0;
+    this.ty = 0;
+    this.scale = 1;
+    this.mode = 'navigate';
+    this.isAltAzMode = false;
+    this.isDragging = false;
+    this.dragType = null;
+    this.fps = 0;
+    this.mouseX = -1000;
+    this.mouseY = -1000;
+    // We explicitly do not reset canvasW/H as they are tied to window dimensions
+    this.appReady = false;
+    this.isMountVerified = false;
+    this.backgroundImage = null;
+  }
+}
+
+export const viewportState = new ViewportState();

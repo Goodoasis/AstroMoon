@@ -3,17 +3,33 @@
  * Replaces window.appTemporalTime + time widget state scattered in app.js.
  */
 
-export const temporalState = $state({
+class TemporalState {
   /** Current effective observation time */
-  time: new Date(),
+  time = $state(new Date());
+  
   /** Active source: 'name' | 'exif' | 'manual' */
-  source: 'manual',
+  source = $state('manual');
+  
   /** Manually entered date */
-  userManualDate: new Date(),
+  userManualDate = $state(new Date());
+  
   /** Date parsed from image filename */
-  parsedNameDate: null,
+  parsedNameDate = $state(null);
+  
   /** Date parsed from EXIF metadata */
-  parsedExifDate: null,
+  parsedExifDate = $state(null);
+  
   /** Persistence flags */
-  timeVerified: false
-});
+  timeVerified = $state(false);
+
+  reset() {
+    this.time = new Date();
+    this.source = 'manual';
+    this.userManualDate = new Date();
+    this.parsedNameDate = null;
+    this.parsedExifDate = null;
+    this.timeVerified = false;
+  }
+}
+
+export const temporalState = new TemporalState();

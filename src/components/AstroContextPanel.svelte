@@ -337,7 +337,7 @@
       onmouseleave={handleMouseLeave}
     >
       <!-- Summary / Launcher Pill -->
-      <div class="panel-trigger" onclick={toggleOpen}>
+      <div class="panel-trigger" onclick={toggleOpen} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleOpen()}>
         <div class="trigger-icon">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -372,14 +372,12 @@
               <span class="info-icon" use:tooltip={INFO_TEXTS.mount}>?</span>
             </h3>
             <div class="mount-toggle-group" class:unverified={!isMountVerified}>
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <span class="label clickable" class:active={!viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(false)}>Équatoriale</span>
+              <span class="label clickable" role="button" tabindex="0" class:active={!viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(false)} onkeydown={(e) => e.key === 'Enter' && toggleMount(false)}>Équatoriale</span>
               <label class="switch">
                 <input type="checkbox" checked={viewportState.isAltAzMode} onchange={() => toggleMount()} />
                 <span class="slider"></span>
               </label>
-              <span class="label clickable" class:active={viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(true)}>Trépied</span>
+              <span class="label clickable" role="button" tabindex="0" class:active={viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(true)} onkeydown={(e) => e.key === 'Enter' && toggleMount(true)}>Trépied</span>
             </div>
           </section>
 
@@ -447,9 +445,7 @@
                 Matériel
                 <span class="info-icon" use:tooltip={INFO_TEXTS.gear}>?</span>
               </h3>
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <span class="mode-toggle" class:active={equipmentState.isManualMode} onclick={toggleManualMode} title="Basculer saisie manuelle">
+              <span class="mode-toggle" role="button" tabindex="0" class:active={equipmentState.isManualMode} onclick={toggleManualMode} onkeydown={(e) => e.key === 'Enter' && toggleManualMode()} title="Basculer saisie manuelle">
                 {equipmentState.isManualMode ? '📋 Catalogue' : '✏️ Manuel'}
               </span>
             </div>
@@ -552,17 +548,21 @@
             {/if}
           </section>
 
+        </div> <!-- End of scroll-container -->
+
+        <!-- Sticky Footer for GoTo and Emergency actions -->
+        <div class="panel-footer">
           <div class="divider"></div>
 
           <!-- GO TO CRATER -->
-          <section class="panel-section">
+          <section class="panel-section sticky-section">
             <GoToCrater on:toast />
           </section>
 
           <!-- EMERGENCY MODE BUTTON -->
-          {#if !isEmergencyLocked}
+          {#if !uiState.emergencyMode}
             <div class="divider"></div>
-            <section class="panel-section">
+            <section class="panel-section sticky-section">
               <button class="emergency-btn" onclick={activateEmergency}>
                 <span class="emergency-stripes"></span>
                 <svg class="emergency-icon" viewBox="0 0 20 20" fill="currentColor">
@@ -574,6 +574,7 @@
             </section>
           {/if}
         </div>
+        <!-- End panel-footer -->
       </div>
     </div>
   </div> <!-- End layout -->
@@ -592,7 +593,9 @@
   }
 
   .context-panel {
-    width: 240px; 
+    display: flex;
+    flex-direction: column;
+    width: 270px; 
     max-height: 48px; 
     background: rgba(10, 11, 16, 0.7);
     backdrop-filter: blur(12px);
@@ -651,6 +654,10 @@
 
   /* Content Area */
   .panel-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
@@ -664,14 +671,24 @@
   }
 
   .scroll-container {
-    max-height: calc(85vh - 60px);
+    flex: 1;
     overflow-y: auto;
+    min-height: 0;
     scrollbar-width: none;
+    padding-bottom: 8px;
   }
   .scroll-container::-webkit-scrollbar { display: none; }
 
+  .panel-footer {
+    flex-shrink: 0;
+  }
+  
+  .sticky-section {
+    padding: 6px 0;
+  }
+
   .panel-section {
-    padding: 12px 0;
+    padding: 6px 0;
   }
 
   .section-title {
@@ -684,7 +701,7 @@
     text-transform: uppercase;
     letter-spacing: 1.5px;
     color: var(--color-cyan);
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     opacity: 0.8;
     transition: all 0.4s ease;
   }
