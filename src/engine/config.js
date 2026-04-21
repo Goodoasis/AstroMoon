@@ -127,6 +127,12 @@ export const RENDER = {
   anchorHaloAlpha: 0.12,
   anchorLineWidth: 1,
   anchorLineAlpha: 0.3,
+
+  /** Maximum number of anchor pins allowed */
+  anchorMaxCount: 10,
+
+  /** Crater detection radius multiplier (1.0 = exact crater radius) */
+  anchorCraterDetectMul: 1.5,
 };
 
 // ─── PERF ──────────────────────────────────────────────
@@ -169,6 +175,44 @@ export const GOTO = {
 
   /** Min characters before searching */
   searchMinChars: 1,
+};
+
+// ─── EMERGENCY ─────────────────────────────────────────
+
+export const EMERGENCY = {
+  /** Libration slider ranges (degrees) — real max ~8°, extra margin for combined errors */
+  libLatMin: -15,
+  libLatMax: 15,
+  libLonMin: -15,
+  libLonMax: 15,
+  libStep: 0.1,
+
+  /** Rotation / Barillet slider range (degrees) */
+  rotationMin: -180,
+  rotationMax: 180,
+  rotationStep: 0.5,
+
+  /** Refraction slider ranges */
+  refractionSquashMin: 0.900,
+  refractionSquashMax: 1.100,
+  refractionSquashStep: 0.002,
+  refractionAngleMin: 0,
+  refractionAngleMax: 180,
+  refractionAngleStep: 0.5,
+
+  /** Sun longitude slider (terminator) */
+  sunLonMin: 0,
+  sunLonMax: 360,
+  sunLonStep: 1,
+
+  /** Pivot anchor visuals */
+  pivotColor: 0xFF8C00,
+  pivotRadius: 10,
+  pivotActiveRadius: 12,
+  pivotHaloRadius: 24,
+  pivotHaloAlpha: 0.18,
+  pivotLineWidth: 2,
+  pivotDiamondSize: 8,
 };
 
 // ─── WEATHER ───────────────────────────────────────────

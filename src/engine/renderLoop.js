@@ -9,6 +9,7 @@ import { Transform } from './transform.js';
 import { GeoJSONLod } from './geojson_lod.js';
 import { PixiRenderer } from './pixi_renderer.js';
 import { Anchors } from './anchors.js';
+import { uiState } from '../stores/uiState.svelte.js';
 import { CULLING, PERF } from './config.js';
 
 let frameCount = 0;
@@ -18,6 +19,7 @@ let _lastPanZoomTime = 0;
 let _lastViewportTx = 0;
 let _lastViewportTy = 0;
 let lastViewportScale = 1;
+let _lastHoveredAnchorId = null;
 
 export function setLastInteractionTime() {
   lastInteractionTime = Date.now();
@@ -156,7 +158,8 @@ export function rebuildScene(forceAll = false, hadTransformChange = false, lodCh
     layerState.dirtyGrid = false;
   }
 
-  PixiRenderer.rebuildAnchors(Anchors.getAll(), viewportState, null); // dragAnchorId could be passed here if needed later
+  PixiRenderer.rebuildAnchors(Anchors.getAll(), viewportState, uiState.hoveredAnchorId);
+  PixiRenderer.rebuildPivotAnchor(viewportState);
 
   if (layerState.cratersDB) {
     PixiRenderer.rebuildAnnotations(transformFn, layerState.cratersDB, viewportState, viewportState.canvasW, viewportState.canvasH);
@@ -211,5 +214,11 @@ export function renderTick(ticker) {
       _lastViewportTx = viewportState.tx;
       _lastViewportTy = viewportState.ty;
     }
+  }
+
+  // Fast-path: Only rebuild anchors if the hovered ID changed (no need for full scene rebuild)
+  if (uiState.hoveredAnchorId !== _lastHoveredAnchorId) {
+    _lastHoveredAnchorId = uiState.hoveredAnchorId;
+    PixiRenderer.rebuildAnchors(Anchors.getAll(), viewportState, uiState.hoveredAnchorId);
   }
 }

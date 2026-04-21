@@ -13,6 +13,8 @@ let state = {
   layerSize: DEFAULT_LAYER_SIZE,
   refractionSquash: 1.0,
   zenithAngle: 0,
+  flipH: false,
+  flipV: false,
   _m00: 1, _m01: 0, _m02: 0,
   _m10: 0, _m11: 1, _m12: 0,
   _im00: 1, _im01: 0, _im02: 0,
@@ -29,6 +31,8 @@ function reset(canvasW, canvasH) {
   state.rotation = 0;
   state.refractionSquash = 1.0;
   state.zenithAngle = 0;
+  state.flipH = false;
+  state.flipV = false;
   state.tx = (canvasW - size) / 2;
   state.ty = (canvasH - size) / 2;
   updateMatrix();
@@ -42,11 +46,13 @@ function updateMatrix() {
   const ls = state.layerSize;
   const sc = state.scale;
 
-  // 1. Base rotation and scale
-  const r00 = ls * cos * sc;
-  const r01 = -ls * sin * sc;
-  const r10 = ls * sin * sc;
-  const r11 = ls * cos * sc;
+  // 1. Base rotation and scale (with optional flip)
+  const fh = state.flipH ? -1 : 1;
+  const fv = state.flipV ? -1 : 1;
+  const r00 = ls * cos * sc * fh;
+  const r01 = -ls * sin * sc * fv;
+  const r10 = ls * sin * sc * fh;
+  const r11 = ls * cos * sc * fv;
 
   // 2. Refraction Squash (Asymmetric scale along Zenith axis)
   const zCos = Math.cos(state.zenithAngle);
@@ -190,6 +196,22 @@ function setRefraction(squash, zenithAngle) {
   updateMatrix();
 }
 
+function setFlip(h, v) {
+  state.flipH = h;
+  state.flipV = v;
+  updateMatrix();
+}
+
+function toggleFlipH() {
+  state.flipH = !state.flipH;
+  updateMatrix();
+}
+
+function toggleFlipV() {
+  state.flipV = !state.flipV;
+  updateMatrix();
+}
+
 export const Transform = {
   reset,
   handleResize,
@@ -203,5 +225,8 @@ export const Transform = {
   zoom,
   rotate,
   setRotation,
-  setRefraction
+  setRefraction,
+  setFlip,
+  toggleFlipH,
+  toggleFlipV
 };

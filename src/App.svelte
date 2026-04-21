@@ -3,6 +3,7 @@
   import PixiCanvas from './components/PixiCanvas.svelte';
   import Toolbar from './components/Toolbar.svelte';
   import AnchorPanel from './components/AnchorPanel.svelte';
+  import EmergencyPanel from './components/EmergencyPanel.svelte';
   import AstroContextPanel from './components/AstroContextPanel.svelte';
   import InfoBar from './components/InfoBar.svelte';
   import StatusToast from './components/StatusToast.svelte';
@@ -102,6 +103,7 @@
     };
   });
   let glowColor = $derived(
+    uiState.emergencyMode ? '#FF8C00' :  // Emergency orange override
     uiState.currentPhase === 'IMPORT' ? '#94a3b8' :
     (uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor') ? '#00FF88' : // Neon Green in anchor mode
     uiState.currentPhase === 'ALIGN' ? '#00E5FF' :
@@ -140,8 +142,12 @@
   <!-- Astro Context Panel (top right, vertical) -->
   <AstroContextPanel on:ephemerisUpdate={handleEphemerisUpdate} />
 
-  <!-- Anchor Panel (right side) -->
-  <AnchorPanel />
+  <!-- Emergency or Anchor Panel (left side) -->
+  {#if uiState.emergencyMode}
+    <EmergencyPanel />
+  {:else}
+    <AnchorPanel />
+  {/if}
 {/if}
 
 {#if uiState.currentPhase === 'STUDIO'}

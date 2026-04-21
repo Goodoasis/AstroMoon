@@ -119,6 +119,11 @@ body.cursor-rotate { cursor: alias; }
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 /* ---------- Tooltip Portal (use:tooltip action) ---------- */
 .astro-tooltip-portal {
   position: fixed;

@@ -5,6 +5,9 @@
   import { spatialState } from '@/stores/spatialState.svelte.js';
   import { equipmentState } from '@/stores/equipmentState.svelte.js';
   import { PERF } from '@/engine/config.js';
+  import { uiState } from '@/stores/uiState.svelte.js';
+  import { moonState } from '@/stores/moonState.svelte.js';
+  import { Transform } from '@/engine/transform.js';
   import EquipmentSearch from './EquipmentSearch.svelte';
   import GoToCrater from './GoToCrater.svelte';
   import { tooltip } from '@/actions/tooltip.js';
@@ -15,6 +18,9 @@
   let isOpen = $state(true); // Open by default
   let hasAutoCollapsed = $state(false);
   let hoverTimer = null;
+
+  /** True when Monture/Temps/Localisation should be locked (during or after emergency) */
+  let isEmergencyLocked = $derived(uiState.emergencyMode || uiState.emergencyValidated);
   let predictionsList = $state([]);
   let showPredictions = $state(false);
   let searchDebounceTimer = null;
@@ -305,6 +311,18 @@
     gear: "Votre focale effective et la taille de vos pixels définissent l'échelle de votre photo. Sans ces données, l'outil Go To ne peut pas calculer le bon niveau de zoom pour faire correspondre la carte à votre image.",
     goto: "Recherchez un cratère par son nom pour centrer automatiquement la carte dessus et ajuster le zoom à l'échelle optique réelle de votre photo."
   };
+
+  function activateEmergency() {
+    // Save current ephemeris for later restoration
+    const tState = Transform.getState();
+    uiState.savedEphemeris = {
+      librationLon: moonState.librationLon,
+      librationLat: moonState.librationLat,
+      sunLon: moonState.sunLon,
+      rotation: tState.rotation
+    };
+    uiState.emergencyMode = true;
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -344,10 +362,12 @@
           class="scroll-container" 
           bind:this={scrollContainerRef}
         >
+          <!-- MOUNT / TIME / LOCATION — locked in emergency mode -->
+          <div class:emergency-locked={isEmergencyLocked}>
           <!-- MOUNT SECTION -->
           <section class="panel-section">
-            <h3 class="section-title" class:verified={isMountVerified}>
-              <span class="status-dot" class:verified={isMountVerified}></span>
+            <h3 class="section-title" class:verified={isMountVerified} class:emergency={isEmergencyLocked}>
+              <span class="status-dot" class:verified={isMountVerified} class:emergency={isEmergencyLocked}></span>
               Monture
               <span class="info-icon" use:tooltip={INFO_TEXTS.mount}>?</span>
             </h3>
@@ -367,8 +387,8 @@
 
           <!-- TIME SECTION -->
           <section class="panel-section">
-            <h3 class="section-title" class:verified={isTimeVerified}>
-              <span class="status-dot" class:verified={isTimeVerified}></span>
+            <h3 class="section-title" class:verified={isTimeVerified} class:emergency={isEmergencyLocked}>
+              <span class="status-dot" class:verified={isTimeVerified} class:emergency={isEmergencyLocked}></span>
               Temps
               <span class="info-icon" use:tooltip={INFO_TEXTS.time}>?</span>
             </h3>
@@ -384,8 +404,8 @@
 
           <!-- LOCATION SECTION -->
           <section class="panel-section">
-            <h3 class="section-title" class:verified={isLocationVerified}>
-              <span class="status-dot" class:verified={isLocationVerified}></span>
+            <h3 class="section-title" class:verified={isLocationVerified} class:emergency={isEmergencyLocked}>
+              <span class="status-dot" class:verified={isLocationVerified} class:emergency={isEmergencyLocked}></span>
               Localisation
               <span class="info-icon" use:tooltip={INFO_TEXTS.loc}>?</span>
             </h3>
@@ -415,6 +435,7 @@
               </ul>
             {/if}
           </section>
+          </div> <!-- end emergency-locked -->
 
           <div class="divider"></div>
 
@@ -537,6 +558,21 @@
           <section class="panel-section">
             <GoToCrater on:toast />
           </section>
+
+          <!-- EMERGENCY MODE BUTTON -->
+          {#if !isEmergencyLocked}
+            <div class="divider"></div>
+            <section class="panel-section">
+              <button class="emergency-btn" onclick={activateEmergency}>
+                <span class="emergency-stripes"></span>
+                <svg class="emergency-icon" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 1L19 18H1L10 1Z" stroke="currentColor" stroke-width="1" fill="none"/>
+                  <text x="10" y="15" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">!</text>
+                </svg>
+                <span>Mode Urgence</span>
+              </button>
+            </section>
+          {/if}
         </div>
       </div>
     </div>
@@ -671,6 +707,26 @@
   .status-dot.verified {
     background: var(--color-cyan);
     box-shadow: 0 0 8px var(--color-cyan), 0 0 2px var(--color-cyan);
+  }
+
+  /* Emergency Mode — locked sections */
+  .emergency-locked {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.5;
+    filter: saturate(0.3);
+    transition: all 0.4s ease;
+  }
+
+  .section-title.emergency {
+    color: #FF8C00 !important;
+    text-shadow: none !important;
+    opacity: 0.7;
+  }
+
+  .status-dot.emergency {
+    background: #FF8C00 !important;
+    box-shadow: 0 0 6px rgba(255, 140, 0, 0.5) !important;
   }
 
   .divider {
@@ -899,5 +955,64 @@
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
     border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Emergency Mode Button */
+  .emergency-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 140, 0, 0.3);
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, rgba(30, 15, 0, 0.8), rgba(50, 25, 0, 0.6));
+    color: #FF8C00;
+    font-family: var(--font-main);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .emergency-stripes {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(255, 140, 0, 0.04) 4px,
+      rgba(255, 140, 0, 0.04) 8px
+    );
+    pointer-events: none;
+  }
+
+  .emergency-icon {
+    width: 14px;
+    height: 14px;
+    color: #FF8C00;
+    filter: drop-shadow(0 0 3px rgba(255, 140, 0, 0.5));
+    z-index: 1;
+  }
+
+  .emergency-btn span:last-child {
+    z-index: 1;
+  }
+
+  .emergency-btn:hover {
+    border-color: rgba(255, 140, 0, 0.6);
+    background: linear-gradient(135deg, rgba(50, 25, 0, 0.9), rgba(80, 40, 0, 0.7));
+    box-shadow: 0 0 16px rgba(255, 140, 0, 0.25), inset 0 0 20px rgba(255, 140, 0, 0.05);
+    transform: scale(1.02);
+  }
+
+  .emergency-btn:active {
+    transform: scale(0.98);
   }
 </style>

@@ -18,8 +18,9 @@ import * as PIXI from 'pixi.js';
 import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
-import { GRID, LABELS, CULLING, RENDER, LAYER_PALETTE, configEvents } from './config.js';
+import { GRID, LABELS, CULLING, RENDER, EMERGENCY, LAYER_PALETTE, configEvents } from './config.js';
 import { moonState } from '../stores/moonState.svelte.js';
+import { uiState } from '../stores/uiState.svelte.js';
 
 // Cache for reactive redraws
 let _lastProjectedFeatures = null;
@@ -710,6 +711,35 @@ function rebuildAnchors(anchorsData, vp, activeAnchorId) {
   }
 }
 
+/**
+ * Render the emergency mode pivot anchor (orange diamond).
+ */
+function rebuildPivotAnchor(vp) {
+  const pivot = uiState.pivotAnchor;
+  if (!pivot || !uiState.emergencyMode) return;
+
+  const invScale = 1 / vp.scale;
+  const pt = Transform.apply(pivot.nx, pivot.ny);
+  const s = EMERGENCY.pivotDiamondSize * invScale;
+
+  // Halo glow
+  anchorsGfx.circle(pt.x, pt.y, EMERGENCY.pivotHaloRadius * invScale);
+  anchorsGfx.fill({ color: EMERGENCY.pivotColor, alpha: EMERGENCY.pivotHaloAlpha });
+
+  // Diamond shape
+  anchorsGfx.moveTo(pt.x, pt.y - s);      // top
+  anchorsGfx.lineTo(pt.x + s, pt.y);      // right
+  anchorsGfx.lineTo(pt.x, pt.y + s);      // bottom
+  anchorsGfx.lineTo(pt.x - s, pt.y);      // left
+  anchorsGfx.closePath();
+  anchorsGfx.fill({ color: EMERGENCY.pivotColor, alpha: 0.9 });
+  anchorsGfx.stroke({ width: EMERGENCY.pivotLineWidth * invScale, color: 0xffffff, alpha: 0.8 });
+
+  // Inner dot
+  anchorsGfx.circle(pt.x, pt.y, 2 * invScale);
+  anchorsGfx.fill({ color: 0xffffff });
+}
+
 // ─── Annotations (Crater Labels) ───
 
 function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
@@ -1037,6 +1067,7 @@ export const PixiRenderer = {
   rebuildTerminator,
   rebuildGrid,
   rebuildAnchors,
+  rebuildPivotAnchor,
   rebuildAnnotations,
   updateAnnotationsTransform,
   toggleGrid,

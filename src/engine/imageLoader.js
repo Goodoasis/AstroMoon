@@ -99,6 +99,10 @@ export async function handleImageUpload(file, dispatchToast) {
           EXPORT: { tx: null, ty: null, scale: null }
         };
         
+        // Clear emergency state
+        uiState.emergencyMode = false;
+        uiState.emergencyValidated = false;
+        
         // Clear all previous anchors/punaises
         Anchors.clear();
         layerState.layerTransformDirty = true;

@@ -6,11 +6,15 @@
  * Anchors live in normalized [0..1] space (pre-TPS).
  * Anchor rendering uses Global-only transform + viewport.
  * Hit-testing accounts for viewport transform.
+ * 
+ * Each anchor carries an optional `name` (auto-detected crater name).
  */
 
 import { Transform } from './transform.js';
 import { TPS } from './tps.js';
 import { layerState } from '../stores/layerState.svelte.js';
+import { RENDER } from './config.js';
+import { GeoJSON } from './geojson.js';
 
 let anchors = [];
 let nextId = 1;
@@ -19,19 +23,69 @@ let dirty = true;
 
 const HIT_RADIUS = 14;
 
+/** Moon diameter (km) — used for crater containment in ortho projection */
+const MOON_DIAMETER_KM = 3474.8;
+
 // Scratch objects for zero-alloc transform closures
 const _deformPt = { x: 0, y: 0 };
 const _invPt = { x: 0, y: 0 };
 
+/**
+ * Detect the nearest containing crater at a given normalized position.
+ * Uses cratersDB projected positions (nx, ny) and diameter-based radius.
+ * Returns the crater name if inside, otherwise null.
+ * When multiple craters overlap, picks the smallest (most specific).
+ */
+function detectCraterAt(nx, ny) {
+  const craters = layerState.cratersDB;
+  if (!craters) return null;
+
+  let bestName = null;
+  let bestDiam = Infinity;
+  const mul = RENDER.anchorCraterDetectMul;
+
+  for (const crater of craters) {
+    if (crater.nx === null || crater.ny === null) continue;
+
+    const dx = nx - crater.nx;
+    const dy = ny - crater.ny;
+    const distSq = dx * dx + dy * dy;
+
+    // Crater radius in normalized space:
+    // Full disc = 1.0 norm units = MOON_DIAMETER_KM
+    // Crater radius = (diameter / 2) / MOON_DIAMETER_KM
+    const craterRadiusNorm = (crater.diameter / 2) / MOON_DIAMETER_KM * mul;
+    const rSq = craterRadiusNorm * craterRadiusNorm;
+
+    if (distSq < rSq && crater.diameter < bestDiam) {
+      bestName = crater.name;
+      bestDiam = crater.diameter;
+    }
+  }
+
+  return bestName;
+}
+
 function add(sx, sy, dx, dy) {
+  if (anchors.length >= RENDER.anchorMaxCount) return null;
+
   if (dx === undefined) dx = sx;
   if (dy === undefined) dy = sy;
   
   const id = nextId++;
-  anchors.push({ id, sx, sy, dx, dy });
+
+  // Auto-detect crater name from source position
+  const name = detectCraterAt(sx, sy);
+
+  anchors.push({ id, sx, sy, dx, dy, name });
   dirty = true;
   layerState.anchorCount = anchors.length;
   return id;
+}
+
+function setName(id, name) {
+  const anchor = anchors.find(a => a.id === id);
+  if (anchor) anchor.name = name;
 }
 
 function moveDestination(id, nx, ny) {
@@ -149,6 +203,7 @@ function markDirty() {
 
 export const Anchors = {
   add,
+  setName,
   moveDestination,
   remove,
   clear,

@@ -62,22 +62,64 @@ export function onMouseDown(e) {
   }
 
   if (viewportState.mode === 'anchor') {
-    const near = Anchors.findNear(mx, my, viewportState);
-    if (near) {
-      viewportState.dragType = 'anchor'; 
-      dragAnchorId = near.id;
-      const w = Transform.apply(near.dx, near.dy);
-      dragAnchorOffset = { 
-        x: mx - (w.x * viewportState.scale + viewportState.tx), 
-        y: my - (w.y * viewportState.scale + viewportState.ty) 
-      };
-    } else if (layerState.projectedFeatures) {
+    // Emergency mode: place/move PIVOT anchor (single, no TPS)
+    if (uiState.emergencyMode) {
       const norm = screenToNormalized(mx, my);
-      const src = Anchors.inverseTPS(norm.x, norm.y);
-      dragAnchorId = Anchors.add(src.x, src.y, norm.x, norm.y);
-      viewportState.dragType = 'anchor'; 
-      layerState.layerTransformDirty = true; 
-      layerState.anchorRevision++;
+      const geo = GeoJSON.inverseProject(norm.x, norm.y);
+      if (geo) {
+        // Detect crater name
+        const craters = layerState.cratersDB;
+        let pivotName = null;
+        if (craters) {
+          let bestDiam = Infinity;
+          const MOON_D = 3474.8;
+          for (const c of craters) {
+            if (c.nx === null) continue;
+            const dx = norm.x - c.nx, dy = norm.y - c.ny;
+            const dSq = dx * dx + dy * dy;
+            const rN = (c.diameter / 2) / MOON_D * 1.5;
+            if (dSq < rN * rN && c.diameter < bestDiam) {
+              pivotName = c.name;
+              bestDiam = c.diameter;
+            }
+          }
+        }
+        uiState.pivotAnchor = {
+          nx: norm.x,
+          ny: norm.y,
+          geoLon: geo.lon,
+          geoLat: geo.lat,
+          name: pivotName
+        };
+        layerState.layerTransformDirty = true;
+        // Auto-exit anchor mode — pivot is placed, user can now navigate
+        toggleAnchorMode();
+      }
+      viewportState.isDragging = false;
+    } else {
+      // Normal mode: TPS anchors
+      const near = Anchors.findNear(mx, my, viewportState);
+      if (near) {
+        viewportState.dragType = 'anchor'; 
+        dragAnchorId = near.id;
+        const w = Transform.apply(near.dx, near.dy);
+        dragAnchorOffset = { 
+          x: mx - (w.x * viewportState.scale + viewportState.tx), 
+          y: my - (w.y * viewportState.scale + viewportState.ty) 
+        };
+      } else if (layerState.projectedFeatures) {
+        const norm = screenToNormalized(mx, my);
+        const src = Anchors.inverseTPS(norm.x, norm.y);
+        const newId = Anchors.add(src.x, src.y, norm.x, norm.y);
+        if (newId !== null) {
+          dragAnchorId = newId;
+          viewportState.dragType = 'anchor'; 
+          layerState.layerTransformDirty = true; 
+          layerState.anchorRevision++;
+        } else {
+          viewportState.isDragging = false;
+        }
+      }
     }
   } else {
     if (e.shiftKey && !locked) {

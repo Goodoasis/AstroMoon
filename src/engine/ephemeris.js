@@ -13,6 +13,7 @@ import { moonState } from '@/stores/moonState.svelte.js';
 import { temporalState } from '@/stores/temporalState.svelte.js';
 import { spatialState } from '@/stores/spatialState.svelte.js';
 import { viewportState } from '@/stores/viewportState.svelte.js';
+import { uiState } from '@/stores/uiState.svelte.js';
 import { Transform } from './transform.js';
 import { WeatherProvider } from './WeatherProvider.js';
 
@@ -45,6 +46,8 @@ function getRefractionDegrees(altitudeDeg, tempC, pressureHpa) {
  * @param {boolean} isAltAzMode - Whether Alt-Az mount mode is active
  */
 export function updateEphemeris(isAltAzMode = false) {
+  // Guard: in emergency mode, all ephemeris values are manual
+  if (uiState.emergencyMode) return;
   const obs = new Observer(
     spatialState.lat || 0,
     spatialState.lon || 0,
@@ -219,7 +222,7 @@ export function updateEphemeris(isAltAzMode = false) {
 /**
  * Generate terminator great-circle points from sub-solar coordinates.
  */
-function generateTerminator(sunLon, sunLat) {
+export function generateTerminator(sunLon, sunLat) {
   const points = [];
   const λ0 = sunLon * Math.PI / 180;
   const φ0 = (sunLat || 0) * Math.PI / 180;
