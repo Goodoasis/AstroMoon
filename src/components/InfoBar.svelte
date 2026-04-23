@@ -11,7 +11,6 @@
   const dispatch = createEventDispatcher();
 
   let showGrid = $state(false);
-  let showLabels = $state(false);
 
   function toggleAnchorMode() {
     viewportState.mode = viewportState.mode === 'anchor' ? 'navigate' : 'anchor';
@@ -28,8 +27,9 @@
   }
 
   function toggleLabels() {
-    showLabels = PixiRenderer.toggleLabels();
-    if (showLabels) {
+    uiState.showLabels = !uiState.showLabels;
+    PixiRenderer.setLabelsEnabled(uiState.showLabels);
+    if (uiState.showLabels) {
       layerState.layerTransformDirty = true;
     }
   }
@@ -85,7 +85,7 @@
         </svg>
       </button>
       <!-- svelte-ignore a11y_consider_explicit_label -->
-      <button class="tb-btn" class:active={showLabels} onclick={toggleLabels} title="Noms des cratères (L)">
+      <button class="tb-btn" class:active={uiState.showLabels} onclick={toggleLabels} title="Noms des cratères (L)">
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
           <line x1="7" y1="7" x2="7.01" y2="7"></line>

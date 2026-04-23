@@ -824,11 +824,60 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
     // Rayon borné entre 2.0 et 3.0 via sqrt
     const onScreenRadius = Math.max(LABELS.dotRadiusMin, Math.min(LABELS.dotRadiusMax, Math.sqrt(crater.diameter * vp.scale) * LABELS.dotRadiusScale));
+    const baseR = onScreenRadius / vp.scale;
+    const type = crater.type;
 
-    dotsGfx.circle(ptX, ptY, onScreenRadius / vp.scale);
-    dotsGfx.fill({ color: 0xff4b4b, alpha: op });
+    if (type === 'Mons, montes') {
+      // Montagne (Triangle) - Neon Pink
+      const r = baseR * 2.5;
+      dotsGfx.poly([
+        ptX, ptY - r,
+        ptX + r, ptY + r,
+        ptX - r, ptY + r
+      ]);
+      dotsGfx.fill({ color: 0xFF4081, alpha: op });
+    } else if (type === 'Mare, maria' || type === 'Oceanus, oceani' || type === 'Sinus, sinūs' || type === 'Lacus, lacūs' || type === 'Palus, paludes') {
+      // Vague (Wave) - Electric Cyan
+      const r = baseR * 2.5;
+      dotsGfx.moveTo(ptX - r, ptY);
+      dotsGfx.quadraticCurveTo(ptX - r/2, ptY - r, ptX, ptY);
+      dotsGfx.quadraticCurveTo(ptX + r/2, ptY + r, ptX + r, ptY);
+      dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00E5FF, alpha: op });
+    } else if (type === 'Statio') {
+      // Icône "Satellite Dish" (Lucide SVG traduit en vectoriel natif) - Neon Green
+      const s = baseR * 0.4; // Échelle
+      const px = (x) => ptX + (x - 12) * s;
+      const py = (y) => ptY + (y - 12) * s;
 
-    if (crater.diameter >= minHoverDiameter) {
+      // Bras du récepteur (m9 15 3-3)
+      dotsGfx.moveTo(px(9), py(15));
+      dotsGfx.lineTo(px(12), py(12));
+      dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
+
+      // Onde interne (M17 13a6 6 0 0 0-6-6)
+      dotsGfx.moveTo(px(11), py(7)); // Point de départ de l'arc
+      dotsGfx.arc(px(11), py(13), 6 * s, -Math.PI/2, 0);
+      dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
+
+      // Onde externe (M21 13A10 10 0 0 0 11 3)
+      dotsGfx.moveTo(px(11), py(3)); // Point de départ de l'arc
+      dotsGfx.arc(px(11), py(13), 10 * s, -Math.PI/2, 0);
+      dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
+
+      // Parabole (M4 10a7.31... Z) - reproduite via bézier
+      dotsGfx.moveTo(px(4), py(10));
+      dotsGfx.quadraticCurveTo(px(4), py(20), px(14), py(20));
+      dotsGfx.lineTo(px(4), py(10));
+      dotsGfx.fill({ color: 0x00FF88, alpha: op });
+    } else {
+      // Cratère classique (Point Rouge)
+      dotsGfx.circle(ptX, ptY, baseR);
+      dotsGfx.fill({ color: 0xff4b4b, alpha: op });
+    }
+
+    // Les petits cratères ne déclenchent pas le survol pour éviter le bruit
+    // MAIS on force le survol pour les éléments spéciaux (Sondes, Montagnes, Mers)
+    if (crater.diameter >= minHoverDiameter || (type !== 'Crater, craters' && type !== 'Satellite Feature')) {
       _allVisibleCraterPoints.push({ crater, ptX, ptY, op });
     }
 
@@ -845,7 +894,14 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const dy = sy - cy;
     const distSq = dx * dx + dy * dy;
     const normalizedDist = Math.max(0, Math.min(1, Math.sqrt(distSq / maxScreenDistSq)));
-    const score = (crater.diameter * vp.scale) * (1.0 - (normalizedDist * 0.8));
+    
+    // Le score de base dépend du diamètre et de la proximité du centre
+    let score = (crater.diameter * vp.scale) * (1.0 - (normalizedDist * 0.8));
+    
+    // Boost majeur pour les Statio afin qu'elles s'affichent toujours
+    if (type === 'Statio') score += 10000;
+    // Léger bonus pour les Mers/Montagnes pour les privilégier aux petits cratères
+    else if (type !== 'Crater, craters' && type !== 'Satellite Feature') score += 10 * vp.scale;
 
     _candidates.push({ crater, ptX, ptY, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
   }
@@ -1043,6 +1099,11 @@ function toggleLabels() {
   return _showLabels;
 }
 
+function setLabelsEnabled(enabled) {
+  _showLabels = enabled;
+  annotationsContainer.visible = enabled;
+}
+
 function isLabelsEnabled() {
   return _showLabels;
 }
@@ -1072,6 +1133,7 @@ export const PixiRenderer = {
   updateAnnotationsTransform,
   toggleGrid,
   toggleLabels,
+  setLabelsEnabled,
   showLabels: isLabelsEnabled,
   getLayerColor,
   getPalette

@@ -207,22 +207,42 @@ export function updateCratersProjection() {
 export async function initCraters() {
   if (layerState.cratersDB) return;
   try {
-    const res = await fetch('data/craters.json');
-    if (!res.ok) throw new Error("Could not load craters.json");
-    const rawData = await res.json();
+    const res = await fetch('calque_geojson/cratere_nomenclature.geojson');
+    if (!res.ok) throw new Error("Could not load cratere_nomenclature.geojson");
+    const geojsonData = await res.json();
     
     const array = [];
     const DEG2RAD = Math.PI / 180;
-    for (const name in rawData) {
-      if (name === "--") continue;
-      const c = rawData[name];
-      const latRad = c.latitude * DEG2RAD;
-      const lonRad = c.longitude * DEG2RAD;
+    
+    for (const feature of geojsonData.features) {
+      if (!feature.properties) continue;
+      const props = feature.properties;
+      const name = props.name;
+      const diameter = props.diameter || 0;
+      const lat = props.center_lat;
+      const lon = props.center_lon;
+      
+      if (name === "--" || lat === undefined || lon === undefined) continue;
+      
+      // Filter out far side (approx > 90 and < 270)
+      if (lon > 90 && lon < 270) continue;
+
+      const latRad = lat * DEG2RAD;
+      const lonRad = lon * DEG2RAD;
+      
+      let sortWeight = diameter;
+      // Les Statio (Sondes/Bases) passent avant tout le monde
+      if (props.type === 'Statio') sortWeight += 10000;
+      // Léger bonus pour les autres (Mers, Montagnes) sans cacher les cratères géants
+      else if (props.type !== 'Crater, craters' && props.type !== 'Satellite Feature') sortWeight += 10;
+      
       array.push({
         name: name,
-        diameter: c.diameter,
-        latitude: c.latitude,
-        longitude: c.longitude,
+        diameter: diameter,
+        latitude: lat,
+        longitude: lon,
+        type: props.type,
+        sortWeight: sortWeight,
         sinLat: Math.sin(latRad),
         cosLat: Math.cos(latRad),
         lonRad: lonRad,
@@ -230,7 +250,9 @@ export async function initCraters() {
         ny: null
       });
     }
-    array.sort((a, b) => b.diameter - a.diameter);
+    
+    // Sort by priority weight descending, so special features & largest appear first
+    array.sort((a, b) => b.sortWeight - a.sortWeight);
     layerState.cratersDB = array;
     updateCratersProjection();
   } catch (err) {

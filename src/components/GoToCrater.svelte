@@ -12,6 +12,7 @@
 
   import { layerState } from '@/stores/layerState.svelte.js';
   import { viewportState } from '@/stores/viewportState.svelte.js';
+  import { uiState } from '@/stores/uiState.svelte.js';
   import { equipmentState } from '@/stores/equipmentState.svelte.js';
   import { Transform } from '@/engine/transform.js';
   import { GeoJSON } from '@/engine/geojson.js';
@@ -169,11 +170,17 @@
     const dty = (centerY - screenY) / viewportState.scale;
     Transform.translate(dtx, dty);
 
-    // 5. Mark dirty for full rebuild
+    // 5. Force l'affichage des labels pour voir le cratère ciblé
+    if (!uiState.showLabels) {
+      uiState.showLabels = true;
+      PixiRenderer.setLabelsEnabled(true);
+    }
+
+    // 6. Mark dirty for full rebuild
     layerState.layerTransformDirty = true;
     layerState.dirtyGrid = true;
 
-    // 6. Toast with debug info
+    // 7. Toast with debug info
     const info = computeDebugInfo(crater.diameter);
     dispatch('toast', `🎯 ${crater.name} — Ø${crater.diameter.toFixed(1)} km${info}`);
   }

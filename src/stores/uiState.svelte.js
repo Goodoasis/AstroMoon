@@ -15,6 +15,7 @@ class UIState {
 
     emergencyMode = $state(false);
     emergencyValidated = $state(false);
+    showLabels = $state(false);
 
     /**
      * Pivot anchor for Emergency Mode.
@@ -47,6 +48,7 @@ class UIState {
         this.currentPhase = 'IMPORT';
         this.emergencyMode = false;
         this.emergencyValidated = false;
+        this.showLabels = false;
         this.pivotAnchor = null;
         this.hoveredAnchorId = null;
         this.savedEphemeris = null;
