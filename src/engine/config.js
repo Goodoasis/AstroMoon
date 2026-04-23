@@ -215,6 +215,50 @@ export const EMERGENCY = {
   pivotDiamondSize: 8,
 };
 
+// ─── STUDIO ────────────────────────────────────────────
+
+export const STUDIO = {
+  /** Image adjustment ranges */
+  brightnessMin: 0.1, brightnessMax: 3.0, brightnessStep: 0.05, brightnessDefault: 1.0,
+  contrastMin: 0.1, contrastMax: 3.0, contrastStep: 0.05, contrastDefault: 1.0,
+  clarityMin: -1.0, clarityMax: 1.0, clarityStep: 0.05, clarityDefault: 0.0,
+  sharpnessMin: 0, sharpnessMax: 2.0, sharpnessStep: 0.1, sharpnessDefault: 0.0,
+  denoisingMin: 0, denoisingMax: 1.0, denoisingStep: 0.05, denoisingDefault: 0.0,
+
+  /** Vignette */
+  vignetteMin: 0, vignetteMax: 1.0, vignetteStep: 0.05, vignetteDefault: 0.0,
+  vignetteFeatherMin: 0.1, vignetteFeatherMax: 1.0, vignetteFeatherStep: 0.05, vignetteFeatherDefault: 0.5,
+
+  /** Limb glow */
+  limbGlowMin: 0, limbGlowMax: 1.0, limbGlowStep: 0.05, limbGlowDefault: 0.0,
+
+  /** Layer style ranges */
+  layerOpacityMin: 0, layerOpacityMax: 1.0, layerOpacityStep: 0.05,
+  layerGlowMin: 0, layerGlowMax: 2.0, layerGlowStep: 0.1,
+  layerFineMin: 0.5, layerFineMax: 5.0, layerFineStep: 0.1,
+
+  /** Grid ranges */
+  gridIntervalMin: 5, gridIntervalMax: 30, gridIntervalStep: 5,
+  gridThicknessMin: 0.5, gridThicknessMax: 5.0, gridThicknessStep: 0.5,
+
+  /** Terminator ranges */
+  terminatorThicknessMin: 0.5, terminatorThicknessMax: 8.0, terminatorThicknessStep: 0.5,
+
+  /** Rotation */
+  rotationMin: -180, rotationMax: 180, rotationStep: 0.5,
+
+  /** Blending modes available */
+  blendModes: ['normal', 'screen', 'multiply', 'overlay', 'add'],
+  blendModeLabels: { normal: 'Normal', screen: 'Écran', multiply: 'Multiply', overlay: 'Overlay', add: 'Add' },
+
+  /** Crop ratios */
+  cropRatios: ['free', '16:9', '4:3', '1:1', '3:2'],
+
+  /** Limb glow types */
+  limbGlowTypes: ['diffraction', 'neon', 'pulse'],
+  limbGlowTypeLabels: { diffraction: 'Diffraction', neon: 'Néon', pulse: 'Pulse' },
+};
+
 // ─── WEATHER ───────────────────────────────────────────
 
 export const WEATHER = {

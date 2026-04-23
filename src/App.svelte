@@ -20,7 +20,8 @@
   import { loadLayersAsync, initCraters, updateGeoJSONProjection, updateCratersProjection } from './engine/layerLoader.js';
   import { uiState } from './stores/uiState.svelte.js';
   import PhaseTabs from './components/PhaseTabs.svelte';
-  import StudioToolbar from './components/StudioToolbar.svelte';
+  import StudioLayerPanel from './components/StudioLayerPanel.svelte';
+  import StudioAdjustPanel from './components/StudioAdjustPanel.svelte';
   import ExportPanel from './components/ExportPanel.svelte';
   import { equipmentState } from './stores/equipmentState.svelte.js';
   import { PixiRenderer } from './engine/pixi_renderer.js';
@@ -157,7 +158,8 @@
 {/if}
 
 {#if uiState.currentPhase === 'STUDIO'}
-  <StudioToolbar />
+  <StudioLayerPanel />
+  <StudioAdjustPanel />
 {/if}
 
 {#if uiState.currentPhase === 'EXPORT'}
