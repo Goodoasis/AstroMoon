@@ -50,7 +50,8 @@ export function updateLayerCache() {
   // ─── LOD Selection ───
   if (layerState.lodEnabled) {
     const tState = Transform.getState();
-    const newLOD = GeoJSONLod.selectLOD(viewportState.scale, tState.scale, tState.layerSize);
+    let newLOD = GeoJSONLod.selectLOD(viewportState.scale, tState.scale, tState.layerSize);
+    if (uiState.currentPhase === 'EXPORT') newLOD = 0;
     if (newLOD !== layerState.currentLOD) {
       layerState.currentLOD = newLOD;
     }
@@ -189,7 +190,8 @@ export function renderTick(ticker) {
   let lodChanged = false;
   if (layerState.lodEnabled && layerState.projectedFeatures) {
     const tState = Transform.getState();
-    const newLOD = GeoJSONLod.selectLOD(viewportState.scale, tState.scale, tState.layerSize);
+    let newLOD = GeoJSONLod.selectLOD(viewportState.scale, tState.scale, tState.layerSize);
+    if (uiState.currentPhase === 'EXPORT') newLOD = 0;
     if (newLOD !== layerState.currentLOD) {
       lodChanged = true;
       layerState.layerTransformDirty = true;

@@ -8,9 +8,9 @@
   import { Transform } from '@/engine/transform.js';
   import { Anchors } from '@/engine/anchors.js';
 
-  const dispatch = createEventDispatcher();
+  import { studioState } from '@/stores/studioState.svelte.js';
 
-  let showGrid = $state(false);
+  const dispatch = createEventDispatcher();
 
   function toggleAnchorMode() {
     viewportState.mode = viewportState.mode === 'anchor' ? 'navigate' : 'anchor';
@@ -19,8 +19,8 @@
   }
 
   function toggleGrid() {
-    showGrid = PixiRenderer.toggleGrid();
-    if (showGrid) {
+    const isVisible = PixiRenderer.toggleGrid();
+    if (isVisible) {
       layerState.dirtyGrid = true;
       layerState.layerTransformDirty = true;
     }
@@ -68,7 +68,7 @@
         </svg>
       </button>
       <!-- svelte-ignore a11y_consider_explicit_label -->
-      <button class="tb-btn" class:active={showGrid} onclick={toggleGrid} title="Grille Debug (G)">
+      <button class="tb-btn" class:active={studioState.gridVisible} onclick={toggleGrid} title="Grille Debug (G)">
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
           <line x1="3" y1="9" x2="21" y2="9"></line>
@@ -117,6 +117,7 @@
       <div class="info-hint" title="Naviguer sur la photo"><kbd>Drag</kbd> Naviguer Photo</div>
       <div class="info-hint" title="Zoomer pour apprécier les détails"><kbd>Scroll</kbd> Zoom Image</div>
       <div class="info-hint" title="Masquer l'interface pour le rendu final"><kbd>H</kbd> Cacher l'UI</div>
+      <div class="info-hint" title="Afficher la grille sélénographique"><kbd>G</kbd> Grille</div>
     {:else if uiState.currentPhase === 'EXPORT'}
       <div class="info-hint">Ajustez le ratio et les options avant de sauvegarder.</div>
     {/if}

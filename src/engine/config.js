@@ -300,6 +300,7 @@ export const LAYER_PALETTE = [
   { stroke: 0xff69b4, alpha: 0.75, fill: 0xff69b4, fillAlpha: 0.06, name: 'Rose' },
   { stroke: 0x64c8ff, alpha: 0.75, fill: 0x64c8ff, fillAlpha: 0.06, name: 'Bleu clair' },
   { stroke: 0xffa050, alpha: 0.75, fill: 0xffa050, fillAlpha: 0.06, name: 'Pêche' },
+  { stroke: 0xffffff, alpha: 0.75, fill: 0xffffff, fillAlpha: 0.06, name: 'Blanc' },
 ];
 
 // ─── CONFIG EVENTS ─────────────────────────────────────

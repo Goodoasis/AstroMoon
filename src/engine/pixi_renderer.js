@@ -15,6 +15,7 @@
  */
 
 import * as PIXI from 'pixi.js';
+import { GlowFilter } from 'pixi-filters';
 import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
@@ -32,26 +33,17 @@ let _lastLodLevel = 0;
 
 // Scene graph references
 let app = null;
-let viewportContainer = null;
+let viewportContainer, geojsonContainer, annotationsContainer, labelsContainer;
 let bgSprite = null;
-let geojsonContainer = null;
-let nightMaskGfx = null;
-let terminatorGfx = null;
-let gridGfx = null;
-let anchorsGfx = null;
-let annotationsContainer = null;
+let nightMaskGfx, terminatorGfx, gridGfx, anchorsGfx, dotsGfx, labelsBgGfx;
 let layerGraphicsMap = new Map(); // Store PIXI.Graphics objects indexed by layerIndex
 let textPool = [];
 let activeLabels = [];
-let dotsGfx = null;
-let labelsContainer = null;
-let labelsBgGfx = null;
 
 // Hover
 let hoverBgGfx = null;
 let hoverLabel = null;
 
-let _showGrid = false;
 let _showLabels = false;
 let _labelsTargetAlpha = 1;
 let _allVisibleCraterPoints = [];
@@ -121,7 +113,6 @@ async function init(container) {
   viewportContainer.addChild(bgSprite);
 
   geojsonContainer = new PIXI.Container();
-  geojsonContainer.isRenderGroup = true; // Required for advanced blend modes to capture the backdrop!
   viewportContainer.addChild(geojsonContainer);
 
   nightMaskGfx = new PIXI.Graphics();
@@ -315,14 +306,13 @@ function rebuildGeoJSON(projectedFeatures, vp) {
     // Apply Blend Mode
     const blendModeStr = layerName ? (studioState.layerBlendMode[layerName] ?? 'normal') : 'normal';
     gfx.blendMode = blendModeStr;
-    console.log(`Layer ${layerName} blendMode is now ${gfx.blendMode}`);
 
     const colorIdx = layerName ? (studioState.layerColor[layerName] ?? layerIndex) : layerIndex;
     const colors = LAYER_PALETTE[colorIdx % LAYER_PALETTE.length];
     const opacity = layerName ? (studioState.layerOpacity[layerName] ?? 1.0) : 1.0;
     const fine = layerName ? (studioState.layerFine[layerName] ?? 1.5) : 1.5;
     const isSmooth = layerName ? (studioState.layerSmooth[layerName] ?? false) : false;
-    const glow = layerName ? (studioState.layerGlow[layerName] ?? 0.5) : 0.5;
+    const glow = layerName ? (studioState.layerGlow[layerName] ?? 0.0) : 0.0;
 
     // --- Helper to trace paths for Z-Indexed rendering ---
     const traceRing = (ring) => {
@@ -383,33 +373,53 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       return lineFound;
     };
 
-    // --- Correct Z-Index Rendering (Multi-pass tracing) ---
-    
-    // Pass 1: Fill and Glow Layer
-    const hasPolys = tracePolygons();
-    if (hasPolys) {
-      gfx.fill({ color: colors.fill, alpha: colors.fillAlpha * opacity });
-    }
-    const hasLines = traceLines();
+    // --- Rendering Strategy Selection ---
+    const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : studioState.useShaderGlow;
 
-    if (hasPolys || hasLines) {
-      if (glow > 0) {
-        const glowWidth = fine * invScale * (1 + glow * 2.5);
-        const glowAlpha = Math.min(1.0, colors.alpha * opacity * (0.15 + glow * 0.15));
-        gfx.stroke({ width: glowWidth, color: colors.stroke, alpha: glowAlpha });
+    if (useShaderGlow) {
+      // ─── SHADER GLOW METHOD (High Quality, Low Performance) ───
+      const hasPolys = tracePolygons();
+      if (hasPolys) {
+        gfx.fill({ color: colors.fill, alpha: colors.fillAlpha * opacity });
       }
-    }
+      const hasLines = traceLines();
+      
+      if (hasPolys || hasLines) {
+        gfx.stroke({ width: fine * invScale, color: colors.stroke, alpha: colors.alpha * opacity });
+      }
 
-    // Pass 2: Core Layer (Re-trace to ensure correct Z-indexing without mesh overlapping)
-    if (hasPolys || hasLines) {
-      // Clear the current path geometry so we don't accumulate alpha on duplicate paths
-      if (typeof gfx.beginPath === 'function') gfx.beginPath();
-      else if (gfx.context && typeof gfx.context.beginPath === 'function') gfx.context.beginPath();
+      if (glow > 0 && (hasPolys || hasLines)) {
+        gfx.filters = [new GlowFilter({ 
+          distance: glow * 12, 
+          outerStrength: 2, 
+          innerStrength: 0, 
+          color: colors.stroke, 
+          quality: 0.5 
+        })];
+      } else {
+        gfx.filters = null;
+      }
 
-      tracePolygons();
-      traceLines();
+    } else {
+      // ─── Z-INDEX GLOW METHOD (Fast Path, High Performance) ───
+      gfx.filters = null;
 
-      gfx.stroke({ width: fine * invScale, color: colors.stroke, alpha: colors.alpha * opacity });
+      const hasPolys = tracePolygons();
+      const hasLines = traceLines();
+
+      if (hasPolys) {
+        gfx.fill({ color: colors.fill, alpha: colors.fillAlpha * opacity });
+      }
+
+      if (hasPolys || hasLines) {
+        if (glow > 0) {
+          const glowWidth = fine * invScale * (1 + glow * 2.5);
+          const glowAlpha = Math.min(1.0, colors.alpha * opacity * (0.15 + glow * 0.15));
+          gfx.stroke({ width: glowWidth, color: colors.stroke, alpha: glowAlpha });
+        }
+        // Core stroke (drawn over the glow stroke)
+        gfx.stroke({ width: fine * invScale, color: colors.stroke, alpha: colors.alpha * opacity });
+      }
     }
 
     // --- Type 3: Points (Batching) ---
@@ -584,6 +594,14 @@ function rebuildTerminator(transformFn, vp) {
   _lastVp = vp;
   terminatorGfx.clear();
 
+  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const termVisible = studioState.terminatorVisible;
+  if (!termVisible) {
+    terminatorGfx.visible = false;
+    return;
+  }
+  terminatorGfx.visible = true;
+
   const projCache = _getTerminatorProjections();
   if (!projCache) return;
 
@@ -608,36 +626,53 @@ function rebuildTerminator(transformFn, vp) {
     }
   }
 
-  // Trace Glow (Layer 1)
-  let isDrawing = false;
-  for (let i = 0; i < len; i++) {
-    const px = buf[i * 2], py = buf[i * 2 + 1];
-    if (!isNaN(px)) {
-      if (!isDrawing) { terminatorGfx.moveTo(px, py); isDrawing = true; }
-      else { terminatorGfx.lineTo(px, py); }
-    } else {
-      isDrawing = false;
-    }
-  }
-  
-  const isStudio = uiState.currentPhase === 'STUDIO';
+
   const termColor = isStudio ? LAYER_PALETTE[studioState.terminatorColor % LAYER_PALETTE.length].stroke : RENDER.terminatorCoreColor;
   const termThick = isStudio ? studioState.terminatorThickness : RENDER.terminatorCoreWidth;
+  const termOpacity = isStudio ? studioState.terminatorOpacity : 1.0;
+  const termGlow = isStudio ? studioState.terminatorGlow : 1.0; 
+  const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : (isStudio ? studioState.useShaderGlow : true);
   
-  terminatorGfx.stroke({ width: RENDER.terminatorGlowWidth * invScale, color: RENDER.terminatorGlowColor, alpha: RENDER.terminatorGlowAlpha });
+  terminatorGfx.blendMode = isStudio ? studioState.terminatorBlendMode : 'normal';
 
-  // Trace Core (Layer 2)
-  isDrawing = false;
-  for (let i = 0; i < len; i++) {
-    const px = buf[i * 2], py = buf[i * 2 + 1];
-    if (!isNaN(px)) {
-      if (!isDrawing) { terminatorGfx.moveTo(px, py); isDrawing = true; }
-      else { terminatorGfx.lineTo(px, py); }
-    } else {
-      isDrawing = false;
+  function traceTerminator() {
+    let isDrawing = false;
+    for (let i = 0; i < len; i++) {
+      const px = buf[i * 2], py = buf[i * 2 + 1];
+      if (!isNaN(px)) {
+        if (!isDrawing) { terminatorGfx.moveTo(px, py); isDrawing = true; }
+        else { terminatorGfx.lineTo(px, py); }
+      } else {
+        isDrawing = false;
+      }
     }
   }
-  terminatorGfx.stroke({ width: termThick * invScale, color: termColor, alpha: 1.0 });
+
+  if (useShaderGlow) {
+    traceTerminator();
+    terminatorGfx.stroke({ width: termThick * invScale, color: termColor, alpha: termOpacity });
+    if (termGlow > 0) {
+      terminatorGfx.filters = [new GlowFilter({ distance: termGlow * 12, outerStrength: 2, innerStrength: 0, color: termColor, quality: 0.5 })];
+    } else {
+      terminatorGfx.filters = null;
+    }
+  } else {
+    terminatorGfx.filters = null;
+    traceTerminator();
+    if (termGlow > 0) {
+      if (!isStudio) {
+        // Fallback to original initial display rendering
+        terminatorGfx.stroke({ width: RENDER.terminatorGlowWidth * invScale, color: RENDER.terminatorGlowColor, alpha: RENDER.terminatorGlowAlpha });
+      } else {
+        const glowWidth = termThick * invScale * (1 + termGlow * 2.5);
+        const glowAlpha = Math.min(1.0, termOpacity * (0.15 + termGlow * 0.15));
+        terminatorGfx.stroke({ width: glowWidth, color: termColor, alpha: glowAlpha });
+      }
+    }
+    if (typeof terminatorGfx.beginPath === 'function') terminatorGfx.beginPath();
+    traceTerminator();
+    terminatorGfx.stroke({ width: termThick * invScale, color: termColor, alpha: termOpacity });
+  }
 }
 
 // ─── Grid ───
@@ -708,11 +743,15 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
   _lastVp = vp;
   _lastLodLevel = lodLevel;
 
-  const isStudio = uiState.currentPhase === 'STUDIO';
-  const showGrid = isStudio ? studioState.gridVisible : _showGrid;
+  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const showGrid = studioState.gridVisible;
   
   gridGfx.clear();
-  if (!showGrid) return;
+  if (!showGrid) {
+    gridGfx.visible = false;
+    return;
+  }
+  gridGfx.visible = true;
 
   const invScale = 1 / vp.scale;
   const spacing = isStudio ? studioState.gridInterval : (GRID.spacingByLOD[lodLevel] || 10);
@@ -725,27 +764,54 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
   cache.horizonWork.set(cache.horizonNorm);
   Anchors.applyBuffer(cache.horizonWork);
 
+
   const gridColor = isStudio ? LAYER_PALETTE[studioState.gridColor % LAYER_PALETTE.length].stroke : GRID.lineColor;
   const gridThick = isStudio ? studioState.gridThickness : GRID.lineWidth;
+  const gridOpacity = isStudio ? studioState.gridOpacity : GRID.lineAlpha;
+  const gridGlow = isStudio ? studioState.gridGlow : 0.0;
+  const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : (isStudio ? studioState.useShaderGlow : false);
 
-  // Draw grid lines from transformed buffer
-  const lb = cache.linesWork;
-  let moved = false;
-  for (let i = 0; i < lb.length; i += 2) {
-    const x = lb[i], y = lb[i + 1];
-    if (isNaN(x)) { moved = false; continue; }
-    if (!moved) { gridGfx.moveTo(x, y); moved = true; }
-    else gridGfx.lineTo(x, y);
-  }
-  gridGfx.stroke({ width: gridThick * invScale, color: gridColor, alpha: GRID.lineAlpha });
+  gridGfx.blendMode = isStudio ? studioState.gridBlendMode : 'normal';
 
-  // Draw horizon from transformed buffer
-  const hb = cache.horizonWork;
-  gridGfx.moveTo(hb[0], hb[1]);
-  for (let i = 2; i < hb.length; i += 2) {
-    gridGfx.lineTo(hb[i], hb[i + 1]);
+  function traceGrid() {
+    const lb = cache.linesWork;
+    let moved = false;
+    for (let i = 0; i < lb.length; i += 2) {
+      const x = lb[i], y = lb[i + 1];
+      if (isNaN(x)) { moved = false; continue; }
+      if (!moved) { gridGfx.moveTo(x, y); moved = true; }
+      else gridGfx.lineTo(x, y);
+    }
+    
+    const hb = cache.horizonWork;
+    if (hb.length > 0) {
+      gridGfx.moveTo(hb[0], hb[1]);
+      for (let i = 2; i < hb.length; i += 2) {
+        gridGfx.lineTo(hb[i], hb[i + 1]);
+      }
+    }
   }
-  gridGfx.stroke({ width: GRID.horizonWidth * invScale, color: GRID.horizonColor, alpha: GRID.horizonAlpha });
+
+  if (useShaderGlow) {
+    traceGrid();
+    gridGfx.stroke({ width: gridThick * invScale, color: gridColor, alpha: gridOpacity });
+    if (gridGlow > 0) {
+      gridGfx.filters = [new GlowFilter({ distance: gridGlow * 12, outerStrength: 2, innerStrength: 0, color: gridColor, quality: 0.5 })];
+    } else {
+      gridGfx.filters = null;
+    }
+  } else {
+    gridGfx.filters = null;
+    traceGrid();
+    if (gridGlow > 0) {
+      const glowWidth = gridThick * invScale * (1 + gridGlow * 2.5);
+      const glowAlpha = Math.min(1.0, gridOpacity * (0.15 + gridGlow * 0.15));
+      gridGfx.stroke({ width: glowWidth, color: gridColor, alpha: glowAlpha });
+    }
+    if (typeof gridGfx.beginPath === 'function') gridGfx.beginPath();
+    traceGrid();
+    gridGfx.stroke({ width: gridThick * invScale, color: gridColor, alpha: gridOpacity });
+  }
 }
 
 
@@ -1166,12 +1232,13 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 // ─── Toggle Functions ───
 
 function toggleGrid() {
-  _showGrid = !_showGrid;
-  gridGfx.visible = _showGrid;
-  return _showGrid;
+  studioState.gridVisible = !studioState.gridVisible;
+  gridGfx.visible = studioState.gridVisible;
+  return studioState.gridVisible;
 }
 
 function toggleLabels() {
+  // We'll leave _showLabels local to PixiJS for now unless asked
   _showLabels = !_showLabels;
   annotationsContainer.visible = _showLabels;
   return _showLabels;

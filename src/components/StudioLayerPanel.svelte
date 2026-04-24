@@ -230,6 +230,24 @@
           title="Changer la couleur"
         ></button>
       </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Opacité</span>
+        <input type="range" class="sl-detail-slider" min="0" max="1" step="0.05" bind:value={studioState.gridOpacity} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.gridColor)} />
+        <span class="sl-detail-val">{studioState.gridOpacity.toFixed(2)}</span>
+      </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Incrustation</span>
+        <select class="sl-select" bind:value={studioState.gridBlendMode}>
+          {#each STUDIO.blendModes as mode}
+            <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Glow</span>
+        <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.gridGlow} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.gridColor)} />
+        <span class="sl-detail-val">{studioState.gridGlow.toFixed(1)}</span>
+      </div>
     {/if}
   </section>
 
@@ -259,38 +277,48 @@
           title="Changer la couleur"
         ></button>
       </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Opacité</span>
+        <input type="range" class="sl-detail-slider" min="0" max="1" step="0.05" bind:value={studioState.terminatorOpacity} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.terminatorColor)} />
+        <span class="sl-detail-val">{studioState.terminatorOpacity.toFixed(2)}</span>
+      </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Incrustation</span>
+        <select class="sl-select" bind:value={studioState.terminatorBlendMode}>
+          {#each STUDIO.blendModes as mode}
+            <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Glow</span>
+        <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.terminatorGlow} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.terminatorColor)} />
+        <span class="sl-detail-val">{studioState.terminatorGlow.toFixed(1)}</span>
+      </div>
     {/if}
   </section>
 
+
+
   <div class="sl-divider"></div>
 
-  <!-- Compass Section -->
+  <!-- Performances Section -->
   <section class="sl-section">
-    <h4 class="sl-section-title">Boussole</h4>
-    <label class="sl-toggle-row">
-      <input type="checkbox" bind:checked={studioState.showCompass} />
-      <span class="sl-toggle-track"><span class="sl-toggle-thumb"></span></span>
-      <span class="sl-detail-label">Boussole de courtoisie</span>
-    </label>
-    {#if studioState.showCompass}
-      <div class="sl-compass-preview">
-        <svg viewBox="0 0 60 60" fill="none">
-          <circle cx="30" cy="30" r="28" stroke="rgba(255,64,129,0.3)" stroke-width="1"/>
-          <circle cx="30" cy="30" r="20" stroke="rgba(255,64,129,0.15)" stroke-width="0.5"/>
-          <!-- N arrow -->
-          <path d="M30 10 L33 22 L30 18 L27 22 Z" fill="#FF4081" opacity="0.9"/>
-          <text x="30" y="8" text-anchor="middle" fill="#FF4081" font-size="7" font-weight="bold" font-family="Space Grotesk">N</text>
-          <!-- E indicator -->
-          <text x="52" y="33" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="6" font-family="Space Grotesk">E</text>
-          <!-- S indicator -->
-          <text x="30" y="56" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6" font-family="Space Grotesk">S</text>
-          <!-- W indicator -->
-          <text x="8" y="33" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6" font-family="Space Grotesk">O</text>
-          <!-- Center dot -->
-          <circle cx="30" cy="30" r="2" fill="#FF4081" opacity="0.6"/>
+    <div class="sl-section-header">
+      <h4 class="sl-section-title">Performances</h4>
+      <div class="sl-help-icon" title="La Haute Qualité (LOD maximum et Shader Glow) sera automatiquement forcée lors de l'exportation. Ces paramètres servent uniquement à fluidifier la prévisualisation.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
         </svg>
       </div>
-    {/if}
+    </div>
+    <label class="sl-toggle-row">
+      <input type="checkbox" bind:checked={studioState.useShaderGlow} onchange={() => layerState.layerTransformDirty = true} />
+      <span class="sl-toggle-track"><span class="sl-toggle-thumb"></span></span>
+      <span class="sl-detail-label">Lueur Shader Haute Qualité</span>
+    </label>
   </section>
 </aside>
 
@@ -366,13 +394,38 @@
     margin-bottom: 8px;
   }
 
+  .sl-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
   .sl-section-title {
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1px;
     color: rgba(255, 64, 129, 0.7);
-    margin-bottom: 8px;
+    margin-bottom: 0;
+  }
+
+  .sl-help-icon {
+    color: rgba(255, 255, 255, 0.4);
+    cursor: help;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+  }
+  
+  .sl-help-icon:hover {
+    color: rgba(255, 64, 129, 0.9);
+  }
+  
+  .sl-help-icon svg {
+    width: 12px;
+    height: 12px;
   }
 
   .sl-divider {

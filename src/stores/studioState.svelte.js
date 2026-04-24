@@ -38,12 +38,18 @@ class StudioState {
   gridVisible = $state(false);
   gridInterval = $state(10);
   gridThickness = $state(1.5);
-  gridColor = $state(0);
+  gridColor = $state(8);
+  gridOpacity = $state(1.0);
+  gridBlendMode = $state('normal');
+  gridGlow = $state(0.0);
 
   // ─── Terminator ───
   terminatorVisible = $state(true);
   terminatorThickness = $state(2.5);
-  terminatorColor = $state(1);
+  terminatorColor = $state(8);
+  terminatorOpacity = $state(1.0);
+  terminatorBlendMode = $state('normal');
+  terminatorGlow = $state(1.0);
 
   // ─── Labels & Annotations ───
   showCompass = $state(false);
@@ -58,6 +64,7 @@ class StudioState {
   limbGlow = $state(false);
   limbGlowIntensity = $state(STUDIO.limbGlowDefault);
   limbGlowType = $state('diffraction'); // 'diffraction', 'neon', 'pulse'
+  useShaderGlow = $state(true); // Global toggle for pixi-filters Shader Glow (High Quality)
 
   /**
    * Initialize layer maps from loaded layer names.
@@ -70,7 +77,7 @@ class StudioState {
         this.layerOpacity[name] = 1.0;
         this.layerBlendMode[name] = 'normal';
         this.layerColor[name] = index;
-        this.layerGlow[name] = 0.5;
+        this.layerGlow[name] = 0.0;
         this.layerFine[name] = 1.5;
         this.layerSmooth[name] = false;
       }
@@ -100,10 +107,17 @@ class StudioState {
     this.gridVisible = false;
     this.gridInterval = 10;
     this.gridThickness = 1.5;
-    this.gridColor = 0;
+    this.gridColor = 8;
+    this.gridOpacity = 1.0;
+    this.gridBlendMode = 'normal';
+    this.gridGlow = 0.0;
+    
     this.terminatorVisible = true;
     this.terminatorThickness = 2.5;
-    this.terminatorColor = 1;
+    this.terminatorColor = 8;
+    this.terminatorOpacity = 1.0;
+    this.terminatorBlendMode = 'normal';
+    this.terminatorGlow = 1.0;
     this.showCompass = false;
     this.dynamicShadow = false;
     this.pinnedCraters = new Set();
@@ -112,6 +126,7 @@ class StudioState {
     this.limbGlow = false;
     this.limbGlowIntensity = STUDIO.limbGlowDefault;
     this.limbGlowType = 'diffraction';
+    this.useShaderGlow = true;
   }
 }
 
