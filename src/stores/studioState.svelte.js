@@ -31,18 +31,19 @@ class StudioState {
   layerBlendMode = $state({});    // { 'marias.geojson': 'normal', ... }
   layerColor = $state({});        // { 'marias.geojson': 0, ... } (palette index)
   layerGlow = $state({});         // { 'marias.geojson': 0.5, ... }
+  layerFine = $state({});         // { 'marias.geojson': 1.5, ... }
   layerSmooth = $state({});       // { 'marias.geojson': false, ... }
 
   // ─── Grid ───
   gridVisible = $state(false);
   gridInterval = $state(10);
   gridThickness = $state(1.5);
-  gridColor = $state('#ffffff');
+  gridColor = $state(0);
 
   // ─── Terminator ───
   terminatorVisible = $state(true);
   terminatorThickness = $state(2.5);
-  terminatorColor = $state('#4FF2FF');
+  terminatorColor = $state(1);
 
   // ─── Labels & Annotations ───
   showCompass = $state(false);
@@ -63,16 +64,17 @@ class StudioState {
    * @param {string[]} layerNames
    */
   initLayers(layerNames) {
-    for (const name of layerNames) {
+    layerNames.forEach((name, index) => {
       if (!(name in this.layerVisibility)) {
         this.layerVisibility[name] = true;
         this.layerOpacity[name] = 1.0;
         this.layerBlendMode[name] = 'normal';
-        this.layerColor[name] = 0;
+        this.layerColor[name] = index;
         this.layerGlow[name] = 0.5;
+        this.layerFine[name] = 1.5;
         this.layerSmooth[name] = false;
       }
-    }
+    });
   }
 
   reset() {
@@ -93,14 +95,15 @@ class StudioState {
     this.layerBlendMode = {};
     this.layerColor = {};
     this.layerGlow = {};
+    this.layerFine = {};
     this.layerSmooth = {};
     this.gridVisible = false;
     this.gridInterval = 10;
     this.gridThickness = 1.5;
-    this.gridColor = '#ffffff';
+    this.gridColor = 0;
     this.terminatorVisible = true;
     this.terminatorThickness = 2.5;
-    this.terminatorColor = '#4FF2FF';
+    this.terminatorColor = 1;
     this.showCompass = false;
     this.dynamicShadow = false;
     this.pinnedCraters = new Set();

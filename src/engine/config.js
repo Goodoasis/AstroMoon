@@ -248,8 +248,22 @@ export const STUDIO = {
   rotationMin: -180, rotationMax: 180, rotationStep: 0.5,
 
   /** Blending modes available */
-  blendModes: ['normal', 'screen', 'multiply', 'overlay', 'add'],
-  blendModeLabels: { normal: 'Normal', screen: 'Écran', multiply: 'Multiply', overlay: 'Overlay', add: 'Add' },
+  blendModes: ['normal', 'add', 'screen', 'multiply', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion'],
+  blendModeLabels: {
+    normal: 'Normal',
+    add: 'Addition',
+    screen: 'Écran',
+    multiply: 'Produit',
+    overlay: 'Incrustation ⚠️',
+    darken: 'Obscurcir ⚠️',
+    lighten: 'Éclaircir ⚠️',
+    'color-dodge': 'Densité - ⚠️',
+    'color-burn': 'Densité + ⚠️',
+    'hard-light': 'Lumière Dure ⚠️',
+    'soft-light': 'Lumière Douce ⚠️',
+    difference: 'Différence ⚠️',
+    exclusion: 'Exclusion ⚠️',
+  },
 
   /** Crop ratios */
   cropRatios: ['free', '16:9', '4:3', '1:1', '3:2'],

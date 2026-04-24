@@ -28,6 +28,7 @@ export async function loadLayersAsync() {
       };
     });
     layerState.layerCount = layers.length;
+    layerState.loadedLayerNames = layerEntries;
 
     // Use Vite's native worker import semantics (query ?worker)
     // Wait, dynamic new Worker is fine if we use the right syntax for Vite.
@@ -43,7 +44,6 @@ export async function loadLayersAsync() {
       if (msg.type === 'layerReady') {
         const features = msg.features;
         layerState.allRawFeatures = layerState.allRawFeatures.concat(features);
-        layerState.loadedLayerNames.push(layers[msg.layerIndex].fileName);
         receivedCount++;
 
         console.log(`Layer loaded: ${layers[msg.layerIndex].fileName} (${features.length} features)`);

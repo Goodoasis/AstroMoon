@@ -3,13 +3,14 @@
   import { layerState } from '@/stores/layerState.svelte.js';
   import { STUDIO, LAYER_PALETTE } from '@/engine/config.js';
   import { tooltip } from '@/actions/tooltip.js';
+  import { untrack } from 'svelte';
 
   // Human-readable layer names derived from filenames
   const LAYER_LABELS = {
-    'marias.geojson': 'Mers Lunaires',
-    'basin ring_500_15.geojson': 'Anneaux de Bassins',
+    'marias.geojson': 'Mers',
+    'basin ring_500_15.geojson': 'Bassins',
     'crest_of_buried_crater_500_15.geojson': 'Cratères Enfouis',
-    'crest_of_crater_rim_500_15.geojson': 'Bords de Cratères',
+    'crest_of_crater_rim_500_15.geojson': 'Cratères',
   };
 
   function getLayerLabel(filename) {
@@ -22,8 +23,35 @@
   // Init layer maps when layers arrive
   $effect(() => {
     if (layers.length > 0) {
-      studioState.initLayers(layers);
+      untrack(() => studioState.initLayers(layers));
     }
+  });
+
+  // Track layer settings to trigger redraw
+  $effect(() => {
+    const _c = JSON.stringify(studioState.layerColor);
+    const _v = JSON.stringify(studioState.layerVisibility);
+    const _o = JSON.stringify(studioState.layerOpacity);
+    const _f = JSON.stringify(studioState.layerFine);
+    const _b = JSON.stringify(studioState.layerBlendMode);
+    const _g = JSON.stringify(studioState.layerGlow);
+    const _s = JSON.stringify(studioState.layerSmooth);
+    
+    console.log('Studio Layer Effect triggered. layerSmooth:', _s);
+
+    const _gv = studioState.gridVisible;
+    const _gi = studioState.gridInterval;
+    const _gt = studioState.gridThickness;
+    const _gc = studioState.gridColor;
+    const _tv = studioState.terminatorVisible;
+    const _tt = studioState.terminatorThickness;
+    const _tc = studioState.terminatorColor;
+
+    untrack(() => {
+      layerState.layerTransformDirty = true;
+      layerState.dirtyGrid = true;
+      layerState.dirtyEphemeris = true;
+    });
   });
 
   // Expanded layer details
@@ -69,7 +97,7 @@
 
   <!-- GeoJSON Layers -->
   <section class="sl-section">
-    <h4 class="sl-section-title">Couches GeoJSON</h4>
+    <h4 class="sl-section-title">Couches</h4>
     <div class="sl-layer-list">
       {#each layers as layerName, i (layerName)}
         {@const isVisible = studioState.layerVisibility[layerName] ?? true}
@@ -79,9 +107,11 @@
 
         <div class="sl-layer-item" class:collapsed={!isVisible}>
           <!-- Main row -->
-          <div class="sl-layer-row">
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="sl-layer-row" onclick={() => toggleExpand(layerName)}>
             <!-- Eye toggle -->
-            <button class="sl-eye-btn" class:hidden={!isVisible} onclick={() => toggleLayerVisibility(layerName)} title={isVisible ? 'Masquer' : 'Afficher'}>
+            <button class="sl-eye-btn" class:hidden={!isVisible} onclick={(e) => { e.stopPropagation(); toggleLayerVisibility(layerName); }} title={isVisible ? 'Masquer' : 'Afficher'}>
               {#if isVisible}
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M1 10s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/>
@@ -100,12 +130,12 @@
               class="sl-color-swatch"
               style:background={getColorHex(colorIdx)}
               style:box-shadow="0 0 6px {getColorHex(colorIdx)}44"
-              onclick={() => cycleLayerColor(layerName)}
+              onclick={(e) => { e.stopPropagation(); cycleLayerColor(layerName); }}
               title="Changer la couleur"
             ></button>
 
             <!-- Layer name -->
-            <span class="sl-layer-name" class:dimmed={!isVisible}>
+            <span class="sl-layer-name" class:dimmed={!isVisible} title={getLayerLabel(layerName)}>
               {getLayerLabel(layerName)}
             </span>
 
@@ -115,16 +145,17 @@
               class="sl-mini-slider"
               min="0" max="1" step="0.05"
               value={opacity}
+              onclick={(e) => e.stopPropagation()}
               oninput={(e) => studioState.layerOpacity[layerName] = parseFloat(e.target.value)}
               style:--slider-color={getColorHex(colorIdx)}
             />
 
             <!-- Expand chevron -->
-            <button class="sl-expand-btn" class:expanded={isExpanded} onclick={() => toggleExpand(layerName)} title="Détails">
+            <span class="sl-expand-indicator" class:expanded={isExpanded}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <polyline points="6,4 10,8 6,12"/>
               </svg>
-            </button>
+            </span>
           </div>
 
           <!-- Expanded details -->
@@ -142,21 +173,25 @@
               <!-- Glow -->
               <div class="sl-detail-row">
                 <span class="sl-detail-label">Glow</span>
-                <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.layerGlow[layerName]} style:--slider-color={getColorHex(colorIdx)} />
+                <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.layerGlow[layerName]} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(colorIdx)} />
                 <span class="sl-detail-val">{(studioState.layerGlow[layerName] ?? 0.5).toFixed(1)}</span>
               </div>
               <!-- Finesse -->
               <div class="sl-detail-row">
                 <span class="sl-detail-label">Finesse</span>
-                <input type="range" class="sl-detail-slider" min={STUDIO.layerFineMin} max={STUDIO.layerFineMax} step={STUDIO.layerFineStep} value={1.5} style:--slider-color={getColorHex(colorIdx)} />
-                <span class="sl-detail-val">1.5</span>
+                <input type="range" class="sl-detail-slider" min={STUDIO.layerFineMin} max={STUDIO.layerFineMax} step={STUDIO.layerFineStep} bind:value={studioState.layerFine[layerName]} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(colorIdx)} />
+                <span class="sl-detail-val">{(studioState.layerFine[layerName] ?? 1.5).toFixed(1)}</span>
               </div>
               <!-- Smooth -->
-              <label class="sl-toggle-row">
-                <input type="checkbox" bind:checked={studioState.layerSmooth[layerName]} />
-                <span class="sl-toggle-track"><span class="sl-toggle-thumb"></span></span>
+              <div class="sl-detail-row">
+                <label class="sl-toggle-row">
+                  <input type="checkbox" bind:checked={studioState.layerSmooth[layerName]} onchange={() => {
+                    layerState.layerTransformDirty = true;
+                  }} />
+                  <span class="sl-toggle-track"><span class="sl-toggle-thumb"></span></span>
+                </label>
                 <span class="sl-detail-label">Adoucir</span>
-              </label>
+              </div>
             </div>
           {/if}
         </div>
@@ -187,7 +222,13 @@
       </div>
       <div class="sl-detail-row">
         <span class="sl-detail-label">Couleur</span>
-        <input type="color" class="sl-color-input" bind:value={studioState.gridColor} />
+        <button
+          class="sl-color-swatch"
+          style:background={getColorHex(studioState.gridColor)}
+          style:box-shadow="0 0 6px {getColorHex(studioState.gridColor)}44"
+          onclick={() => studioState.gridColor = (studioState.gridColor + 1) % LAYER_PALETTE.length}
+          title="Changer la couleur"
+        ></button>
       </div>
     {/if}
   </section>
@@ -210,7 +251,13 @@
       </div>
       <div class="sl-detail-row">
         <span class="sl-detail-label">Couleur</span>
-        <input type="color" class="sl-color-input" bind:value={studioState.terminatorColor} />
+        <button
+          class="sl-color-swatch"
+          style:background={getColorHex(studioState.terminatorColor)}
+          style:box-shadow="0 0 6px {getColorHex(studioState.terminatorColor)}44"
+          onclick={() => studioState.terminatorColor = (studioState.terminatorColor + 1) % LAYER_PALETTE.length}
+          title="Changer la couleur"
+        ></button>
       </div>
     {/if}
   </section>
@@ -363,6 +410,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
+    cursor: pointer;
   }
 
   /* Eye button */
@@ -439,7 +487,7 @@
   .sl-mini-slider {
     -webkit-appearance: none;
     appearance: none;
-    width: 50px;
+    width: 60px;
     height: 3px;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 2px;
@@ -474,41 +522,34 @@
     cursor: pointer;
   }
 
-  /* Expand button */
-  .sl-expand-btn {
+  /* Expand indicator */
+  .sl-expand-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 18px;
     height: 18px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
     color: var(--color-text-dim);
-    cursor: pointer;
     flex-shrink: 0;
-    transition: all var(--transition-fast);
-    padding: 0;
   }
 
-  .sl-expand-btn svg {
+  .sl-expand-indicator svg {
     width: 12px;
     height: 12px;
     transition: transform var(--transition-med);
   }
 
-  .sl-expand-btn.expanded svg {
+  .sl-expand-indicator.expanded svg {
     transform: rotate(90deg);
   }
 
-  .sl-expand-btn:hover {
+  .sl-layer-row:hover .sl-expand-indicator {
     color: #FF4081;
-    background: rgba(255, 64, 129, 0.08);
   }
 
   /* ── Layer Details (expanded) ── */
   .sl-layer-details {
-    padding: 4px 8px 8px 36px;
+    padding: 4px 8px 8px 24px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -531,11 +572,12 @@
     font-size: 10px;
     font-weight: 500;
     color: var(--color-text-dim);
-    min-width: 55px;
+    min-width: 72px;
   }
 
   .sl-detail-slider {
     flex: 1;
+    min-width: 0;
     -webkit-appearance: none;
     appearance: none;
     height: 3px;
@@ -570,7 +612,7 @@
     font-family: var(--font-mono);
     font-size: 10px;
     color: #FF4081;
-    min-width: 36px;
+    min-width: 24px;
     text-align: right;
     white-space: nowrap;
     flex-shrink: 0;
@@ -646,27 +688,6 @@
     box-shadow: 0 0 6px rgba(255, 64, 129, 0.5);
   }
 
-  /* ── Color input ── */
-  .sl-color-input {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 24px;
-    height: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
-    background: transparent;
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .sl-color-input::-webkit-color-swatch-wrapper {
-    padding: 2px;
-  }
-
-  .sl-color-input::-webkit-color-swatch {
-    border: none;
-    border-radius: 2px;
-  }
 
   /* ── Compass Preview ── */
   .sl-compass-preview {

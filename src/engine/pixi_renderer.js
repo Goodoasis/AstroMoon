@@ -21,6 +21,8 @@ import { Anchors } from './anchors.js';
 import { GRID, LABELS, CULLING, RENDER, EMERGENCY, LAYER_PALETTE, configEvents } from './config.js';
 import { moonState } from '../stores/moonState.svelte.js';
 import { uiState } from '../stores/uiState.svelte.js';
+import { studioState } from '../stores/studioState.svelte.js';
+import { layerState } from '../stores/layerState.svelte.js';
 
 // Cache for reactive redraws
 let _lastProjectedFeatures = null;
@@ -88,7 +90,16 @@ async function init(container) {
   }
 
   app = new PIXI.Application();
+
+  // Register advanced blend modes
+  console.log('Registering advanced blend modes, OverlayBlend is:', PIXI.OverlayBlend);
+  PIXI.extensions.add(
+    PIXI.OverlayBlend, PIXI.ColorBurnBlend, PIXI.ColorDodgeBlend, PIXI.DarkenBlend, 
+    PIXI.DifferenceBlend, PIXI.ExclusionBlend, PIXI.HardLightBlend, PIXI.LightenBlend, PIXI.SoftLightBlend
+  );
+
   await app.init({
+    preference: 'webgl',
     background: 0x06060c,
     resizeTo: window,
     antialias: true,
@@ -110,6 +121,7 @@ async function init(container) {
   viewportContainer.addChild(bgSprite);
 
   geojsonContainer = new PIXI.Container();
+  geojsonContainer.isRenderGroup = true; // Required for advanced blend modes to capture the backdrop!
   viewportContainer.addChild(geojsonContainer);
 
   nightMaskGfx = new PIXI.Graphics();
@@ -290,22 +302,31 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       layerGraphicsMap.set(layerIndex, gfx);
     }
 
+    const layerName = layerState.loadedLayerNames[layerIndex];
+    const isVisible = layerName ? (studioState.layerVisibility[layerName] ?? true) : true;
+    if (!isVisible) {
+      gfx.visible = false;
+      continue;
+    }
+
     gfx.clear();
     gfx.visible = true;
-    const colors = LAYER_PALETTE[layerIndex % LAYER_PALETTE.length];
+    
+    // Apply Blend Mode
+    const blendModeStr = layerName ? (studioState.layerBlendMode[layerName] ?? 'normal') : 'normal';
+    gfx.blendMode = blendModeStr;
+    console.log(`Layer ${layerName} blendMode is now ${gfx.blendMode}`);
 
-    // --- Type 1: Polygons (Batching) ---
-    let polyFound = false;
-    for (const feature of features) {
-      if (feature.type !== 'polygon') continue;
-      // Culling
-      if (feature.worldBounds) {
-        if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
-          feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
-      }
-      polyFound = true;
-      for (const ring of feature.renderedCoords) {
-        if (ring.length < 4) continue;
+    const colorIdx = layerName ? (studioState.layerColor[layerName] ?? layerIndex) : layerIndex;
+    const colors = LAYER_PALETTE[colorIdx % LAYER_PALETTE.length];
+    const opacity = layerName ? (studioState.layerOpacity[layerName] ?? 1.0) : 1.0;
+    const fine = layerName ? (studioState.layerFine[layerName] ?? 1.5) : 1.5;
+    const isSmooth = layerName ? (studioState.layerSmooth[layerName] ?? false) : false;
+    const glow = layerName ? (studioState.layerGlow[layerName] ?? 0.5) : 0.5;
+
+    // --- Helper to trace paths for Z-Indexed rendering ---
+    const traceRing = (ring) => {
+      if (!isSmooth) {
         let started = false;
         for (let i = 0; i < ring.length; i += 2) {
           const rx = ring[i], ry = ring[i + 1];
@@ -313,36 +334,82 @@ function rebuildGeoJSON(projectedFeatures, vp) {
           if (!started) { gfx.moveTo(rx, ry); started = true; }
           else { gfx.lineTo(rx, ry); }
         }
-        gfx.closePath();
-      }
-    }
-    if (polyFound) {
-      gfx.fill({ color: colors.fill, alpha: colors.fillAlpha });
-      gfx.stroke({ width: 1.5 * invScale, color: colors.stroke, alpha: colors.alpha });
-    }
-
-    // --- Type 2: Lines (Batching) ---
-    let lineFound = false;
-    for (const feature of features) {
-      if (feature.type !== 'line') continue;
-      if (feature.worldBounds) {
-        if (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
-          feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY) continue;
-      }
-      lineFound = true;
-      for (const ring of feature.renderedCoords) {
-        if (ring.length < 4) continue;
+      } else {
         let started = false;
         for (let i = 0; i < ring.length; i += 2) {
           const rx = ring[i], ry = ring[i + 1];
           if (isNaN(rx)) { started = false; continue; }
-          if (!started) { gfx.moveTo(rx, ry); started = true; }
-          else { gfx.lineTo(rx, ry); }
+          if (!started) { 
+            gfx.moveTo(rx, ry); 
+            started = true; 
+          } else if (i + 2 < ring.length && !isNaN(ring[i + 2])) {
+            const nx = ring[i + 2], ny = ring[i + 3];
+            gfx.quadraticCurveTo(rx, ry, (rx + nx) / 2, (ry + ny) / 2);
+          } else {
+            gfx.lineTo(rx, ry);
+          }
         }
       }
+    };
+
+    const tracePolygons = () => {
+      let polyFound = false;
+      for (const feature of features) {
+        if (feature.type !== 'polygon') continue;
+        if (feature.worldBounds && (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
+            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY)) continue;
+        polyFound = true;
+        for (const ring of feature.renderedCoords) {
+          if (ring.length < 4) continue;
+          traceRing(ring);
+          gfx.closePath();
+        }
+      }
+      return polyFound;
+    };
+
+    const traceLines = () => {
+      let lineFound = false;
+      for (const feature of features) {
+        if (feature.type !== 'line') continue;
+        if (feature.worldBounds && (feature.worldBounds.maxX < vpMinX || feature.worldBounds.minX > vpMaxX ||
+            feature.worldBounds.maxY < vpMinY || feature.worldBounds.minY > vpMaxY)) continue;
+        lineFound = true;
+        for (const ring of feature.renderedCoords) {
+          if (ring.length < 4) continue;
+          traceRing(ring);
+        }
+      }
+      return lineFound;
+    };
+
+    // --- Correct Z-Index Rendering (Multi-pass tracing) ---
+    
+    // Pass 1: Fill and Glow Layer
+    const hasPolys = tracePolygons();
+    if (hasPolys) {
+      gfx.fill({ color: colors.fill, alpha: colors.fillAlpha * opacity });
     }
-    if (lineFound) {
-      gfx.stroke({ width: RENDER.geoStrokeWidth * invScale, color: colors.stroke, alpha: colors.alpha });
+    const hasLines = traceLines();
+
+    if (hasPolys || hasLines) {
+      if (glow > 0) {
+        const glowWidth = fine * invScale * (1 + glow * 2.5);
+        const glowAlpha = Math.min(1.0, colors.alpha * opacity * (0.15 + glow * 0.15));
+        gfx.stroke({ width: glowWidth, color: colors.stroke, alpha: glowAlpha });
+      }
+    }
+
+    // Pass 2: Core Layer (Re-trace to ensure correct Z-indexing without mesh overlapping)
+    if (hasPolys || hasLines) {
+      // Clear the current path geometry so we don't accumulate alpha on duplicate paths
+      if (typeof gfx.beginPath === 'function') gfx.beginPath();
+      else if (gfx.context && typeof gfx.context.beginPath === 'function') gfx.context.beginPath();
+
+      tracePolygons();
+      traceLines();
+
+      gfx.stroke({ width: fine * invScale, color: colors.stroke, alpha: colors.alpha * opacity });
     }
 
     // --- Type 3: Points (Batching) ---
@@ -363,7 +430,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       }
     }
     if (ptFound) {
-      gfx.fill({ color: colors.stroke, alpha: colors.alpha });
+      gfx.fill({ color: colors.stroke, alpha: colors.alpha * opacity });
     }
   }
 }
@@ -552,6 +619,11 @@ function rebuildTerminator(transformFn, vp) {
       isDrawing = false;
     }
   }
+  
+  const isStudio = uiState.currentPhase === 'STUDIO';
+  const termColor = isStudio ? LAYER_PALETTE[studioState.terminatorColor % LAYER_PALETTE.length].stroke : RENDER.terminatorCoreColor;
+  const termThick = isStudio ? studioState.terminatorThickness : RENDER.terminatorCoreWidth;
+  
   terminatorGfx.stroke({ width: RENDER.terminatorGlowWidth * invScale, color: RENDER.terminatorGlowColor, alpha: RENDER.terminatorGlowAlpha });
 
   // Trace Core (Layer 2)
@@ -565,7 +637,7 @@ function rebuildTerminator(transformFn, vp) {
       isDrawing = false;
     }
   }
-  terminatorGfx.stroke({ width: RENDER.terminatorCoreWidth * invScale, color: RENDER.terminatorCoreColor, alpha: 1.0 });
+  terminatorGfx.stroke({ width: termThick * invScale, color: termColor, alpha: 1.0 });
 }
 
 // ─── Grid ───
@@ -636,11 +708,14 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
   _lastVp = vp;
   _lastLodLevel = lodLevel;
 
+  const isStudio = uiState.currentPhase === 'STUDIO';
+  const showGrid = isStudio ? studioState.gridVisible : _showGrid;
+  
   gridGfx.clear();
-  if (!_showGrid) return;
+  if (!showGrid) return;
 
   const invScale = 1 / vp.scale;
-  const spacing = GRID.spacingByLOD[lodLevel] || 10;
+  const spacing = isStudio ? studioState.gridInterval : (GRID.spacingByLOD[lodLevel] || 10);
   const cache = _getGridCache(spacing);
 
   // Copy cached projections to working buffers, then apply TPS + Transform in-place
@@ -649,6 +724,9 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
 
   cache.horizonWork.set(cache.horizonNorm);
   Anchors.applyBuffer(cache.horizonWork);
+
+  const gridColor = isStudio ? LAYER_PALETTE[studioState.gridColor % LAYER_PALETTE.length].stroke : GRID.lineColor;
+  const gridThick = isStudio ? studioState.gridThickness : GRID.lineWidth;
 
   // Draw grid lines from transformed buffer
   const lb = cache.linesWork;
@@ -659,7 +737,7 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
     if (!moved) { gridGfx.moveTo(x, y); moved = true; }
     else gridGfx.lineTo(x, y);
   }
-  gridGfx.stroke({ width: GRID.lineWidth * invScale, color: GRID.lineColor, alpha: GRID.lineAlpha });
+  gridGfx.stroke({ width: gridThick * invScale, color: gridColor, alpha: GRID.lineAlpha });
 
   // Draw horizon from transformed buffer
   const hb = cache.horizonWork;
