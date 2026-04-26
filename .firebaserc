@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "astromoon-a6128"
+  },
+  "targets": {
+    "astromoon-a6128": {
+      "hosting": {
+        "astro-moon": [
+          "astro-moon"
+        ]
+      }
+    }
+  }
+}

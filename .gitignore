@@ -1,6 +1,7 @@
 # Gitignore for AstroAz Web
 .env
 .env.local
+.env.*.local
 .agents/
 .gemini/
 .DS_Store
@@ -24,7 +25,6 @@ design.md
 .vite/
 walkthrough.md
 .kilo/
-.vercel
-.vercelignore
-package.json
-package-lock.json
+# firebase config — keep in repo
+# .firebaserc  ← contient le project ID, à committer
+# firebase.json ← config hosting, à committer
