@@ -489,12 +489,12 @@
         {#if expandedLayer === 'limbGlow'}
           <div class="sl-layer-details">
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Épaisseur</span>
+              <span class="sl-detail-label">Intensité</span>
               <input type="range" class="sl-detail-slider" min={STUDIO.limbGlowThicknessMin} max={STUDIO.limbGlowThicknessMax} step={STUDIO.limbGlowThicknessStep} bind:value={studioState.limbGlowThickness} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} style:--slider-color={getColorHex(studioState.limbGlowColor)} />
               <span class="sl-detail-val">{studioState.limbGlowThickness.toFixed(1)}</span>
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Offset</span>
+              <span class="sl-detail-label">Étendue</span>
               <input type="range" class="sl-detail-slider" min={STUDIO.limbGlowSpreadMin} max={STUDIO.limbGlowSpreadMax} step={STUDIO.limbGlowSpreadStep} bind:value={studioState.limbGlowSpread} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} style:--slider-color={getColorHex(studioState.limbGlowColor)} />
               <span class="sl-detail-val">{studioState.limbGlowSpread}</span>
             </div>

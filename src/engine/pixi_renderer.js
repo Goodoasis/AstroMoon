@@ -1157,6 +1157,7 @@ function rebuildLimbGlow(transformFn, vp) {
   const baseRadius = 0.5;
 
   function traceArcAtRadius(radiusOffset) {
+    if (typeof limbGlowGfx.beginPath === 'function') limbGlowGfx.beginPath();
     let moved = false;
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
@@ -1195,7 +1196,7 @@ function rebuildLimbGlow(transformFn, vp) {
       _limbGlowBlurFilter.strength = blur;
     }
     // Prevent filter clipping at the bounds of the graphics
-    _limbGlowBlurFilter.padding = blur * 3 + 20;
+    _limbGlowBlurFilter.padding = blur * 10 + 100;
     
     limbGlowGfx.filters = [_limbGlowBlurFilter];
   } else {
