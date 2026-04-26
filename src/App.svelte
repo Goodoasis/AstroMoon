@@ -21,6 +21,8 @@
   import { uiState } from './stores/uiState.svelte.js';
   import PhaseTabs from './components/PhaseTabs.svelte';
   import StudioLayerPanel from './components/StudioLayerPanel.svelte';
+  import StudioLabelPanel from './components/StudioLabelPanel.svelte';
+  import StudioPinnedPanel from './components/StudioPinnedPanel.svelte';
   import StudioAdjustPanel from './components/StudioAdjustPanel.svelte';
   import ExportPanel from './components/ExportPanel.svelte';
   import { equipmentState } from './stores/equipmentState.svelte.js';
@@ -158,7 +160,11 @@
 {/if}
 
 {#if uiState.currentPhase === 'STUDIO'}
-  <StudioLayerPanel />
+  <div class="panel-layout-left">
+    <StudioLayerPanel />
+    <StudioLabelPanel />
+    <StudioPinnedPanel />
+  </div>
   <StudioAdjustPanel />
 {/if}
 
@@ -201,6 +207,18 @@
     overflow: hidden;
     position: relative;
     box-sizing: border-box;
+  }
+
+  .panel-layout-left {
+    position: fixed;
+    top: 74px;
+    left: 16px;
+    bottom: 74px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+    pointer-events: none;
   }
 
   .rotation-guide {

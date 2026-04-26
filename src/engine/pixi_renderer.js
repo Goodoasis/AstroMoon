@@ -31,6 +31,7 @@ let _lastProjectedFeatures = null;
 let _lastVp = null;
 let _lastTransformFn = null;
 let _lastLodLevel = 0;
+let _currentHoveredCrater = null;
 
 // Scene graph references
 let app = null;
@@ -1207,8 +1208,7 @@ function rebuildLimbGlow(transformFn, vp) {
 
 function rebuildAnchors(anchorsData, vp, activeAnchorId) {
   anchorsGfx.clear();
-
-  if (anchorsData.length === 0) return;
+  if (anchorsData.length === 0 || uiState.currentPhase !== 'ALIGN') return;
 
   const invScale = 1 / vp.scale;
 
@@ -1283,7 +1283,6 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   }
   annotationsContainer.visible = true;
 
-  const minDiameter = 10 / vp.scale;
   dotsGfx.clear();
   labelsBgGfx.clear();
 
@@ -1295,8 +1294,8 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   activeLabels = [];
   _activeLabelMap.clear();
 
-  const MAX_DOTS = LABELS.maxDots;
-  const MAX_LABELS = LABELS.maxLabels;
+  const MAX_LABELS = studioState.labelCount;
+  const MAX_DOTS = Math.min(1000, Math.max(100, MAX_LABELS * 2));
 
   const cx = canvasW / 2;
   const cy = canvasH / 2;
@@ -1304,6 +1303,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
   _allVisibleCraterPoints.length = 0;
   _dotCandidates.length = 0;
+  const _pinnedCandidates = []; // Nouveau réservoir pour les prioritaires
   _candidates.length = 0;
   _placedBoxes.length = 0;
 
@@ -1316,16 +1316,28 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const sx = ptX * vp.scale + vp.tx;
     const sy = ptY * vp.scale + vp.ty;
 
-    // Frustum Culling gÃ©nÃ©reux
-    if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
+    const isPinned = studioState.pinnedCraters.has(crater.name);
 
-    _dotCandidates.push({ crater, ptX, ptY, sx, sy });
+    // Frustum Culling généreux (On le garde même si pinned, pour ne pas saturer si c'est loin)
+    if (!isPinned && (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200)) continue;
+
+    // ─── Filtrage par taille (diamètre) ───
+    if (!isPinned && (crater.diameter < studioState.labelMinSize || crater.diameter > studioState.labelMaxSize)) continue;
+
+    // ─── Filtrage par Type ───
+    if (!isPinned && (studioState.labelHiddenTypes && studioState.labelHiddenTypes.has(crater.type))) continue;
+
+    if (isPinned) {
+      _pinnedCandidates.push({ crater, ptX, ptY, sx, sy, isPinned });
+    } else {
+      _dotCandidates.push({ crater, ptX, ptY, sx, sy, isPinned });
+    }
   }
 
-  // cratersDB is pre-sorted by diameter descending (done once at init)
-  // _dotCandidates inherits that order â€” no re-sort needed
-
-  const dotsCount = Math.min(_dotCandidates.length, MAX_DOTS);
+  // cratersDB est déjà trié par diamètre décroissant à l'init.
+  // On construit la liste finale : Pinned d'abord, puis les meilleurs auto-dots.
+  const combinedDots = [..._pinnedCandidates, ..._dotCandidates.slice(0, MAX_DOTS)];
+  const dotsCount = combinedDots.length;
   const minHoverDiameter = LABELS.hoverMinScreenDiameter / vp.scale;
 
   // Pre-compute sun trig ONCE outside the loop
@@ -1341,7 +1353,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
   // Passe 2 : Dessiner le Top N des plus gros cratÃ¨res de la zone
   for (let i = 0; i < dotsCount; i++) {
-    const item = _dotCandidates[i];
+    const item = combinedDots[i];
     const { crater, ptX, ptY, sx, sy } = item;
 
     // Sun incidence using pre-computed trig (crater.sinLat/cosLat/lonRad immutable)
@@ -1354,7 +1366,8 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
       }
     }
 
-    if (op < 0.05) continue;
+    if (item.isPinned && op < 0.5) op = 0.5; // Ensure pinned labels are always visible
+    if (op < 0.05 && !item.isPinned) continue;
 
     // Rayon bornÃ© entre 2.0 et 3.0 via sqrt
     const onScreenRadius = Math.max(LABELS.dotRadiusMin, Math.min(LABELS.dotRadiusMax, Math.sqrt(crater.diameter * vp.scale) * LABELS.dotRadiusScale));
@@ -1404,9 +1417,10 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
       dotsGfx.lineTo(px(4), py(10));
       dotsGfx.fill({ color: 0x00FF88, alpha: op });
     } else {
-      // CratÃ¨re classique (Point Rouge)
+      // CratÃ¨re classique (Point)
       dotsGfx.circle(ptX, ptY, baseR);
-      dotsGfx.fill({ color: 0xff4b4b, alpha: op });
+      const craterColor = LAYER_PALETTE[studioState.labelColorPoints % LAYER_PALETTE.length].stroke;
+      dotsGfx.fill({ color: craterColor, alpha: op });
     }
 
     // Les petits cratÃ¨res ne dÃ©clenchent pas le survol pour Ã©viter le bruit
@@ -1421,23 +1435,27 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const boxX = sx - textWidth / 2;
     const boxY = sy - 8 - textHeight;
 
-    // Strict Culling des labels sur le bord vÃ©ritable de l'Ã©cran
-    if (boxX < 0 || boxX + textWidth > canvasW || boxY < 0 || boxY + textHeight > canvasH) continue;
+    // Strict Culling des labels sur le bord véritable de l'écran
+    if (!item.isPinned && (boxX < 0 || boxX + textWidth > canvasW || boxY < 0 || boxY + textHeight > canvasH)) continue;
 
     const dx = sx - cx;
     const dy = sy - cy;
     const distSq = dx * dx + dy * dy;
     const normalizedDist = Math.max(0, Math.min(1, Math.sqrt(distSq / maxScreenDistSq)));
     
-    // Le score de base dÃ©pend du diamÃ¨tre et de la proximitÃ© du centre
+    // Le score de base dépend du diamètre et de la proximité du centre
     let score = (crater.diameter * vp.scale) * (1.0 - (normalizedDist * 0.8));
     
-    // Boost majeur pour les Statio afin qu'elles s'affichent toujours
-    if (type === 'Statio') score += 10000;
-    // LÃ©ger bonus pour les Mers/Montagnes pour les privilÃ©gier aux petits cratÃ¨res
-    else if (type !== 'Crater, craters' && type !== 'Satellite Feature') score += 10 * vp.scale;
+    if (item.isPinned) {
+      score += 1000000; // Pinned priority
+    } else {
+      // Boost majeur pour les Statio afin qu'elles s'affichent toujours
+      if (type === 'Statio') score += 10000;
+      // Léger bonus pour les Mers/Montagnes pour les privilégier aux petits cratères
+      else if (type !== 'Crater, craters' && type !== 'Satellite Feature') score += 10 * vp.scale;
+    }
 
-    _candidates.push({ crater, ptX, ptY, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
+    _candidates.push({ crater, ptX, ptY, sx, sy, op, score, boxX, boxY, textWidth, textHeight, isPinned: item.isPinned });
   }
 
   // Tri par prioritÃ© dÃ©croissante
@@ -1445,15 +1463,23 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
   const invScale = 1 / vp.scale;
 
+  let autoLabelsCount = 0;
   for (const item of _candidates) {
-    if (activeLabels.length >= MAX_LABELS) break;
+    const isPinned = item.isPinned;
+    if (!isPinned && autoLabelsCount >= MAX_LABELS) continue;
 
     // HITBOX INVISIBLE : Force les labels Ã  s'Ã©carter les uns des autres
-    const pad = LABELS.overlapPadding;
+    const pad = 12; // Réduit pour permettre une plus haute densité
+    
+    // Adjust text width based on target font size
+    const fontSizeRatio = studioState.labelFontSize / 14;
+    const adjustedTextWidth = item.textWidth * fontSizeRatio;
+    const adjustedTextHeight = item.textHeight * fontSizeRatio;
+
     const hitX = item.boxX - pad;
     const hitY = item.boxY - pad;
-    const hitW = item.textWidth + pad * 2;
-    const hitH = item.textHeight + pad * 2;
+    const hitW = adjustedTextWidth + pad * 2;
+    const hitH = adjustedTextHeight + pad * 2;
 
     // Anti-Overlap sur la Hitbox gÃ©ante
     let overlap = false;
@@ -1464,20 +1490,27 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
         break;
       }
     }
-    if (overlap) continue;
+    if (overlap && !isPinned) continue;
+
+    if (!isPinned) autoLabelsCount++;
 
     // Validation (on rÃ©serve tout ce grand espace vide)
     _placedBoxes.push({ x: hitX, y: hitY, w: hitW, h: hitH });
 
     // Design de la Pilule (Backdrop) ajustÃ©e et amincie
-    const bgWorldW = (item.textWidth + 10) * invScale;
-    const bgWorldH = (item.textHeight + 6) * invScale;
+    const bgWorldW = (adjustedTextWidth + 10) * invScale;
+    const bgWorldH = (adjustedTextHeight + 6) * invScale;
     const bgWorldX = item.ptX - bgWorldW / 2;
     const bgWorldY = (item.ptY - LABELS.labelOffsetY * invScale) - bgWorldH;
 
     labelsBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 3 * invScale);
     labelsBgGfx.fill({ color: 0x06060c, alpha: item.op * 0.85 });
-    labelsBgGfx.stroke({ width: 1 * invScale, color: 0x22222a, alpha: item.op * 0.6 });
+    
+    if (item.isPinned) {
+      labelsBgGfx.stroke({ width: 2 * invScale, color: 0x00E5FF, alpha: item.op }); // Neon Cyan for pinned
+    } else {
+      labelsBgGfx.stroke({ width: 1 * invScale, color: 0x22222a, alpha: item.op * 0.6 });
+    }
 
     // Utilisation de PIXI.BitmapText
     let label = textPool.pop();
@@ -1491,14 +1524,24 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
         }
       });
       label.anchor.set(0.5, 1);
+      label.eventMode = 'static';
+      label.cursor = 'pointer';
+      label.on('pointerdown', (e) => {
+        e.stopPropagation();
+        studioState.togglePinnedCrater(label._crater.name);
+        layerState.layerTransformDirty = true;
+      });
       labelsContainer.addChild(label);
     }
 
     label.text = item.crater.name;
     label.position.set(item.ptX, item.ptY - LABELS.labelOffsetY * invScale);
-    label.scale.set(invScale);
+    label.scale.set(invScale * fontSizeRatio);
     label.alpha = item.op;
     label.visible = true;
+    
+    const textColor = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke;
+    label.tint = textColor;
 
     label._worldX = item.ptX;
     label._worldY = item.ptY;
@@ -1551,10 +1594,11 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
     if (boxX < 0 || boxX + textW > w || boxY < 0 || boxY + textH > h) {
       label.visible = false;
     } else {
+      const fontSizeRatio = studioState.labelFontSize / 14;
       label.visible = true;
       label.position.set(label._worldX, label._worldY - LABELS.labelOffsetY * invScale);
-      label.scale.set(invScale);
-      label.tint = 0xffffff; // Reset le tint obligatoire pour retirer l'effet bleu aprÃ¨s un hover
+      label.scale.set(invScale * fontSizeRatio);
+      label.tint = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke; // Reset le tint obligatoire pour retirer l'effet bleu aprÃ¨s un hover
     }
   }
 
@@ -1583,9 +1627,11 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   // 4. Update Hover UI
   hoverBgGfx.clear();
   hoverLabel.visible = false;
+  _currentHoveredCrater = null;
 
   if (closestCandidate) {
-    // VÃ©rifier si ce cratÃ¨re possÃ¨de DÃ‰JÃ€ un label Ã  l'Ã©cran (O(1) lookup)
+    _currentHoveredCrater = closestCandidate.crater;
+    // Vérifier si ce cratère possède DÉJÀ un label à l'écran (O(1) lookup)
     const existingLabel = _activeLabelMap.get(closestCandidate.crater) || null;
 
     // Effet commun : cercle NÃ©on de sÃ©lection
@@ -1660,6 +1706,7 @@ export const PixiRenderer = {
   updateViewport,
   rebuildGeoJSON,
   rebuildNightMask,
+  getHoveredCrater: () => _currentHoveredCrater,
   rebuildDayMask,
   rebuildTerminator,
   rebuildGrid,

@@ -58,10 +58,10 @@ export const GRID = {
 
 export const LABELS = {
   /** Maximum visible crater dots on screen */
-  maxDots: 200,
+  maxDots: 600,
 
   /** Maximum text labels rendered simultaneously */
-  maxLabels: 150,
+  maxLabels: 500,
 
   /** Speed of label fade-in after a drag (0.01 = very slow, 0.2 = fast) */
   fadeInSpeed: 0.05,
@@ -82,7 +82,7 @@ export const LABELS = {
   nightTransitionCosI: 0.1,
 
   /** Frustum cull margin for crater dots (screen px) */
-  cullMargin: 200,
+  cullMargin: 500,
 
   /** Label offset above the dot (screen px, used as invScale multiplier) */
   labelOffsetY: 10,
@@ -91,8 +91,8 @@ export const LABELS = {
 // ─── CULLING ───────────────────────────────────────────
 
 export const CULLING = {
-  /** Viewport margin ratio for GeoJSON pre-culling (0.3 = 30% beyond screen) */
-  viewportMargin: 0.3,
+  /** Viewport margin ratio for GeoJSON pre-culling (1.5 = 150% beyond screen) */
+  viewportMargin: 1.5,
 };
 
 // ─── RENDER ────────────────────────────────────────────
@@ -249,7 +249,12 @@ export const STUDIO = {
 
   /** Night Mask ranges */
   nightMaskOpacityMin: 0.0, nightMaskOpacityMax: 1.0, nightMaskOpacityStep: 0.05,
-  nightMaskBlurMin: 0, nightMaskBlurMax: 100, nightMaskBlurStep: 1,
+  nightMaskBlurMin: 0, nightMaskBlurMax: 50, nightMaskBlurStep: 1,
+
+  /** Labels ranges */
+  labelFontSizeMin: 8, labelFontSizeMax: 36, labelFontSizeStep: 1, labelFontSizeDefault: 14,
+  labelSizeMin: 0, labelSizeMax: 1500, labelSizeStep: 10, labelSizeDefaultMin: 0, labelSizeDefaultMax: 1500,
+  labelCountMin: 0, labelCountMax: 500, labelCountStep: 10, labelCountDefault: 150,
 
   /** Rotation */
   rotationMin: -180, rotationMax: 180, rotationStep: 0.5,

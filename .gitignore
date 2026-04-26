@@ -24,3 +24,7 @@ design.md
 .vite/
 walkthrough.md
 .kilo/
+.vercel
+.vercelignore
+package.json
+package-lock.json

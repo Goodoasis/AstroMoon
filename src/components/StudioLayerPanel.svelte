@@ -96,40 +96,47 @@
     studioState.layerColor[name] = (current + 1) % LAYER_PALETTE.length;
   }
 
-  function getColorHex(paletteIndex) {
-    const color = LAYER_PALETTE[paletteIndex % LAYER_PALETTE.length];
-    return '#' + color.stroke.toString(16).padStart(6, '0');
-  }
+    function getColorHex(paletteIndex) {
+      const color = LAYER_PALETTE[paletteIndex % LAYER_PALETTE.length];
+      return '#' + color.stroke.toString(16).padStart(6, '0');
+    }
 
-</script>
+    let isOpen = $state(true);
 
-<aside id="studio-layer-panel">
-  <!-- Header -->
-  <header class="sl-header">
-    <div class="sl-header-left">
-      <svg class="sl-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-        <rect x="2" y="3" width="16" height="3" rx="1"/>
-        <rect x="2" y="9" width="16" height="3" rx="1"/>
-        <rect x="2" y="15" width="16" height="3" rx="1"/>
+    function toggleOpen() {
+      isOpen = !isOpen;
+    }
+  </script>
+
+<div class="context-panel" class:open={isOpen}>
+  <!-- Trigger -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="panel-trigger" onclick={toggleOpen}>
+    <div class="trigger-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+        <line x1="7" y1="7" x2="7.01" y2="7"></line>
       </svg>
-      <h3>Calques</h3>
     </div>
-    <div class="sl-header-right">
-      <span class="sl-hq-label" class:active={studioState.useShaderGlow}>HQ</span>
-      <div class="sl-help-icon" title="La Haute Qualité (LOD maximum et Shader Glow) sera automatiquement forcée lors de l'exportation. Ces paramètres servent uniquement à fluidifier la prévisualisation.">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-      </div>
-      <label class="sl-mini-toggle">
-        <input type="checkbox" bind:checked={studioState.useShaderGlow} onchange={() => layerState.layerTransformDirty = true} />
-        <span class="sl-toggle-track"><span class="sl-toggle-thumb"></span></span>
+    <div class="trigger-summary">
+      <span class="summary-item">Calques</span>
+    </div>
+    <div class="sl-header-right" style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+      <span class="sl-hq-label" class:active={studioState.useShaderGlow} style="font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--color-text-dim); transition: color 0.3s; opacity: 1;">HQ</span>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <label class="sl-mini-toggle" onclick={(e) => e.stopPropagation()} style="position: relative; cursor: pointer;">
+        <input type="checkbox" bind:checked={studioState.useShaderGlow} onchange={() => layerState.layerTransformDirty = true} style="display: none;" />
+        <span class="sl-toggle-track" style="display: block; width: 24px; height: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 999px; position: relative;"><span class="sl-toggle-thumb" style="position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; border-radius: 50%; background: #FF4081; transition: transform 0.3s;"></span></span>
       </label>
     </div>
-  </header>
+  </div>
 
+  <!-- Content -->
+  <div class="panel-content">
+    <div class="scroll-container">
+      
   <!-- GeoJSON Layers -->
   <section class="sl-section">
     <h4 class="sl-section-title">Couches</h4>
@@ -509,59 +516,96 @@
     </div>
   </section>
 
-</aside>
+    </div>
+  </div>
+</div>
+
 
 <style>
-  #studio-layer-panel {
-    position: fixed;
-    top: 74px;
-    left: 16px;
-    width: 260px;
-    max-height: calc(100vh - 150px);
-    overflow-y: auto;
-    background: var(--color-surface);
-    backdrop-filter: blur(var(--blur));
-    -webkit-backdrop-filter: blur(var(--blur));
-    border: 1px solid rgba(255, 64, 129, 0.2);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-card), 0 0 20px rgba(255, 64, 129, 0.1), 0 0 6px rgba(255, 64, 129, 0.06);
-    z-index: 90;
-    padding: 14px;
-    animation: slide-in-left 0.3s var(--transition-slow);
+  /* ── Context Panel Base ── */
+  .context-panel {
+    display: flex;
+    flex-direction: column;
+    width: 270px;
+    max-height: 48px;
+    flex: 0 0 auto;
+    background: rgba(10, 11, 16, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    overflow: hidden;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
   }
 
-  /* ── Header ── */
-  .sl-header {
+  .context-panel.open {
+    max-height: 100%;
+    flex: 1 1 auto;
+    border-radius: 16px;
+    border-color: rgba(255, 64, 129, 0.3);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 64, 129, 0.15);
+  }
+
+  .panel-trigger {
+    height: 48px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255, 64, 129, 0.15);
+    padding: 0 16px;
+    cursor: pointer;
+    gap: 12px;
+    user-select: none;
   }
 
-  .sl-header-left {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-  }
-
-  .sl-icon {
-    width: 16px;
-    height: 16px;
+  .trigger-icon {
+    width: 20px;
+    height: 20px;
     color: #FF4081;
-    filter: drop-shadow(0 0 4px rgba(255, 64, 129, 0.5));
+    flex-shrink: 0;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .sl-header h3 {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
+  .context-panel.open .trigger-icon {
+    transform: rotate(90deg);
+  }
+
+  .trigger-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
     color: var(--color-text-dim);
-    margin: 0;
   }
 
+  .summary-item { white-space: nowrap; }
+
+  .panel-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    padding: 0 16px 20px 16px;
+  }
+
+  .context-panel.open .panel-content {
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity 0.5s ease 0.1s;
+  }
+
+  .scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    scrollbar-width: none;
+  }
+  .scroll-container::-webkit-scrollbar { display: none; }
+
+  /* ── Header overrides ── */
   .sl-header-right {
     display: flex;
     align-items: center;
@@ -598,13 +642,6 @@
     margin-bottom: 8px;
   }
 
-  .sl-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-
   .sl-section-title {
     font-size: 10px;
     font-weight: 600;
@@ -612,24 +649,6 @@
     letter-spacing: 1px;
     color: rgba(255, 64, 129, 0.7);
     margin-bottom: 0;
-  }
-
-  .sl-help-icon {
-    color: rgba(255, 255, 255, 0.4);
-    cursor: help;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 0.2s;
-  }
-  
-  .sl-help-icon:hover {
-    color: rgba(255, 64, 129, 0.9);
-  }
-  
-  .sl-help-icon svg {
-    width: 12px;
-    height: 12px;
   }
 
   .sl-divider {

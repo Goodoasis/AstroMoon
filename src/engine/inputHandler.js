@@ -10,9 +10,11 @@ import { Anchors } from './anchors.js';
 import { PixiRenderer } from './pixi_renderer.js';
 import { GeoJSON } from './geojson.js';
 import { uiState } from '../stores/uiState.svelte.js';
+import { studioState } from '../stores/studioState.svelte.js';
 import { setLastInteractionTime } from './renderLoop.js';
 
 let dragStart = { x: 0, y: 0 };
+let initialDragStart = { x: 0, y: 0 };
 let dragAnchorId = null;
 let dragAnchorOffset = { x: 0, y: 0 };
 let lastRotationAngle = 0;
@@ -50,6 +52,7 @@ export function onMouseDown(e) {
   const mx = e.clientX, my = e.clientY;
   viewportState.isDragging = true; 
   dragStart = { x: mx, y: my };
+  initialDragStart = { x: mx, y: my };
   const locked = Anchors.count() > 0;
   const isStudioExport = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
 
@@ -202,7 +205,24 @@ export function onMouseMove(e) {
   dragStart = { x: mx, y: my };
 }
 
-export function onMouseUp() { 
+export function onMouseUp(e) {
+  // Detect simple click (no significant drag)
+  if (viewportState.isDragging && e && e.clientX !== undefined) {
+    const dx = e.clientX - initialDragStart.x;
+    const dy = e.clientY - initialDragStart.y;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq < 10) { // Tolérance de 3 pixels (3*3=9)
+      if (uiState.currentPhase === 'STUDIO') {
+        const hoveredCrater = PixiRenderer.getHoveredCrater();
+        if (hoveredCrater) {
+          studioState.togglePinnedCrater(hoveredCrater.name);
+          layerState.layerTransformDirty = true;
+        }
+      }
+    }
+  }
+
   viewportState.isDragging = false; 
   viewportState.dragType = null; 
   updateCursor(); 

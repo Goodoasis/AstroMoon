@@ -74,6 +74,15 @@ class StudioState {
   customLabels = $state([]);
   nextLabelId = $state(1);
 
+  // Label UI parameters
+  labelFontSize = $state(14);
+  labelMinSize = $state(0);
+  labelMaxSize = $state(1500);
+  labelCount = $state(150);
+  labelHiddenTypes = $state(new Set());
+  labelColorPoints = $state(3);
+  labelColorText = $state(8);
+
   // ─── Effects ───
   limbGlow = $state(false);
   limbGlowColor = $state(0); // Index in LAYER_PALETTE
@@ -82,6 +91,19 @@ class StudioState {
   limbGlowSpread = $state(STUDIO.limbGlowSpreadDefault);
   limbGlowBlur = $state(STUDIO.limbGlowBlurDefault);
   useShaderGlow = $state(true); // Global toggle for pixi-filters Shader Glow (High Quality)
+
+  /**
+   * Toggle pinned state for a crater label.
+   * @param {string} name Crater name
+   */
+  togglePinnedCrater(name) {
+    if (this.pinnedCraters.has(name)) {
+      this.pinnedCraters.delete(name);
+    } else {
+      this.pinnedCraters.add(name);
+    }
+    this.pinnedCraters = new Set(this.pinnedCraters);
+  }
 
   /**
    * Initialize layer maps from loaded layer names.
@@ -153,6 +175,14 @@ class StudioState {
     this.pinnedCraters = new Set();
     this.customLabels = [];
     this.nextLabelId = 1;
+
+    this.labelFontSize = STUDIO.labelFontSizeDefault;
+    this.labelMinSize = STUDIO.labelSizeDefaultMin;
+    this.labelMaxSize = STUDIO.labelSizeDefaultMax;
+    this.labelCount = STUDIO.labelCountDefault;
+    this.labelHiddenTypes = new Set();
+    this.labelColorPoints = 3;
+    this.labelColorText = 8;
     this.limbGlow = false;
     this.limbGlowColor = 0;
     this.limbGlowOpacity = STUDIO.limbGlowOpacityDefault;
