@@ -1,17 +1,18 @@
 /**
- * AstroMoon — PixiJS v8 Renderer
+ * AstroMoon â€” PixiJS v8 Renderer
  * Replaces the Canvas 2D renderer with a GPU-accelerated PixiJS scene graph.
  * 
  * Architecture: 
  *   stage
- *     └── viewportContainer  (handles pan/zoom via position & scale)
- *           ├── bgSprite      (background moon photo)
- *           ├── geojsonContainer  (one Graphics per layer)
- *           ├── nightMaskGfx
- *           ├── terminatorGfx
- *           ├── gridGfx
- *           ├── anchorsGfx
- *           └── annotationsContainer (Text + Graphics dots)
+ *     â””â”€â”€ viewportContainer  (handles pan/zoom via position & scale)
+ *           â”œâ”€â”€ bgSprite      (background moon photo)
+ *           â”œâ”€â”€ geojsonContainer  (one Graphics per layer)
+ *           â”œâ”€â”€ nightMaskContainer  (night-side overlay)
+ *           â”œâ”€â”€ dayMaskContainer    (day-side overlay)
+ *           â”œâ”€â”€ terminatorGfx
+ *           â”œâ”€â”€ gridGfx
+ *           â”œâ”€â”€ anchorsGfx
+ *           â””â”€â”€ annotationsContainer (Text + Graphics dots)
  */
 
 import * as PIXI from 'pixi.js';
@@ -37,7 +38,9 @@ let viewportContainer, geojsonContainer, annotationsContainer, labelsContainer;
 let bgSprite = null;
 let nightMaskContainer, nightMaskGfx, nightMaskClip;
 let nightMaskBlurFilter = null;
-let terminatorGfx, gridGfx, anchorsGfx, dotsGfx, labelsBgGfx;
+let dayMaskContainer, dayMaskGfx, dayMaskClip;
+let dayMaskBlurFilter = null;
+let terminatorGfx, gridGfx, limbGlowGfx, anchorsGfx, dotsGfx, labelsBgGfx;
 let layerGraphicsMap = new Map(); // Store PIXI.Graphics objects indexed by layerIndex
 let textPool = [];
 let activeLabels = [];
@@ -74,7 +77,7 @@ async function init(container) {
           page.texture.source.style.magFilter = 'linear';
           page.texture.source.style.minFilter = 'linear';
           page.texture.source.style.mipmapMode = 'on';
-          // Le forçage de 'resolution' ici casse les UVs de la BitmapFont, on le supprime.
+          // Le forÃ§age de 'resolution' ici casse les UVs de la BitmapFont, on le supprime.
           page.texture.source.update();
         }
       });
@@ -132,12 +135,30 @@ async function init(container) {
   // Mask the container, not the filtered graphic
   nightMaskContainer.mask = nightMaskClip;
 
+  // Day Mask (inverse of night mask â€” brightens the day side)
+  dayMaskContainer = new PIXI.Container();
+  viewportContainer.addChild(dayMaskContainer);
+
+  dayMaskGfx = new PIXI.Graphics();
+  dayMaskContainer.addChild(dayMaskGfx);
+
+  dayMaskClip = new PIXI.Graphics();
+  viewportContainer.addChild(dayMaskClip);
+
+  dayMaskContainer.mask = dayMaskClip;
+  dayMaskContainer.visible = false; // off by default
+
   terminatorGfx = new PIXI.Graphics();
   viewportContainer.addChild(terminatorGfx);
 
   gridGfx = new PIXI.Graphics();
   gridGfx.visible = false;
   viewportContainer.addChild(gridGfx);
+
+  // Limb Glow (aesthetic arc on day-side edge)
+  limbGlowGfx = new PIXI.Graphics();
+  limbGlowGfx.visible = false;
+  viewportContainer.addChild(limbGlowGfx);
 
   anchorsGfx = new PIXI.Graphics();
   viewportContainer.addChild(anchorsGfx);
@@ -147,11 +168,11 @@ async function init(container) {
   annotationsContainer.visible = false;
   viewportContainer.addChild(annotationsContainer);
 
-  // Les points restent constants et attachés à Annotations
+  // Les points restent constants et attachÃ©s Ã  Annotations
   dotsGfx = new PIXI.Graphics();
   annotationsContainer.addChild(dotsGfx);
 
-  // Groupe Textes + Fonds (pour fondu indépendant)
+  // Groupe Textes + Fonds (pour fondu indÃ©pendant)
   labelsContainer = new PIXI.Container();
   annotationsContainer.addChild(labelsContainer);
 
@@ -189,7 +210,9 @@ function redrawAllLayers() {
   }
   if (_lastTransformFn && _lastVp) {
     rebuildNightMask(_lastTransformFn);
+    rebuildDayMask(_lastTransformFn);
     rebuildTerminator(_lastTransformFn, _lastVp);
+    rebuildLimbGlow(_lastTransformFn, _lastVp);
   }
 }
 
@@ -258,7 +281,7 @@ function updateViewport(vp) {
   viewportContainer.scale.set(vp.scale);
 }
 
-// ─── GeoJSON Rendering ───
+// â”€â”€â”€ GeoJSON Rendering â”€â”€â”€
 
 /**
  * Rebuild all GeoJSON layer graphics from projected feature data.
@@ -286,7 +309,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
 
   const invScale = 1 / vp.scale;
 
-  // Viewport bounds en coordonnées "monde" brutes, avec marge paramétrable
+  // Viewport bounds en coordonnÃ©es "monde" brutes, avec marge paramÃ©trable
   const marginX = app.screen.width * CULLING.viewportMargin;
   const marginY = app.screen.height * CULLING.viewportMargin;
   const vpMinX = (-vp.tx - marginX) * invScale;
@@ -391,7 +414,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
     const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : studioState.useShaderGlow;
 
     if (useShaderGlow) {
-      // ─── SHADER GLOW METHOD (High Quality, Low Performance) ───
+      // â”€â”€â”€ SHADER GLOW METHOD (High Quality, Low Performance) â”€â”€â”€
       const hasPolys = tracePolygons();
       if (hasPolys) {
         gfx.fill({ color: colors.fill, alpha: colors.fillAlpha * opacity });
@@ -415,7 +438,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       }
 
     } else {
-      // ─── Z-INDEX GLOW METHOD (Fast Path, High Performance) ───
+      // â”€â”€â”€ Z-INDEX GLOW METHOD (Fast Path, High Performance) â”€â”€â”€
       gfx.filters = null;
 
       const hasPolys = tracePolygons();
@@ -459,7 +482,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
   }
 }
 
-// ─── Night Mask ───
+// â”€â”€â”€ Night Mask â”€â”€â”€
 
 // Shared projection cache for terminator points (used by both nightmask + terminator)
 let _termProjCache = null; // { geoPointsRef, libKey, projNorm: Array<[nx,ny]|null> }
@@ -644,7 +667,166 @@ function rebuildNightMask(transformFn) {
   }
 }
 
-// ─── Terminator Line ───
+// â”€â”€â”€ Day Mask (inverse of Night Mask) â”€â”€â”€
+
+function rebuildDayMask(transformFn) {
+  try {
+    _lastTransformFn = transformFn;
+    dayMaskGfx.clear();
+    dayMaskClip.clear();
+
+    const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+    const showMask = isStudio ? studioState.dayMaskVisible : false;
+    if (!showMask) {
+      dayMaskContainer.visible = false;
+      return;
+    }
+    dayMaskContainer.visible = true;
+
+    const projCache = _getTerminatorProjections();
+    if (!projCache) return;
+
+    const pts = projCache.projNorm;
+    const state = moonState;
+    const n = pts.length;
+    let startIdx = 0;
+    let found = false;
+    for (let i = 0; i < n; i++) {
+      if (pts[i] !== null && pts[(i - 1 + n) % n] === null) {
+        startIdx = i;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      startIdx = pts.findIndex(p => p !== null);
+      if (startIdx === -1) return;
+    }
+
+    const visiblePoints = [];
+    for (let i = 0; i < n; i++) {
+      const p = pts[(startIdx + i) % n];
+      if (p !== null) visiblePoints.push(p);
+      else if (visiblePoints.length > 0) break;
+    }
+
+    if (visiblePoints.length < 2) return;
+
+    const first = visiblePoints[0];
+    const last = visiblePoints[visiblePoints.length - 1];
+
+    // Trace the terminator curve
+    let moved = false;
+    for (const p of visiblePoints) {
+      const pt = transformFn(p[0], p[1]);
+      if (!moved) {
+        dayMaskGfx.moveTo(pt.x, pt.y);
+        dayMaskClip.moveTo(pt.x, pt.y);
+        moved = true;
+      } else {
+        dayMaskGfx.lineTo(pt.x, pt.y);
+        dayMaskClip.lineTo(pt.x, pt.y);
+      }
+    }
+
+    const cx = 0.5, cy = 0.5;
+    const aLast = Math.atan2(last[1] - cy, last[0] - cx);
+    const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
+
+    let diff = aFirst - aLast;
+    if (diff < 0) diff += Math.PI * 2;
+    const aMid1 = aLast + diff / 2;
+    const testNx = 0.5 + 0.49 * Math.cos(aMid1);
+    const testNy = 0.5 + 0.49 * Math.sin(aMid1);
+
+    // Determine which side is night (same logic as nightMask)
+    let isNight1 = false;
+    const geo = GeoJSON.inverseProject(testNx, testNy);
+    if (geo) {
+      const sLon = state.sunLon * Math.PI / 180;
+      const sLat = (state.sunLat || 0) * Math.PI / 180;
+      const geoLon = geo.lon * Math.PI / 180;
+      const geoLat = geo.lat * Math.PI / 180;
+      const px = Math.cos(geoLat) * Math.cos(geoLon);
+      const py = Math.cos(geoLat) * Math.sin(geoLon);
+      const pz = Math.sin(geoLat);
+      const sx = Math.cos(sLat) * Math.cos(sLon);
+      const sy = Math.cos(sLat) * Math.sin(sLon);
+      const sz = Math.sin(sLat);
+      isNight1 = (sx * px + sy * py + sz * pz) < 0;
+    } else {
+      const testNx2 = 0.5 + 0.45 * Math.cos(aMid1);
+      const testNy2 = 0.5 + 0.45 * Math.sin(aMid1);
+      const geo2 = GeoJSON.inverseProject(testNx2, testNy2);
+      if (geo2) {
+        const sLon = state.sunLon * Math.PI / 180;
+        const sLat = (state.sunLat || 0) * Math.PI / 180;
+        const geoLon = geo2.lon * Math.PI / 180;
+        const geoLat = geo2.lat * Math.PI / 180;
+        const px = Math.cos(geoLat) * Math.cos(geoLon);
+        const py = Math.cos(geoLat) * Math.sin(geoLon);
+        const pz = Math.sin(geoLat);
+        const sx = Math.cos(sLat) * Math.cos(sLon);
+        const sy = Math.cos(sLat) * Math.sin(sLon);
+        const sz = Math.sin(sLat);
+        isNight1 = (sx * px + sy * py + sz * pz) < 0;
+      }
+    }
+
+    // Close the mask along the DAY side arc (INVERSE of night mask)
+    const steps = 40;
+    if (!isNight1) {
+      // Arc1 is the day side â†’ close along it
+      for (let i = 1; i <= steps; i++) {
+        let a = aLast + diff * (i / steps);
+        let nx = 0.5 + 0.5 * Math.cos(a);
+        let ny = 0.5 + 0.5 * Math.sin(a);
+        let pt = transformFn(nx, ny);
+        dayMaskGfx.lineTo(pt.x, pt.y);
+        dayMaskClip.lineTo(pt.x, pt.y);
+      }
+    } else {
+      // Arc2 is the day side â†’ close CCW
+      let diffCCW = aLast - aFirst;
+      if (diffCCW < 0) diffCCW += Math.PI * 2;
+      for (let i = 1; i <= steps; i++) {
+        let a = aLast - diffCCW * (i / steps);
+        let nx = 0.5 + 0.5 * Math.cos(a);
+        let ny = 0.5 + 0.5 * Math.sin(a);
+        let pt = transformFn(nx, ny);
+        dayMaskGfx.lineTo(pt.x, pt.y);
+        dayMaskClip.lineTo(pt.x, pt.y);
+      }
+    }
+
+    dayMaskGfx.closePath();
+    dayMaskClip.closePath();
+
+    const maskColor = LAYER_PALETTE[studioState.dayMaskColor % LAYER_PALETTE.length].fill;
+    const maskOpacity = studioState.dayMaskOpacity;
+
+    dayMaskContainer.blendMode = studioState.dayMaskBlendMode;
+    dayMaskGfx.fill({ color: maskColor, alpha: maskOpacity });
+    dayMaskClip.fill({ color: 0xffffff, alpha: 1.0 });
+
+    const maskBlur = studioState.dayMaskBlur;
+
+    if (maskBlur > 0) {
+      if (!dayMaskBlurFilter) {
+        dayMaskBlurFilter = new PIXI.BlurFilter({ strength: maskBlur });
+      } else {
+        dayMaskBlurFilter.strength = maskBlur;
+      }
+      dayMaskGfx.filters = [dayMaskBlurFilter];
+    } else {
+      dayMaskGfx.filters = null;
+    }
+  } catch (e) {
+    console.error("Error in rebuildDayMask:", e);
+  }
+}
+
+// â”€â”€â”€ Terminator Line â”€â”€â”€
 
 function rebuildTerminator(transformFn, vp) {
   _lastTransformFn = transformFn;
@@ -732,7 +914,7 @@ function rebuildTerminator(transformFn, vp) {
   }
 }
 
-// ─── Grid ───
+// â”€â”€â”€ Grid â”€â”€â”€
 
 // Cached grid projection data (changes with libration OR grid spacing)
 let _gridCache = null; // { cacheKey, linesNorm, horizonNorm }
@@ -872,6 +1054,156 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
 }
 
 
+// â”€â”€â”€ Limb Glow (aesthetic day-side edge glow) â”€â”€â”€
+
+let _limbGlowBlurFilter = null;
+
+function rebuildLimbGlow(transformFn, vp) {
+  _lastTransformFn = transformFn;
+  _lastVp = vp;
+  limbGlowGfx.clear();
+
+  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  if (!isStudio || !studioState.limbGlow || studioState.limbGlowIntensity <= 0) {
+    limbGlowGfx.visible = false;
+    return;
+  }
+  limbGlowGfx.visible = true;
+
+  const projCache = _getTerminatorProjections();
+  const state = moonState;
+  const opacity = studioState.limbGlowOpacity;
+  const thickness = studioState.limbGlowThickness;
+  const spread = studioState.limbGlowSpread;
+  const blur = studioState.limbGlowBlur;
+  const invScale = 1 / vp.scale;
+  const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : studioState.useShaderGlow;
+
+  // â”€â”€ Determine day-side arc boundaries â”€â”€
+  let dayArcStart = 0;
+  let dayArcSweep = Math.PI * 2; // fallback: full circle
+
+  if (projCache && projCache.projNorm) {
+    const pts = projCache.projNorm;
+    const n = pts.length;
+
+    let startIdx = 0;
+    let found = false;
+    for (let i = 0; i < n; i++) {
+      if (pts[i] !== null && pts[(i - 1 + n) % n] === null) {
+        startIdx = i; found = true; break;
+      }
+    }
+    if (!found) startIdx = pts.findIndex(p => p !== null);
+
+    if (startIdx >= 0) {
+      const visiblePoints = [];
+      for (let i = 0; i < n; i++) {
+        const p = pts[(startIdx + i) % n];
+        if (p !== null) visiblePoints.push(p);
+        else if (visiblePoints.length > 0) break;
+      }
+
+      if (visiblePoints.length >= 2) {
+        const first = visiblePoints[0];
+        const last = visiblePoints[visiblePoints.length - 1];
+        const cx = 0.5, cy = 0.5;
+        const aLast = Math.atan2(last[1] - cy, last[0] - cx);
+        const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
+
+        let diff = aFirst - aLast;
+        if (diff < 0) diff += Math.PI * 2;
+        const aMid1 = aLast + diff / 2;
+        const testNx = 0.5 + 0.49 * Math.cos(aMid1);
+        const testNy = 0.5 + 0.49 * Math.sin(aMid1);
+
+        let isNight1 = false;
+        const geo = GeoJSON.inverseProject(testNx, testNy);
+        if (geo) {
+          const sLon = state.sunLon * Math.PI / 180;
+          const sLat = (state.sunLat || 0) * Math.PI / 180;
+          const geoLon = geo.lon * Math.PI / 180;
+          const geoLat = geo.lat * Math.PI / 180;
+          const dot = (Math.cos(geoLat) * Math.cos(geoLon) * Math.cos(sLat) * Math.cos(sLon)) +
+                      (Math.cos(geoLat) * Math.sin(geoLon) * Math.cos(sLat) * Math.sin(sLon)) +
+                      (Math.sin(geoLat) * Math.sin(sLat));
+          isNight1 = dot < 0;
+        }
+
+        if (!isNight1) {
+          dayArcStart = aLast;
+          dayArcSweep = diff;
+        } else {
+          let diffCCW = aLast - aFirst;
+          if (diffCCW < 0) diffCCW += Math.PI * 2;
+          dayArcStart = aLast;
+          dayArcSweep = -diffCCW;
+        }
+      }
+    }
+  }
+
+  // ── Extend arc slightly beyond endpoints so glow wraps around the poles ──
+  const overreach = Math.abs(dayArcSweep) * 0.02;
+  const extStart = dayArcStart - Math.sign(dayArcSweep) * overreach;
+  const extSweep = dayArcSweep + Math.sign(dayArcSweep) * overreach * 2;
+
+  const steps = 80;
+  const glowColor = LAYER_PALETTE[studioState.limbGlowColor % LAYER_PALETTE.length].stroke;
+  
+  // Base parameters
+  const baseAlpha = opacity;
+  const baseWidth = thickness * invScale;
+  const baseRadius = 0.5;
+
+  function traceArcAtRadius(radiusOffset) {
+    let moved = false;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const a = extStart + extSweep * t;
+      const r = baseRadius + radiusOffset;
+      const pt = transformFn(0.5 + r * Math.cos(a), 0.5 + r * Math.sin(a));
+      if (!moved) { limbGlowGfx.moveTo(pt.x, pt.y); moved = true; }
+      else limbGlowGfx.lineTo(pt.x, pt.y);
+    }
+  }
+
+  // Draw 3 concentric arcs with descending opacity, increasing thickness, and offset spread
+  const spreadScale = spread * 0.0005; // Map 0-50 to 0-0.025 radius units
+
+  // Arc 1: Base
+  traceArcAtRadius(0);
+  limbGlowGfx.stroke({ width: baseWidth, color: glowColor, alpha: baseAlpha });
+
+  // Arc 2: Mid
+  if (spreadScale > 0 || thickness > 0) {
+    traceArcAtRadius(spreadScale);
+    limbGlowGfx.stroke({ width: baseWidth * 2, color: glowColor, alpha: baseAlpha * 0.5 });
+  }
+
+  // Arc 3: Outer
+  if (spreadScale > 0 || thickness > 0) {
+    traceArcAtRadius(spreadScale * 2.5);
+    limbGlowGfx.stroke({ width: baseWidth * 4, color: glowColor, alpha: baseAlpha * 0.25 });
+  }
+
+  // Apply Gaussian blur if requested
+  if (blur > 0) {
+    if (!_limbGlowBlurFilter) {
+      _limbGlowBlurFilter = new PIXI.BlurFilter({ strength: blur, quality: 3 });
+    } else {
+      _limbGlowBlurFilter.strength = blur;
+    }
+    // Prevent filter clipping at the bounds of the graphics
+    _limbGlowBlurFilter.padding = blur * 3 + 20;
+    
+    limbGlowGfx.filters = [_limbGlowBlurFilter];
+  } else {
+    limbGlowGfx.filters = null;
+  }
+}
+
+
 function rebuildAnchors(anchorsData, vp, activeAnchorId) {
   anchorsGfx.clear();
 
@@ -941,7 +1273,7 @@ function rebuildPivotAnchor(vp) {
   anchorsGfx.fill({ color: 0xffffff });
 }
 
-// ─── Annotations (Crater Labels) ───
+// â”€â”€â”€ Annotations (Crater Labels) â”€â”€â”€
 
 function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   if (!_showLabels || !cratersDB || cratersDB.length === 0) {
@@ -974,7 +1306,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   _candidates.length = 0;
   _placedBoxes.length = 0;
 
-  // Passe 1 : Collecter et trier tous les cratères visibles dans le champ
+  // Passe 1 : Collecter et trier tous les cratÃ¨res visibles dans le champ
   for (const crater of cratersDB) {
     if (crater.name === "--" || crater.nx === null) continue;
 
@@ -983,14 +1315,14 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const sx = ptX * vp.scale + vp.tx;
     const sy = ptY * vp.scale + vp.ty;
 
-    // Frustum Culling généreux
+    // Frustum Culling gÃ©nÃ©reux
     if (sx < -200 || sx > canvasW + 200 || sy < -200 || sy > canvasH + 200) continue;
 
     _dotCandidates.push({ crater, ptX, ptY, sx, sy });
   }
 
   // cratersDB is pre-sorted by diameter descending (done once at init)
-  // _dotCandidates inherits that order — no re-sort needed
+  // _dotCandidates inherits that order â€” no re-sort needed
 
   const dotsCount = Math.min(_dotCandidates.length, MAX_DOTS);
   const minHoverDiameter = LABELS.hoverMinScreenDiameter / vp.scale;
@@ -1006,7 +1338,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     sinSLat = Math.sin(sLatR); cosSLat = Math.cos(sLatR);
   }
 
-  // Passe 2 : Dessiner le Top N des plus gros cratères de la zone
+  // Passe 2 : Dessiner le Top N des plus gros cratÃ¨res de la zone
   for (let i = 0; i < dotsCount; i++) {
     const item = _dotCandidates[i];
     const { crater, ptX, ptY, sx, sy } = item;
@@ -1023,7 +1355,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
     if (op < 0.05) continue;
 
-    // Rayon borné entre 2.0 et 3.0 via sqrt
+    // Rayon bornÃ© entre 2.0 et 3.0 via sqrt
     const onScreenRadius = Math.max(LABELS.dotRadiusMin, Math.min(LABELS.dotRadiusMax, Math.sqrt(crater.diameter * vp.scale) * LABELS.dotRadiusScale));
     const baseR = onScreenRadius / vp.scale;
     const type = crater.type;
@@ -1037,7 +1369,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
         ptX - r, ptY + r
       ]);
       dotsGfx.fill({ color: 0xFF4081, alpha: op });
-    } else if (type === 'Mare, maria' || type === 'Oceanus, oceani' || type === 'Sinus, sinūs' || type === 'Lacus, lacūs' || type === 'Palus, paludes') {
+    } else if (type === 'Mare, maria' || type === 'Oceanus, oceani' || type === 'Sinus, sinÅ«s' || type === 'Lacus, lacÅ«s' || type === 'Palus, paludes') {
       // Vague (Wave) - Electric Cyan
       const r = baseR * 2.5;
       dotsGfx.moveTo(ptX - r, ptY);
@@ -1045,50 +1377,50 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
       dotsGfx.quadraticCurveTo(ptX + r/2, ptY + r, ptX + r, ptY);
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00E5FF, alpha: op });
     } else if (type === 'Statio') {
-      // Icône "Satellite Dish" (Lucide SVG traduit en vectoriel natif) - Neon Green
-      const s = baseR * 0.4; // Échelle
+      // IcÃ´ne "Satellite Dish" (Lucide SVG traduit en vectoriel natif) - Neon Green
+      const s = baseR * 0.4; // Ã‰chelle
       const px = (x) => ptX + (x - 12) * s;
       const py = (y) => ptY + (y - 12) * s;
 
-      // Bras du récepteur (m9 15 3-3)
+      // Bras du rÃ©cepteur (m9 15 3-3)
       dotsGfx.moveTo(px(9), py(15));
       dotsGfx.lineTo(px(12), py(12));
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
 
       // Onde interne (M17 13a6 6 0 0 0-6-6)
-      dotsGfx.moveTo(px(11), py(7)); // Point de départ de l'arc
+      dotsGfx.moveTo(px(11), py(7)); // Point de dÃ©part de l'arc
       dotsGfx.arc(px(11), py(13), 6 * s, -Math.PI/2, 0);
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
 
       // Onde externe (M21 13A10 10 0 0 0 11 3)
-      dotsGfx.moveTo(px(11), py(3)); // Point de départ de l'arc
+      dotsGfx.moveTo(px(11), py(3)); // Point de dÃ©part de l'arc
       dotsGfx.arc(px(11), py(13), 10 * s, -Math.PI/2, 0);
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
 
-      // Parabole (M4 10a7.31... Z) - reproduite via bézier
+      // Parabole (M4 10a7.31... Z) - reproduite via bÃ©zier
       dotsGfx.moveTo(px(4), py(10));
       dotsGfx.quadraticCurveTo(px(4), py(20), px(14), py(20));
       dotsGfx.lineTo(px(4), py(10));
       dotsGfx.fill({ color: 0x00FF88, alpha: op });
     } else {
-      // Cratère classique (Point Rouge)
+      // CratÃ¨re classique (Point Rouge)
       dotsGfx.circle(ptX, ptY, baseR);
       dotsGfx.fill({ color: 0xff4b4b, alpha: op });
     }
 
-    // Les petits cratères ne déclenchent pas le survol pour éviter le bruit
-    // MAIS on force le survol pour les éléments spéciaux (Sondes, Montagnes, Mers)
+    // Les petits cratÃ¨res ne dÃ©clenchent pas le survol pour Ã©viter le bruit
+    // MAIS on force le survol pour les Ã©lÃ©ments spÃ©ciaux (Sondes, Montagnes, Mers)
     if (crater.diameter >= minHoverDiameter || (type !== 'Crater, craters' && type !== 'Satellite Feature')) {
       _allVisibleCraterPoints.push({ crater, ptX, ptY, op });
     }
 
-    // Préparation pour les Labels
+    // PrÃ©paration pour les Labels
     const textWidth = crater.name.length * 8;
     const textHeight = 14;
     const boxX = sx - textWidth / 2;
     const boxY = sy - 8 - textHeight;
 
-    // Strict Culling des labels sur le bord véritable de l'écran
+    // Strict Culling des labels sur le bord vÃ©ritable de l'Ã©cran
     if (boxX < 0 || boxX + textWidth > canvasW || boxY < 0 || boxY + textHeight > canvasH) continue;
 
     const dx = sx - cx;
@@ -1096,18 +1428,18 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const distSq = dx * dx + dy * dy;
     const normalizedDist = Math.max(0, Math.min(1, Math.sqrt(distSq / maxScreenDistSq)));
     
-    // Le score de base dépend du diamètre et de la proximité du centre
+    // Le score de base dÃ©pend du diamÃ¨tre et de la proximitÃ© du centre
     let score = (crater.diameter * vp.scale) * (1.0 - (normalizedDist * 0.8));
     
     // Boost majeur pour les Statio afin qu'elles s'affichent toujours
     if (type === 'Statio') score += 10000;
-    // Léger bonus pour les Mers/Montagnes pour les privilégier aux petits cratères
+    // LÃ©ger bonus pour les Mers/Montagnes pour les privilÃ©gier aux petits cratÃ¨res
     else if (type !== 'Crater, craters' && type !== 'Satellite Feature') score += 10 * vp.scale;
 
     _candidates.push({ crater, ptX, ptY, sx, sy, op, score, boxX, boxY, textWidth, textHeight });
   }
 
-  // Tri par priorité décroissante
+  // Tri par prioritÃ© dÃ©croissante
   _candidates.sort((a, b) => b.score - a.score);
 
   const invScale = 1 / vp.scale;
@@ -1115,14 +1447,14 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   for (const item of _candidates) {
     if (activeLabels.length >= MAX_LABELS) break;
 
-    // HITBOX INVISIBLE : Force les labels à s'écarter les uns des autres
+    // HITBOX INVISIBLE : Force les labels Ã  s'Ã©carter les uns des autres
     const pad = LABELS.overlapPadding;
     const hitX = item.boxX - pad;
     const hitY = item.boxY - pad;
     const hitW = item.textWidth + pad * 2;
     const hitH = item.textHeight + pad * 2;
 
-    // Anti-Overlap sur la Hitbox géante
+    // Anti-Overlap sur la Hitbox gÃ©ante
     let overlap = false;
     for (const box of _placedBoxes) {
       if (hitX < box.x + box.w && hitX + hitW > box.x &&
@@ -1133,10 +1465,10 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     }
     if (overlap) continue;
 
-    // Validation (on réserve tout ce grand espace vide)
+    // Validation (on rÃ©serve tout ce grand espace vide)
     _placedBoxes.push({ x: hitX, y: hitY, w: hitW, h: hitH });
 
-    // Design de la Pilule (Backdrop) ajustée et amincie
+    // Design de la Pilule (Backdrop) ajustÃ©e et amincie
     const bgWorldW = (item.textWidth + 10) * invScale;
     const bgWorldH = (item.textHeight + 6) * invScale;
     const bgWorldX = item.ptX - bgWorldW / 2;
@@ -1184,15 +1516,15 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   if (!_showLabels) return;
   const invScale = 1 / vp.scale;
 
-  // 1. Visibilité & Fondu (Optimisation GPU)
+  // 1. VisibilitÃ© & Fondu (Optimisation GPU)
   _labelsTargetAlpha = isDragging ? 0 : 1;
 
   if (isDragging) {
-    // Disparition instantanée pour soulager le "blender" GPU pendant les mouvements
+    // Disparition instantanÃ©e pour soulager le "blender" GPU pendant les mouvements
     labelsContainer.alpha = 0;
     labelsContainer.visible = false;
   } else {
-    // Apparition en fondu doux au relâchement
+    // Apparition en fondu doux au relÃ¢chement
     labelsContainer.visible = true;
     const alphaDiff = _labelsTargetAlpha - labelsContainer.alpha;
     if (Math.abs(alphaDiff) > 0.01) {
@@ -1205,7 +1537,7 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   const w = app.screen.width;
   const h = app.screen.height;
 
-  // 2. Frustum Culling temps réel STRICT
+  // 2. Frustum Culling temps rÃ©el STRICT
   for (const label of activeLabels) {
     const sx = label._worldX * vp.scale + vp.tx;
     const sy = label._worldY * vp.scale + vp.ty;
@@ -1214,18 +1546,18 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
     const boxX = sx - textW / 2;
     const boxY = sy - 8 - textH;
 
-    // On n'affiche pas si tronqué par le bord (Culling strict)
+    // On n'affiche pas si tronquÃ© par le bord (Culling strict)
     if (boxX < 0 || boxX + textW > w || boxY < 0 || boxY + textH > h) {
       label.visible = false;
     } else {
       label.visible = true;
       label.position.set(label._worldX, label._worldY - LABELS.labelOffsetY * invScale);
       label.scale.set(invScale);
-      label.tint = 0xffffff; // Reset le tint obligatoire pour retirer l'effet bleu après un hover
+      label.tint = 0xffffff; // Reset le tint obligatoire pour retirer l'effet bleu aprÃ¨s un hover
     }
   }
 
-  // 3. Hover : Scan optimisé (influence réduite)
+  // 3. Hover : Scan optimisÃ© (influence rÃ©duite)
   let closestCandidate = null;
   let closestDistSq = 144; // 12 * 12
 
@@ -1252,10 +1584,10 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   hoverLabel.visible = false;
 
   if (closestCandidate) {
-    // Vérifier si ce cratère possède DÉJÀ un label à l'écran (O(1) lookup)
+    // VÃ©rifier si ce cratÃ¨re possÃ¨de DÃ‰JÃ€ un label Ã  l'Ã©cran (O(1) lookup)
     const existingLabel = _activeLabelMap.get(closestCandidate.crater) || null;
 
-    // Effet commun : cercle Néon de sélection
+    // Effet commun : cercle NÃ©on de sÃ©lection
     hoverBgGfx.circle(closestCandidate.ptX, closestCandidate.ptY, 8 * invScale);
     hoverBgGfx.stroke({ width: 2 * invScale, color: 0x00d4ff, alpha: 0.9 });
 
@@ -1286,7 +1618,7 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   }
 }
 
-// ─── Toggle Functions ───
+// â”€â”€â”€ Toggle Functions â”€â”€â”€
 
 function toggleGrid() {
   studioState.gridVisible = !studioState.gridVisible;
@@ -1327,8 +1659,10 @@ export const PixiRenderer = {
   updateViewport,
   rebuildGeoJSON,
   rebuildNightMask,
+  rebuildDayMask,
   rebuildTerminator,
   rebuildGrid,
+  rebuildLimbGlow,
   rebuildAnchors,
   rebuildPivotAnchor,
   rebuildAnnotations,

@@ -58,6 +58,13 @@ class StudioState {
   nightMaskBlendMode = $state('normal');
   nightMaskBlur = $state(0);
 
+  // ─── Day Mask ───
+  dayMaskVisible = $state(false);
+  dayMaskColor = $state(8); // Blanc/Cyan
+  dayMaskOpacity = $state(0.5);
+  dayMaskBlendMode = $state('normal');
+  dayMaskBlur = $state(0);
+
   // ─── Labels & Annotations ───
   showCompass = $state(false);
   dynamicShadow = $state(false);
@@ -69,8 +76,11 @@ class StudioState {
 
   // ─── Effects ───
   limbGlow = $state(false);
-  limbGlowIntensity = $state(STUDIO.limbGlowDefault);
-  limbGlowType = $state('diffraction'); // 'diffraction', 'neon', 'pulse'
+  limbGlowColor = $state(0); // Index in LAYER_PALETTE
+  limbGlowOpacity = $state(STUDIO.limbGlowOpacityDefault);
+  limbGlowThickness = $state(STUDIO.limbGlowThicknessDefault);
+  limbGlowSpread = $state(STUDIO.limbGlowSpreadDefault);
+  limbGlowBlur = $state(STUDIO.limbGlowBlurDefault);
   useShaderGlow = $state(true); // Global toggle for pixi-filters Shader Glow (High Quality)
 
   /**
@@ -132,14 +142,23 @@ class StudioState {
     this.nightMaskBlendMode = 'normal';
     this.nightMaskBlur = 0;
 
+    this.dayMaskVisible = false;
+    this.dayMaskColor = 8;
+    this.dayMaskOpacity = 0.5;
+    this.dayMaskBlendMode = 'normal';
+    this.dayMaskBlur = 0;
+
     this.showCompass = false;
     this.dynamicShadow = false;
     this.pinnedCraters = new Set();
     this.customLabels = [];
     this.nextLabelId = 1;
     this.limbGlow = false;
-    this.limbGlowIntensity = STUDIO.limbGlowDefault;
-    this.limbGlowType = 'diffraction';
+    this.limbGlowColor = 0;
+    this.limbGlowOpacity = STUDIO.limbGlowOpacityDefault;
+    this.limbGlowThickness = STUDIO.limbGlowThicknessDefault;
+    this.limbGlowSpread = STUDIO.limbGlowSpreadDefault;
+    this.limbGlowBlur = STUDIO.limbGlowBlurDefault;
     this.useShaderGlow = true;
   }
 }

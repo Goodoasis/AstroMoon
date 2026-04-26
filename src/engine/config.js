@@ -230,7 +230,10 @@ export const STUDIO = {
   vignetteFeatherMin: 0.1, vignetteFeatherMax: 1.0, vignetteFeatherStep: 0.05, vignetteFeatherDefault: 0.5,
 
   /** Limb glow */
-  limbGlowMin: 0, limbGlowMax: 1.0, limbGlowStep: 0.05, limbGlowDefault: 0.0,
+  limbGlowOpacityMin: 0, limbGlowOpacityMax: 1.0, limbGlowOpacityStep: 0.05, limbGlowOpacityDefault: 0.8,
+  limbGlowThicknessMin: 0.5, limbGlowThicknessMax: 10, limbGlowThicknessStep: 0.5, limbGlowThicknessDefault: 2,
+  limbGlowSpreadMin: 0, limbGlowSpreadMax: 50, limbGlowSpreadStep: 1, limbGlowSpreadDefault: 10, // Offset
+  limbGlowBlurMin: 0, limbGlowBlurMax: 20, limbGlowBlurStep: 1, limbGlowBlurDefault: 4,
 
   /** Layer style ranges */
   layerOpacityMin: 0, layerOpacityMax: 1.0, layerOpacityStep: 0.05,

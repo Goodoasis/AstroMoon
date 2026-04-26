@@ -138,43 +138,6 @@
             </div>
           </div>
         </section>
-
-        <div class="sa-div"></div>
-
-        <!-- ANNOTATIONS -->
-        <section class="sa-section">
-          <h4 class="sa-title">Annotations</h4>
-          <input type="text" class="sa-search" placeholder="Filtrer cratères..." bind:value={labelSearch} />
-          <div class="sa-crater-list">
-            <div class="sa-crater-empty">Aucun cratère chargé</div>
-          </div>
-          <label class="sa-toggle">
-            <input type="checkbox" bind:checked={studioState.dynamicShadow} />
-            <span class="sa-ttrack"><span class="sa-tthumb"></span></span>
-            <span class="sa-toggle-label">Ombre solaire dynamique</span>
-          </label>
-        </section>
-
-        <div class="sa-div"></div>
-
-        <!-- EFFECTS -->
-        <section class="sa-section">
-          <h4 class="sa-title">Effets Visuels</h4>
-          <label class="sa-toggle">
-            <input type="checkbox" bind:checked={studioState.limbGlow} />
-            <span class="sa-ttrack"><span class="sa-tthumb"></span></span>
-            <span class="sa-toggle-label">Limb Glow</span>
-          </label>
-          {#if studioState.limbGlow}
-            {@render stSlider('Intensité', studioState.limbGlowIntensity, STUDIO.limbGlowDefault, STUDIO.limbGlowMin, STUDIO.limbGlowMax, STUDIO.limbGlowStep, (e) => studioState.limbGlowIntensity = +e.target.value)}
-            <div class="sa-crop-pills" style="margin-top:6px">
-              {#each STUDIO.limbGlowTypes as type}
-                <button class="sa-pill" class:active={studioState.limbGlowType === type} onclick={() => studioState.limbGlowType = type}>{STUDIO.limbGlowTypeLabels[type]}</button>
-              {/each}
-            </div>
-          {/if}
-        </section>
-
       </div>
 
       <!-- Footer -->

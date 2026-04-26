@@ -151,7 +151,9 @@ export function rebuildScene(forceAll = false, hadTransformChange = false, lodCh
 
   if (rebuildEphemeris || rebuildTransform) {
     PixiRenderer.rebuildNightMask(transformFn);
+    PixiRenderer.rebuildDayMask(transformFn);
     PixiRenderer.rebuildTerminator(transformFn, viewportState);
+    PixiRenderer.rebuildLimbGlow(transformFn, viewportState);
   }
 
   if (layerState.dirtyGrid || rebuildTransform || lodChanged) {
