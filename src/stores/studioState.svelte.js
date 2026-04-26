@@ -51,6 +51,13 @@ class StudioState {
   terminatorBlendMode = $state('normal');
   terminatorGlow = $state(1.0);
 
+  // ─── Night Mask ───
+  nightMaskVisible = $state(true);
+  nightMaskColor = $state(9); // Noir
+  nightMaskOpacity = $state(0.75);
+  nightMaskBlendMode = $state('normal');
+  nightMaskBlur = $state(0);
+
   // ─── Labels & Annotations ───
   showCompass = $state(false);
   dynamicShadow = $state(false);
@@ -118,6 +125,13 @@ class StudioState {
     this.terminatorOpacity = 1.0;
     this.terminatorBlendMode = 'normal';
     this.terminatorGlow = 1.0;
+
+    this.nightMaskVisible = true;
+    this.nightMaskColor = 9; // Index of 'Noir' in LAYER_PALETTE
+    this.nightMaskOpacity = 0.75;
+    this.nightMaskBlendMode = 'normal';
+    this.nightMaskBlur = 0;
+
     this.showCompass = false;
     this.dynamicShadow = false;
     this.pinnedCraters = new Set();

@@ -43,9 +43,22 @@
     const _gi = studioState.gridInterval;
     const _gt = studioState.gridThickness;
     const _gc = studioState.gridColor;
+    const _go = studioState.gridOpacity;
+    const _gb = studioState.gridBlendMode;
+    const _gg = studioState.gridGlow;
+    
     const _tv = studioState.terminatorVisible;
     const _tt = studioState.terminatorThickness;
     const _tc = studioState.terminatorColor;
+    const _to = studioState.terminatorOpacity;
+    const _tb = studioState.terminatorBlendMode;
+    const _tg = studioState.terminatorGlow;
+
+    const _nv = studioState.nightMaskVisible;
+    const _nc = studioState.nightMaskColor;
+    const _no = studioState.nightMaskOpacity;
+    const _nb = studioState.nightMaskBlendMode;
+    const _nbl = studioState.nightMaskBlur;
 
     untrack(() => {
       layerState.layerTransformDirty = true;
@@ -176,9 +189,9 @@
                 <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.layerGlow[layerName]} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(colorIdx)} />
                 <span class="sl-detail-val">{(studioState.layerGlow[layerName] ?? 0.5).toFixed(1)}</span>
               </div>
-              <!-- Finesse -->
+              <!-- Épaisseur -->
               <div class="sl-detail-row">
-                <span class="sl-detail-label">Finesse</span>
+                <span class="sl-detail-label">Épaisseur</span>
                 <input type="range" class="sl-detail-slider" min={STUDIO.layerFineMin} max={STUDIO.layerFineMax} step={STUDIO.layerFineStep} bind:value={studioState.layerFine[layerName]} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(colorIdx)} />
                 <span class="sl-detail-val">{(studioState.layerFine[layerName] ?? 1.5).toFixed(1)}</span>
               </div>
@@ -212,12 +225,12 @@
     {#if studioState.gridVisible}
       <div class="sl-detail-row">
         <span class="sl-detail-label">Intervalle</span>
-        <input type="range" class="sl-detail-slider" min={STUDIO.gridIntervalMin} max={STUDIO.gridIntervalMax} step={STUDIO.gridIntervalStep} bind:value={studioState.gridInterval} />
+        <input type="range" class="sl-detail-slider" min={STUDIO.gridIntervalMin} max={STUDIO.gridIntervalMax} step={STUDIO.gridIntervalStep} bind:value={studioState.gridInterval} oninput={() => layerState.layerTransformDirty = true} />
         <span class="sl-detail-val">{studioState.gridInterval}°</span>
       </div>
       <div class="sl-detail-row">
         <span class="sl-detail-label">Épaisseur</span>
-        <input type="range" class="sl-detail-slider" min={STUDIO.gridThicknessMin} max={STUDIO.gridThicknessMax} step={STUDIO.gridThicknessStep} bind:value={studioState.gridThickness} />
+        <input type="range" class="sl-detail-slider" min={STUDIO.gridThicknessMin} max={STUDIO.gridThicknessMax} step={STUDIO.gridThicknessStep} bind:value={studioState.gridThickness} oninput={() => layerState.layerTransformDirty = true} />
         <span class="sl-detail-val">{studioState.gridThickness.toFixed(1)}</span>
       </div>
       <div class="sl-detail-row">
@@ -237,7 +250,7 @@
       </div>
       <div class="sl-detail-row">
         <span class="sl-detail-label">Incrustation</span>
-        <select class="sl-select" bind:value={studioState.gridBlendMode}>
+        <select class="sl-select" bind:value={studioState.gridBlendMode} onchange={() => layerState.layerTransformDirty = true}>
           {#each STUDIO.blendModes as mode}
             <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
           {/each}
@@ -264,7 +277,7 @@
     {#if studioState.terminatorVisible}
       <div class="sl-detail-row">
         <span class="sl-detail-label">Épaisseur</span>
-        <input type="range" class="sl-detail-slider" min={STUDIO.terminatorThicknessMin} max={STUDIO.terminatorThicknessMax} step={STUDIO.terminatorThicknessStep} bind:value={studioState.terminatorThickness} />
+        <input type="range" class="sl-detail-slider" min={STUDIO.terminatorThicknessMin} max={STUDIO.terminatorThicknessMax} step={STUDIO.terminatorThicknessStep} bind:value={studioState.terminatorThickness} oninput={() => layerState.layerTransformDirty = true} />
         <span class="sl-detail-val">{studioState.terminatorThickness.toFixed(1)}</span>
       </div>
       <div class="sl-detail-row">
@@ -284,7 +297,7 @@
       </div>
       <div class="sl-detail-row">
         <span class="sl-detail-label">Incrustation</span>
-        <select class="sl-select" bind:value={studioState.terminatorBlendMode}>
+        <select class="sl-select" bind:value={studioState.terminatorBlendMode} onchange={() => layerState.layerTransformDirty = true}>
           {#each STUDIO.blendModes as mode}
             <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
           {/each}
@@ -294,6 +307,48 @@
         <span class="sl-detail-label">Glow</span>
         <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.terminatorGlow} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.terminatorColor)} />
         <span class="sl-detail-val">{studioState.terminatorGlow.toFixed(1)}</span>
+      </div>
+    {/if}
+  </section>
+
+  <div class="sl-divider"></div>
+
+  <!-- Night Mask Section -->
+  <section class="sl-section">
+    <h4 class="sl-section-title">Ombre (Nuit)</h4>
+    <label class="sl-toggle-row">
+      <input type="checkbox" bind:checked={studioState.nightMaskVisible} />
+      <span class="sl-toggle-track"><span class="sl-toggle-thumb"></span></span>
+      <span class="sl-detail-label">Afficher</span>
+    </label>
+    {#if studioState.nightMaskVisible}
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Couleur</span>
+        <button
+          class="sl-color-swatch"
+          style:background={getColorHex(studioState.nightMaskColor)}
+          style:box-shadow="0 0 6px {getColorHex(studioState.nightMaskColor)}44"
+          onclick={() => studioState.nightMaskColor = (studioState.nightMaskColor + 1) % LAYER_PALETTE.length}
+          title="Changer la couleur"
+        ></button>
+      </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Opacité</span>
+        <input type="range" class="sl-detail-slider" min={STUDIO.nightMaskOpacityMin} max={STUDIO.nightMaskOpacityMax} step={STUDIO.nightMaskOpacityStep} bind:value={studioState.nightMaskOpacity} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.nightMaskColor)} />
+        <span class="sl-detail-val">{studioState.nightMaskOpacity.toFixed(2)}</span>
+      </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Incrustation</span>
+        <select class="sl-select" bind:value={studioState.nightMaskBlendMode} onchange={() => layerState.layerTransformDirty = true}>
+          {#each STUDIO.blendModes as mode}
+            <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="sl-detail-row">
+        <span class="sl-detail-label">Flou (Gradient)</span>
+        <input type="range" class="sl-detail-slider" min={STUDIO.nightMaskBlurMin} max={STUDIO.nightMaskBlurMax} step={STUDIO.nightMaskBlurStep} bind:value={studioState.nightMaskBlur} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.nightMaskColor)} />
+        <span class="sl-detail-val">{studioState.nightMaskBlur}</span>
       </div>
     {/if}
   </section>

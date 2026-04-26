@@ -244,6 +244,10 @@ export const STUDIO = {
   /** Terminator ranges */
   terminatorThicknessMin: 0.5, terminatorThicknessMax: 8.0, terminatorThicknessStep: 0.5,
 
+  /** Night Mask ranges */
+  nightMaskOpacityMin: 0.0, nightMaskOpacityMax: 1.0, nightMaskOpacityStep: 0.05,
+  nightMaskBlurMin: 0, nightMaskBlurMax: 100, nightMaskBlurStep: 1,
+
   /** Rotation */
   rotationMin: -180, rotationMax: 180, rotationStep: 0.5,
 
@@ -301,6 +305,7 @@ export const LAYER_PALETTE = [
   { stroke: 0x64c8ff, alpha: 0.75, fill: 0x64c8ff, fillAlpha: 0.06, name: 'Bleu clair' },
   { stroke: 0xffa050, alpha: 0.75, fill: 0xffa050, fillAlpha: 0.06, name: 'Pêche' },
   { stroke: 0xffffff, alpha: 0.75, fill: 0xffffff, fillAlpha: 0.06, name: 'Blanc' },
+  { stroke: 0x06060c, alpha: 0.90, fill: 0x06060c, fillAlpha: 0.90, name: 'Noir' },
 ];
 
 // ─── CONFIG EVENTS ─────────────────────────────────────

@@ -35,7 +35,9 @@ let _lastLodLevel = 0;
 let app = null;
 let viewportContainer, geojsonContainer, annotationsContainer, labelsContainer;
 let bgSprite = null;
-let nightMaskGfx, terminatorGfx, gridGfx, anchorsGfx, dotsGfx, labelsBgGfx;
+let nightMaskContainer, nightMaskGfx, nightMaskClip;
+let nightMaskBlurFilter = null;
+let terminatorGfx, gridGfx, anchorsGfx, dotsGfx, labelsBgGfx;
 let layerGraphicsMap = new Map(); // Store PIXI.Graphics objects indexed by layerIndex
 let textPool = [];
 let activeLabels = [];
@@ -115,8 +117,20 @@ async function init(container) {
   geojsonContainer = new PIXI.Container();
   viewportContainer.addChild(geojsonContainer);
 
+  // Lazy initialized in rebuildNightMask to survive HMR resets
+  // nightMaskBlurFilter = new PIXI.BlurFilter({ strength: 0 });
+
+  nightMaskContainer = new PIXI.Container();
+  viewportContainer.addChild(nightMaskContainer);
+
   nightMaskGfx = new PIXI.Graphics();
-  viewportContainer.addChild(nightMaskGfx);
+  nightMaskContainer.addChild(nightMaskGfx);
+
+  nightMaskClip = new PIXI.Graphics();
+  viewportContainer.addChild(nightMaskClip);
+  
+  // Mask the container, not the filtered graphic
+  nightMaskContainer.mask = nightMaskClip;
 
   terminatorGfx = new PIXI.Graphics();
   viewportContainer.addChild(terminatorGfx);
@@ -475,8 +489,18 @@ function _getTerminatorProjections() {
 }
 
 function rebuildNightMask(transformFn) {
-  _lastTransformFn = transformFn;
-  nightMaskGfx.clear();
+  try {
+    _lastTransformFn = transformFn;
+    nightMaskGfx.clear();
+    nightMaskClip.clear();
+
+  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const showMask = isStudio ? studioState.nightMaskVisible : true;
+  if (!showMask) {
+    nightMaskContainer.visible = false;
+    return;
+  }
+  nightMaskContainer.visible = true;
 
   const projCache = _getTerminatorProjections();
   if (!projCache) return;
@@ -510,12 +534,18 @@ function rebuildNightMask(transformFn) {
   const first = visiblePoints[0];
   const last = visiblePoints[visiblePoints.length - 1];
 
-  // Draw terminator arc
+  // Draw solid night mask
   let moved = false;
   for (const p of visiblePoints) {
     const pt = transformFn(p[0], p[1]);
-    if (!moved) { nightMaskGfx.moveTo(pt.x, pt.y); moved = true; }
-    else { nightMaskGfx.lineTo(pt.x, pt.y); }
+    if (!moved) { 
+      nightMaskGfx.moveTo(pt.x, pt.y); 
+      nightMaskClip.moveTo(pt.x, pt.y);
+      moved = true; 
+    } else { 
+      nightMaskGfx.lineTo(pt.x, pt.y); 
+      nightMaskClip.lineTo(pt.x, pt.y);
+    }
   }
 
   const cx = 0.5, cy = 0.5;
@@ -570,6 +600,7 @@ function rebuildNightMask(transformFn) {
       let ny = 0.5 + 0.5 * Math.sin(a);
       let pt = transformFn(nx, ny);
       nightMaskGfx.lineTo(pt.x, pt.y);
+      nightMaskClip.lineTo(pt.x, pt.y);
     }
   } else {
     let diffCCW = aLast - aFirst;
@@ -580,11 +611,37 @@ function rebuildNightMask(transformFn) {
       let ny = 0.5 + 0.5 * Math.sin(a);
       let pt = transformFn(nx, ny);
       nightMaskGfx.lineTo(pt.x, pt.y);
+      nightMaskClip.lineTo(pt.x, pt.y);
     }
   }
 
   nightMaskGfx.closePath();
-  nightMaskGfx.fill({ color: RENDER.nightMaskColor, alpha: RENDER.nightMaskAlpha });
+  nightMaskClip.closePath();
+
+  const maskColor = isStudio ? LAYER_PALETTE[studioState.nightMaskColor % LAYER_PALETTE.length].fill : RENDER.nightMaskColor;
+  const maskOpacity = isStudio ? studioState.nightMaskOpacity : RENDER.nightMaskAlpha;
+  
+  nightMaskContainer.blendMode = isStudio ? studioState.nightMaskBlendMode : 'normal';
+  nightMaskGfx.fill({ color: maskColor, alpha: maskOpacity });
+  nightMaskClip.fill({ color: 0xffffff, alpha: 1.0 });
+
+  const maskBlur = isStudio ? studioState.nightMaskBlur : 0;
+  
+    if (maskBlur > 0) {
+      if (!nightMaskBlurFilter) {
+        nightMaskBlurFilter = new PIXI.BlurFilter({ strength: maskBlur });
+      } else {
+        nightMaskBlurFilter.strength = maskBlur;
+      }
+      // The blur spills into both sides. The clip mask perfectly cuts it off at the day side,
+      // confining the gradient purely to the night side.
+      nightMaskGfx.filters = [nightMaskBlurFilter];
+    } else {
+      nightMaskGfx.filters = null;
+    }
+  } catch (e) {
+    console.error("Error in rebuildNightMask:", e);
+  }
 }
 
 // ─── Terminator Line ───
