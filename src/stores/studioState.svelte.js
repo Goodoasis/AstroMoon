@@ -96,7 +96,7 @@ class StudioState {
         this.layerColor[name] = index;
         this.layerGlow[name] = 0.0;
         this.layerFine[name] = 1.5;
-        this.layerSmooth[name] = false;
+        this.layerSmooth[name] = true; // Enabled by default in Studio
       }
     });
   }
