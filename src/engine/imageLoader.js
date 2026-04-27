@@ -76,46 +76,55 @@ export async function handleImageUpload(file, dispatchToast) {
     spatialState.lon = spatialState.userManualLocation.lon;
   }
 
-  // Read image via FileReader using Promises to coordinate async properly
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        viewportState.backgroundImage = img;
-        PixiRenderer.setBackgroundImage(img, viewportState.canvasW, viewportState.canvasH);
-        
-        // Reset layer transformation and viewport for the new image
-        Transform.reset(viewportState.canvasW, viewportState.canvasH);
-        viewportState.tx = 0;
-        viewportState.ty = 0;
-        viewportState.scale = 1;
-        
-        // Clear old phase snapshots
-        uiState.cameraSnapshots = {
-          IMPORT: { tx: null, ty: null, scale: null },
-          ALIGN: { tx: null, ty: null, scale: null },
-          STUDIO: { tx: null, ty: null, scale: null },
-          EXPORT: { tx: null, ty: null, scale: null }
-        };
-        
-        // Clear emergency state
-        uiState.emergencyMode = false;
-        uiState.emergencyValidated = false;
-        
-        // Clear all previous anchors/punaises
-        Anchors.clear();
-        layerState.layerTransformDirty = true;
-        layerState.anchorRevision++;
-        
-        if (dispatchToast) {
-          dispatchToast(`Image: ${file.name}`);
-        }
-        
-        resolve(img);
+  // Read image via Object URL (Faster than DataURL, avoids blocking main thread with huge strings)
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    
+    img.onload = () => {
+      viewportState.backgroundImage = img;
+      PixiRenderer.setBackgroundImage(img, viewportState.canvasW, viewportState.canvasH);
+      
+      // Reset layer transformation and viewport for the new image
+      Transform.reset(viewportState.canvasW, viewportState.canvasH);
+      viewportState.tx = 0;
+      viewportState.ty = 0;
+      viewportState.scale = 1;
+      
+      // Clear old phase snapshots
+      uiState.cameraSnapshots = {
+        IMPORT: { tx: null, ty: null, scale: null },
+        ALIGN: { tx: null, ty: null, scale: null },
+        STUDIO: { tx: null, ty: null, scale: null },
+        EXPORT: { tx: null, ty: null, scale: null }
       };
-      img.src = ev.target.result;
+      
+      // Clear emergency state
+      uiState.emergencyMode = false;
+      uiState.emergencyValidated = false;
+      
+      // Clear all previous anchors/punaises
+      Anchors.clear();
+      layerState.layerTransformDirty = true;
+      layerState.anchorRevision++;
+      
+      if (dispatchToast) {
+        dispatchToast(`Image: ${file.name}`);
+      }
+      
+      // Cleanup Object URL to free memory
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
     };
-    reader.readAsDataURL(file);
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      if (dispatchToast) {
+        dispatchToast("Erreur lors du chargement de l'image (format non supporté)");
+      }
+      reject(new Error("Image load failed"));
+    };
+
+    img.src = objectUrl;
   });
 }

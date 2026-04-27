@@ -1,13 +1,13 @@
 <script>
-  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { PixiRenderer } from '@/engine/pixi_renderer.js';
+  import { onMount, onDestroy, createEventDispatcher } from "svelte";
+  import { PixiRenderer } from "@/engine/pixi_renderer.js";
 
   const dispatch = createEventDispatcher();
   let container;
 
   onMount(async () => {
     const app = await PixiRenderer.init(container);
-    dispatch('ready', { app });
+    dispatch("ready", { app });
   });
 </script>
 

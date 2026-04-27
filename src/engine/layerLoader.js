@@ -7,7 +7,6 @@ import { layerState } from '../stores/layerState.svelte.js';
 import { moonState } from '../stores/moonState.svelte.js';
 import { LOD } from './config.js';
 import { GeoJSON } from './geojson.js';
-import { GeoJSONLod } from './geojson_lod.js';
 import { computeNormBounds, updateLayerCache, rebuildScene } from './renderLoop.js';
 
 export async function loadLayersAsync() {
@@ -91,62 +90,9 @@ export async function loadLayersAsync() {
   }
 }
 
-export async function loadLayersFallback(layers) {
-  for (const layer of layers) {
-    try {
-      const fileResp = await fetch(`calque_geojson/${layer.fileName}`);
-      if (!fileResp.ok) continue;
-      const text = await fileResp.text();
-      const newData = GeoJSON.parse(text);
-
-      const idx = layerState.loadedLayerNames.length;
-      newData.features.forEach(f => f.layerIndex = idx);
-
-      const epsilons = layer.epsilons || undefined; 
-      GeoJSONLod.generateLODs(newData.features, epsilons);
-
-      layerState.allRawFeatures = layerState.allRawFeatures.concat(newData.features);
-      layerState.loadedLayerNames.push(layer.fileName);
-      console.log(`[Fallback] Layer loaded: ${layer.fileName}`);
-    } catch (err) {
-      console.warn(`Error loading layer ${layer.fileName}:`, err);
-    }
-  }
-
-  if (layerState.allRawFeatures.length > 0) {
-    layerState.projectedFeatures = GeoJSON.project(layerState.allRawFeatures);
-    layerState.lodEnabled = true;
-    updateGeoJSONProjection();
-    layerState.layerTransformDirty = true;
-    updateLayerCache();
-    rebuildScene(true);
-  }
-}
-
 export function updateGeoJSONProjection() {
   if (!layerState.projectedFeatures) return;
   if (!moonState) return;
-
-  const lat0 = (moonState.librationLat || 0) * Math.PI / 180;
-  const lon0 = (moonState.librationLon || 0) * Math.PI / 180;
-  const sinLat0 = Math.sin(lat0);
-  const cosLat0 = Math.cos(lat0);
-
-  function projectInplace(lon, lat) {
-    const rLon = lon * Math.PI / 180;
-    const rLat = lat * Math.PI / 180;
-    const sinRLat = Math.sin(rLat);
-    const cosRLat = Math.cos(rLat);
-    const cosLonDiff = Math.cos(rLon - lon0);
-
-    const cosC = sinLat0 * sinRLat + cosLat0 * cosRLat * cosLonDiff;
-    if (cosC < 0) return null;
-
-    const x = cosRLat * Math.sin(rLon - lon0);
-    const y = cosLat0 * sinRLat - sinLat0 * cosRLat * cosLonDiff;
-
-    return { nx: (x * 0.5) + 0.5, ny: (-y * 0.5) + 0.5 };
-  }
 
   for (const feature of layerState.projectedFeatures) {
     if (feature.coords && feature.projectedCoords) {
@@ -158,8 +104,8 @@ export function updateGeoJSONProjection() {
           const pt = ring[i];
           if (!pt) { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
           else {
-            const p = projectInplace(pt[0], pt[1]);
-            if (p) { buf[i * 2] = p.nx; buf[i * 2 + 1] = p.ny; }
+            const p = GeoJSON.projectPoint(pt[0], pt[1]);
+            if (p) { buf[i * 2] = p[0]; buf[i * 2 + 1] = p[1]; }
             else { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
           }
         }
@@ -179,8 +125,8 @@ export function updateGeoJSONProjection() {
             const pt = ring[i];
             if (!pt) { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
             else {
-              const p = projectInplace(pt[0], pt[1]);
-              if (p) { buf[i * 2] = p.nx; buf[i * 2 + 1] = p.ny; }
+              const p = GeoJSON.projectPoint(pt[0], pt[1]);
+              if (p) { buf[i * 2] = p[0]; buf[i * 2 + 1] = p[1]; }
               else { buf[i * 2] = NaN; buf[i * 2 + 1] = NaN; }
             }
           }

@@ -23,6 +23,7 @@ import { Anchors } from './anchors.js';
 import { GRID, LABELS, CULLING, RENDER, EMERGENCY, LAYER_PALETTE, configEvents } from './config.js';
 import { moonState } from '../stores/moonState.svelte.js';
 import { uiState } from '../stores/uiState.svelte.js';
+import { viewportState } from '../stores/viewportState.svelte.js';
 import { studioState } from '../stores/studioState.svelte.js';
 import { layerState } from '../stores/layerState.svelte.js';
 
@@ -41,10 +42,12 @@ let nightMaskContainer, nightMaskGfx, nightMaskClip;
 let nightMaskBlurFilter = null;
 let dayMaskContainer, dayMaskGfx, dayMaskClip;
 let dayMaskBlurFilter = null;
-let terminatorGfx, gridGfx, limbGlowGfx, anchorsGfx, dotsGfx, labelsBgGfx;
+let terminatorGfx, gridGfx, limbGlowGfx, anchorsGfx, dotsGfx;
+let labelsBgGfx;
+let hoverContainer, hoverBgGfx, hoverLabel;
+let activeLabels = []; // Will now hold Containers
 let layerGraphicsMap = new Map(); // Store PIXI.Graphics objects indexed by layerIndex
-let textPool = [];
-let activeLabels = [];
+let textPool = []; // Will now hold Containers { bg, text }
 
 // Studio filters cache
 let _studioAdjustment = null;
@@ -52,10 +55,6 @@ let _studioSharpen = null;
 let _studioDenoise = null;
 let _studioVignetteSprite = null; // Use a sprite for vignette fallback
 let _lastStudioState = {};
-
-// Hover
-let hoverBgGfx = null;
-let hoverLabel = null;
 
 let _showLabels = false;
 let _labelsTargetAlpha = 1;
@@ -176,7 +175,6 @@ async function init(container) {
   annotationsContainer.visible = false;
   viewportContainer.addChild(annotationsContainer);
 
-  // Les points restent constants et attachÃ©s Ã  Annotations
   dotsGfx = new PIXI.Graphics();
   annotationsContainer.addChild(dotsGfx);
 
@@ -187,9 +185,12 @@ async function init(container) {
   labelsBgGfx = new PIXI.Graphics();
   labelsContainer.addChild(labelsBgGfx);
 
-  // Hover
+  // Global Hover UI (for popups)
+  hoverContainer = new PIXI.Container();
+  annotationsContainer.addChild(hoverContainer);
+
   hoverBgGfx = new PIXI.Graphics();
-  labelsContainer.addChild(hoverBgGfx);
+  hoverContainer.addChild(hoverBgGfx);
 
   hoverLabel = new PIXI.BitmapText({
     text: '',
@@ -197,7 +198,7 @@ async function init(container) {
   });
   hoverLabel.anchor.set(0.5, 1);
   hoverLabel.visible = false;
-  labelsContainer.addChild(hoverLabel);
+  hoverContainer.addChild(hoverLabel);
 
   // Live Config Update Listeners
   configEvents.addEventListener('configChanged', (e) => {
@@ -251,7 +252,7 @@ function setBackgroundImage(htmlImage, canvasW, canvasH) {
   const texture = PIXI.Texture.from(htmlImage);
   bgSprite.texture = texture;
 
-  // Contain image within canvas (same logic as old drawBackground)
+  // Contain image within canvas
   const imgAspect = htmlImage.width / htmlImage.height;
   const canvasAspect = canvasW / canvasH;
 
@@ -266,8 +267,11 @@ function setBackgroundImage(htmlImage, canvasW, canvasH) {
 
   bgSprite.width = drawW;
   bgSprite.height = drawH;
-  bgSprite.x = (canvasW - drawW) / 2;
-  bgSprite.y = (canvasH - drawH) / 2;
+  
+  // Use anchor 0.5 for perfect rotation/flip around center
+  bgSprite.anchor.set(0.5);
+  bgSprite.x = canvasW / 2;
+  bgSprite.y = canvasH / 2;
   bgSprite.visible = true;
 }
 
@@ -283,34 +287,36 @@ function getBackgroundDisplaySize() {
 
 /**
  * Update the viewport container transform (pan/zoom).
- * In Studio mode, also applies global rotation and flip centered on the image.
+ * Also updates the contentContainer for Studio rotation/flip centered on image.
  */
 function updateViewport(vp) {
   const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
   
-  if (isStudio) {
+  if (isStudio && bgSprite && bgSprite.visible) {
     const s = studioState;
-    const center = Transform.getLayerCenter();
     
-    // Set pivot to image center for rotation/flip around center
-    viewportContainer.pivot.set(center.x, center.y);
+    // THE Axis of rotation/flip is the geometric center of the photo
+    const cx = bgSprite.x; 
+    const cy = bgSprite.y;
     
-    // Adjust position to compensate for pivot shift
+    viewportContainer.pivot.set(cx, cy);
+    
+    // Adjust position to compensate for the pivot shift.
+    // Stage = (World - Pivot) * Scale + Position
+    // We want World=cx to land at screen point (tx + cx*scale)
     viewportContainer.position.set(
-      vp.tx + center.x * vp.scale, 
-      vp.ty + center.y * vp.scale
+      vp.tx + cx * vp.scale, 
+      vp.ty + cy * vp.scale
     );
     
-    // Global Rotation
+    // Apply Global Studio Transforms
     viewportContainer.rotation = s.rotation * (Math.PI / 180);
-    
-    // Global Flip
     viewportContainer.scale.set(
       vp.scale * (s.flipH ? -1 : 1),
       vp.scale * (s.flipV ? -1 : 1)
     );
   } else {
-    // Standard navigation
+    // Normal Navigation (Pivot 0,0)
     viewportContainer.pivot.set(0, 0);
     viewportContainer.position.set(vp.tx, vp.ty);
     viewportContainer.scale.set(vp.scale);
@@ -398,8 +404,8 @@ function applyStudioAdjustments() {
     }
     
     _studioVignetteSprite.visible = true;
-    _studioVignetteSprite.x = bgSprite.x + bgSprite.width / 2;
-    _studioVignetteSprite.y = bgSprite.y + bgSprite.height / 2;
+    _studioVignetteSprite.x = bgSprite.x;
+    _studioVignetteSprite.y = bgSprite.y;
     
     // Scale controls "Radius" 
     // We must ensure corners are covered (1.42), but we want it closer
@@ -1424,10 +1430,12 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   // Move current labels to pool
   for (const label of activeLabels) {
     label.visible = false;
+    label.alpha = 0; // Absolute safety
     textPool.push(label);
   }
   activeLabels = [];
   _activeLabelMap.clear();
+  labelsBgGfx.clear();
 
   const MAX_LABELS = studioState.labelCount;
   const MAX_DOTS = Math.min(1000, Math.max(100, MAX_LABELS * 2));
@@ -1632,25 +1640,15 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     // Validation (on rÃ©serve tout ce grand espace vide)
     _placedBoxes.push({ x: hitX, y: hitY, w: hitW, h: hitH });
 
-    // Design de la Pilule (Backdrop) ajustÃ©e et amincie
-    const bgWorldW = (adjustedTextWidth + 10) * invScale;
-    const bgWorldH = (adjustedTextHeight + 6) * invScale;
-    const bgWorldX = item.ptX - bgWorldW / 2;
-    const bgWorldY = (item.ptY - LABELS.labelOffsetY * invScale) - bgWorldH;
-
-    labelsBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 3 * invScale);
-    labelsBgGfx.fill({ color: 0x06060c, alpha: item.op * 0.85 });
-    
-    if (item.isPinned) {
-      labelsBgGfx.stroke({ width: 2 * invScale, color: 0x00E5FF, alpha: item.op }); // Neon Cyan for pinned
-    } else {
-      labelsBgGfx.stroke({ width: 1 * invScale, color: 0x22222a, alpha: item.op * 0.6 });
-    }
-
-    // Utilisation de PIXI.BitmapText
-    let label = textPool.pop();
-    if (!label) {
-      label = new PIXI.BitmapText({
+    // Get a label container from pool
+    let container = textPool.pop();
+    if (!container) {
+      container = new PIXI.Container();
+      
+      const bg = new PIXI.Graphics();
+      container.addChild(bg);
+      
+      const text = new PIXI.BitmapText({
         text: '',
         style: {
           fontFamily: 'Space Grotesk Bold',
@@ -1658,33 +1656,58 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
           align: 'center',
         }
       });
-      label.anchor.set(0.5, 1);
-      label.eventMode = 'static';
-      label.cursor = 'pointer';
-      label.on('pointerdown', (e) => {
+      text.anchor.set(0.5, 1);
+      text.eventMode = 'static';
+      text.cursor = 'pointer';
+      
+      container.addChild(text);
+      
+      // Store references
+      container._bg = bg;
+      container._text = text;
+      
+      text.on('pointerdown', (e) => {
         e.stopPropagation();
-        studioState.togglePinnedCrater(label._crater.name);
+        studioState.togglePinnedCrater(container._crater.name);
         layerState.layerTransformDirty = true;
       });
-      labelsContainer.addChild(label);
+      
+      labelsContainer.addChild(container);
     }
 
-    label.text = item.crater.name;
-    label.position.set(item.ptX, item.ptY - LABELS.labelOffsetY * invScale);
-    label.scale.set(invScale * fontSizeRatio);
-    label.alpha = item.op;
-    label.visible = true;
+    const { _bg: bg, _text: text } = container;
     
+    container._worldX = item.ptX;
+    container._worldY = item.ptY;
+    container._crater = item.crater;
+    container.visible = true;
+    container.alpha = item.op;
+
+    text.text = item.crater.name;
     const textColor = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke;
-    label.tint = textColor;
+    text.tint = textColor;
 
-    label._worldX = item.ptX;
-    label._worldY = item.ptY;
-    label._crater = item.crater;
+    // Redraw the pill (backdrop) locally in its container
+    bg.clear();
+    const bgW = adjustedTextWidth + 10;
+    const bgH = adjustedTextHeight + 6;
+    bg.roundRect(-bgW / 2, -bgH, bgW, bgH, 3);
+    bg.fill({ color: 0x06060c, alpha: 0.85 });
+    
+    if (item.isPinned) {
+      bg.stroke({ width: 2, color: 0x00E5FF, alpha: 1.0 });
+    } else {
+      bg.stroke({ width: 1, color: 0x22222a, alpha: 0.6 });
+    }
 
-    activeLabels.push(label);
-    _activeLabelMap.set(item.crater, label);
+    activeLabels.push(container);
+    _activeLabelMap.set(item.crater, container);
   }
+
+  // FORCE IMMEDIATE TRANSFORM UPDATE to avoid 1-frame ghosting artifacts
+  // Using the viewportState from the closure or global if needed
+  // We use viewportState directly as it's the source of truth
+  updateAnnotationsTransform(_lastVp || viewportState, viewportState.isDragging);
 }
 
 /**
@@ -1723,32 +1746,35 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   const globalFlipH = isStudio && s.flipH;
   const globalFlipV = isStudio && s.flipV;
 
-  for (const label of activeLabels) {
-    // Get screen position (taking into account pivot, rotation, scale, position)
-    const g = label.parent.toGlobal(new PIXI.Point(label._worldX, label._worldY - LABELS.labelOffsetY * invScale));
+  for (const labelObj of activeLabels) {
+    const { _worldX, _worldY } = labelObj;
+    // Get screen position accounting for the viewport transform
+    const g = viewportContainer.toGlobal(new PIXI.Point(_worldX, _worldY - LABELS.labelOffsetY * invScale));
     const sx = g.x;
     const sy = g.y;
     
-    const textW = label.text.length * 8;
+    const textW = labelObj._text.text.length * 8;
     const textH = 14;
     const boxX = sx - textW / 2;
     const boxY = sy - 8 - textH;
 
-    // On n'affiche pas si tronquÃ© par le bord (Culling strict)
+    // On n'affiche pas si tronqué par le bord (Culling strict)
     if (boxX < 0 || boxX + textW > w || boxY < 0 || boxY + textH > h) {
-      label.visible = false;
+      labelObj.visible = false;
     } else {
       const fontSizeRatio = studioState.labelFontSize / 14;
-      label.visible = true;
-      label.position.set(label._worldX, label._worldY - LABELS.labelOffsetY * invScale);
+      labelObj.visible = true;
+      labelObj.position.set(_worldX, _worldY - LABELS.labelOffsetY * invScale);
       
-      // Scale compensation (keep labels at consistent size relative to screen, not world)
-      label.scale.set(invScale * fontSizeRatio * (globalFlipH ? -1 : 1), invScale * fontSizeRatio * (globalFlipV ? -1 : 1));
+      // Scale compensation
+      labelObj.scale.set(invScale * fontSizeRatio * (globalFlipH ? -1 : 1), invScale * fontSizeRatio * (globalFlipV ? -1 : 1));
       
-      // Rotation compensation (keep labels horizontal)
-      label.rotation = -globalRot;
+      // Rotation compensation (compensates BOTH text and bg since they are in the same container)
+      labelObj.rotation = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
       
-      label.tint = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke;
+      // RESET TINTS (Container level for PixiJS v8 + Text level)
+      labelObj.tint = 0xffffff;
+      labelObj._text.tint = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke;
     }
   }
 
@@ -1758,8 +1784,10 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   if (!isDragging) {
     for (const cand of _allVisibleCraterPoints) {
-      const sx = cand.ptX * vp.scale + vp.tx;
-      const sy = cand.ptY * vp.scale + vp.ty;
+      // Get screen position accounting for the viewport transform
+      const g = viewportContainer.toGlobal(new PIXI.Point(cand.ptX, cand.ptY));
+      const sx = g.x;
+      const sy = g.y;
 
       const dx = sx - mouseX;
       if (Math.abs(dx) > 15) continue;
@@ -1784,33 +1812,61 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
     // Vérifier si ce cratère possède DÉJÀ un label à l'écran (O(1) lookup)
     const existingLabel = _activeLabelMap.get(closestCandidate.crater) || null;
 
-    // Effet commun : cercle NÃ©on de sÃ©lection
-    hoverBgGfx.circle(closestCandidate.ptX, closestCandidate.ptY, 8 * invScale);
-    hoverBgGfx.stroke({ width: 2 * invScale, color: 0x00d4ff, alpha: 0.9 });
-
     if (existingLabel && existingLabel.visible) {
-      // Glow sur le label existant au lieu de le dupliquer !
-      existingLabel.tint = 0x00d4ff;
+      // Highlight sur le label existant : Texte en Cyan + Bordure de hover Blanche
+      existingLabel._text.tint = 0x00d4ff;
+      
+      // On utilise le hoverBgGfx pour dessiner la bordure par-dessus (pour ne pas polluer le cache du label)
+      const txtLen = closestCandidate.crater.name.length;
+      const fontSizeRatio = studioState.labelFontSize / 14;
+      const hTextW = (txtLen * 8) * fontSizeRatio;
+      const hTextH = 14 * fontSizeRatio;
+      const hBgW = hTextW + 10;
+      const hBgH = hTextH + 6;
+
+      // Positionnement de la bordure blanche autour du label existant
+      // existingLabel est un Container dont le (0,0) est la pointe du label (bas milieu)
+      // lx, ly sont en coordonnées monde (viewportContainer)
+      const lx = existingLabel.x;
+      const ly = existingLabel.y;
+      
+      // On dessine dans l'espace de coordonnÃ©es du viewportContainer (car hoverContainer y est rattaché)
+      hoverContainer.position.set(0, 0);
+      hoverContainer.scale.set(1, 1);
+      hoverContainer.rotation = 0;
+
+      hoverBgGfx.roundRect(lx - (hBgW * invScale) / 2, ly - (hBgH * invScale), hBgW * invScale, hBgH * invScale, 3 * invScale);
+      hoverBgGfx.stroke({ width: 2 * invScale, color: 0xffffff, alpha: 1.0 });
+
+      // Petit cercle de tÃ©moignage sur le point
+      hoverBgGfx.circle(closestCandidate.ptX, closestCandidate.ptY, 8 * invScale);
+      hoverBgGfx.stroke({ width: 1.5 * invScale, color: 0x00d4ff, alpha: 0.8 });
+
     } else {
       // S'il n'avait pas de label, on fait "pop" un label de hover classique
       const txt = closestCandidate.crater.name;
       hoverLabel.text = txt;
 
-      const textW = txt.length * 9;
-      const textH = 22;
-      const bgWorldW = (textW + 16) * invScale;
-      const bgWorldH = (textH + 8) * invScale;
-      const bgWorldX = closestCandidate.ptX - bgWorldW / 2;
-      const bgWorldY = (closestCandidate.ptY - 12 * invScale) - bgWorldH + (4 * invScale);
+      const hTextW = txt.length * 9;
+      const hTextH = 22;
+      const hBgW = hTextW + 16;
+      const hBgH = hTextH + 8;
+      
+      // On réinitialise le container car ici on l'utilise pour le positionnement relatif
+      hoverContainer.position.set(closestCandidate.ptX, closestCandidate.ptY - 14 * invScale);
+      hoverContainer.scale.set(invScale * (globalFlipH ? -1 : 1), invScale * (globalFlipV ? -1 : 1));
+      hoverContainer.rotation = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
 
-      hoverBgGfx.roundRect(bgWorldX, bgWorldY, bgWorldW, bgWorldH, 6 * invScale);
+      hoverBgGfx.roundRect(-hBgW / 2, -hBgH, hBgW, hBgH, 6);
       hoverBgGfx.fill({ color: 0x06060c, alpha: 0.95 });
-      hoverBgGfx.stroke({ width: 2 * invScale, color: 0x00d4ff, alpha: 0.8 });
+      hoverBgGfx.stroke({ width: 2, color: 0xffffff, alpha: 0.9 }); // Bordure blanche au hover
 
-      hoverLabel.position.set(closestCandidate.ptX, closestCandidate.ptY - 14 * invScale);
-      hoverLabel.scale.set(invScale);
-      hoverLabel.tint = 0x00d4ff;
+      hoverLabel.tint = 0x00d4ff; // Texte Cyan au hover
       hoverLabel.visible = true;
+
+      // Cercle bleu sur le point mÃªme si label popup
+      hoverBgGfx.circle(0, 14, 8); // CoordonnÃ©es locales au hoverContainer
+      hoverBgGfx.stroke({ width: 1.5, color: 0x00d4ff, alpha: 0.8 });
     }
   }
 }
