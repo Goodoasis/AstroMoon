@@ -132,7 +132,7 @@
   style:--glow-color={glowColor}>
 
 <!-- Hidden file input -->
-<input type="file" id="input-image" name="inputImage" class="hidden-input" accept="image/*" onchange={handleFileInput} />
+<input type="file" id="input-image" name="inputImage" class="hidden-input" accept="image/*,.tif,.tiff,.fit,.fits,.heic,.heif" onchange={handleFileInput} />
 
 <!-- Phase Tabs / Navigation -->
 <PhaseTabs />

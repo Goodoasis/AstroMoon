@@ -4,6 +4,7 @@
  */
 
 import { layerState } from '../stores/layerState.svelte.js';
+import { studioState } from '../stores/studioState.svelte.js';
 import { moonState } from '../stores/moonState.svelte.js';
 import { LOD } from './config.js';
 import { GeoJSON } from './geojson.js';
@@ -28,6 +29,7 @@ export async function loadLayersAsync() {
     });
     layerState.layerCount = layers.length;
     layerState.loadedLayerNames = layerEntries;
+    studioState.initLayers(layerEntries);
 
     // Use Vite's native worker import semantics (query ?worker)
     // Wait, dynamic new Worker is fine if we use the right syntax for Vite.

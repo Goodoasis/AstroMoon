@@ -2,6 +2,7 @@
   import { uiState } from '../stores/uiState.svelte.js';
   import { viewportState } from '../stores/viewportState.svelte.js';
   import { layerState } from '../stores/layerState.svelte.js';
+  import { studioState } from '../stores/studioState.svelte.js';
   import { Transform } from '../engine/transform.js';
   import { updateCursor } from '../engine/inputHandler.js';
   import AuthModule from './AuthModule.svelte';
@@ -47,9 +48,16 @@
         viewportState.tx = snap.tx;
         viewportState.ty = snap.ty;
         viewportState.scale = snap.scale;
-        layerState.layerTransformDirty = true;
       }
+      layerState.layerTransformDirty = true;
     }
+    
+    // Règle spécifique : on masque la lumière de jour lorsqu'on rentre dans Studio
+    if (phaseId === 'STUDIO') {
+      studioState.dayMaskVisible = false;
+      layerState.layerTransformDirty = true;
+    }
+
     uiState.currentPhase = phaseId;
   }
 </script>

@@ -17,7 +17,10 @@
   },
   "dependencies": {
     "astronomy-engine": "^2.1.0",
+    "fitsjs": "^0.6.6",
+    "heic2any": "^0.0.4",
     "pixi-filters": "^6.1.5",
-    "pixi.js": "^8.17.1"
+    "pixi.js": "^8.17.1",
+    "utif": "^3.1.0"
   }
 }

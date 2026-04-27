@@ -290,7 +290,7 @@ function getBackgroundDisplaySize() {
  * Also updates the contentContainer for Studio rotation/flip centered on image.
  */
 function updateViewport(vp) {
-  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const isStudio = uiState.currentPhase !== 'ALIGN';
   
   if (isStudio && bgSprite && bgSprite.visible) {
     const s = studioState;
@@ -482,16 +482,18 @@ function rebuildGeoJSON(projectedFeatures, vp) {
     gfx.clear();
     gfx.visible = true;
     
+    const isStudio = uiState.currentPhase !== 'ALIGN';
+
     // Apply Blend Mode
-    const blendModeStr = layerName ? (studioState.layerBlendMode[layerName] ?? 'normal') : 'normal';
+    const blendModeStr = (isStudio && layerName) ? (studioState.layerBlendMode[layerName] ?? 'normal') : 'normal';
     gfx.blendMode = blendModeStr;
 
-    const colorIdx = layerName ? (studioState.layerColor[layerName] ?? layerIndex) : layerIndex;
+    const colorIdx = (isStudio && layerName) ? (studioState.layerColor[layerName] ?? layerIndex) : layerIndex;
     const colors = LAYER_PALETTE[colorIdx % LAYER_PALETTE.length];
-    const opacity = layerName ? (studioState.layerOpacity[layerName] ?? 1.0) : 1.0;
-    const fine = layerName ? (studioState.layerFine[layerName] ?? 1.5) : 1.5;
-    const isSmooth = layerName ? (studioState.layerSmooth[layerName] ?? false) : false;
-    const glow = layerName ? (studioState.layerGlow[layerName] ?? 0.0) : 0.0;
+    const opacity = (isStudio && layerName) ? (studioState.layerOpacity[layerName] ?? 1.0) : 1.0;
+    const fine = (isStudio && layerName) ? (studioState.layerFine[layerName] ?? 1.5) : 1.5;
+    const isSmooth = (isStudio && layerName) ? (studioState.layerSmooth[layerName] ?? false) : false;
+    const glow = (isStudio && layerName) ? (studioState.layerGlow[layerName] ?? 0.0) : 0.0;
 
     // --- Helper to trace paths for Z-Indexed rendering ---
     const traceRing = (ring) => {
@@ -659,7 +661,7 @@ function rebuildNightMask(transformFn) {
     nightMaskGfx.clear();
     nightMaskClip.clear();
 
-  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const isStudio = uiState.currentPhase !== 'ALIGN';
   const showMask = isStudio ? studioState.nightMaskVisible : true;
   if (!showMask) {
     nightMaskContainer.visible = false;
@@ -817,7 +819,7 @@ function rebuildDayMask(transformFn) {
     dayMaskGfx.clear();
     dayMaskClip.clear();
 
-    const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+    const isStudio = uiState.currentPhase !== 'ALIGN';
     const showMask = isStudio ? studioState.dayMaskVisible : false;
     if (!showMask) {
       dayMaskContainer.visible = false;
@@ -975,7 +977,7 @@ function rebuildTerminator(transformFn, vp) {
   _lastVp = vp;
   terminatorGfx.clear();
 
-  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const isStudio = uiState.currentPhase !== 'ALIGN';
   const termVisible = studioState.terminatorVisible;
   if (!termVisible) {
     terminatorGfx.visible = false;
@@ -1124,7 +1126,7 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
   _lastVp = vp;
   _lastLodLevel = lodLevel;
 
-  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const isStudio = uiState.currentPhase !== 'ALIGN';
   const showGrid = studioState.gridVisible;
   
   gridGfx.clear();
@@ -1205,7 +1207,7 @@ function rebuildLimbGlow(transformFn, vp) {
   _lastVp = vp;
   limbGlowGfx.clear();
 
-  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const isStudio = uiState.currentPhase !== 'ALIGN';
   if (!isStudio || !studioState.limbGlow || studioState.limbGlowIntensity <= 0) {
     limbGlowGfx.visible = false;
     return;
@@ -1741,7 +1743,7 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   // 2. Frustum Culling temps rÃ©el STRICT
   const s = studioState;
-  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const isStudio = uiState.currentPhase !== 'ALIGN';
   const globalRot = isStudio ? s.rotation * (Math.PI / 180) : 0;
   const globalFlipH = isStudio && s.flipH;
   const globalFlipV = isStudio && s.flipV;

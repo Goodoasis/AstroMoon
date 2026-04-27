@@ -23,7 +23,6 @@ class StudioState {
   rotation = $state(0);
   flipH = $state(false);
   flipV = $state(false);
-  cropRatio = $state('free'); // 'free', '16:9', '4:3', '1:1', '3:2'
 
   // ─── Layer Visibility & Style (keyed by layer filename) ───
   layerVisibility = $state({});   // { 'marias.geojson': true, ... }
@@ -59,11 +58,11 @@ class StudioState {
   nightMaskBlur = $state(0);
 
   // ─── Day Mask ───
-  dayMaskVisible = $state(false);
-  dayMaskColor = $state(8); // Blanc/Cyan
-  dayMaskOpacity = $state(0.5);
+  dayMaskVisible = $state(true);
+  dayMaskColor = $state(4); // Vert
+  dayMaskOpacity = $state(0.05);
   dayMaskBlendMode = $state('normal');
-  dayMaskBlur = $state(0);
+  dayMaskBlur = $state(25);
 
   // ─── Labels & Annotations ───
   showCompass = $state(false);
@@ -84,7 +83,7 @@ class StudioState {
   labelColorText = $state(8);
 
   // ─── Effects ───
-  limbGlow = $state(false);
+  limbGlow = $state(true);
   limbGlowColor = $state(0); // Index in LAYER_PALETTE
   limbGlowOpacity = $state(STUDIO.limbGlowOpacityDefault);
   limbGlowThickness = $state(STUDIO.limbGlowThicknessDefault);
@@ -135,7 +134,6 @@ class StudioState {
     this.rotation = 0;
     this.flipH = false;
     this.flipV = false;
-    this.cropRatio = 'free';
     this.layerVisibility = {};
     this.layerOpacity = {};
     this.layerBlendMode = {};
@@ -164,11 +162,11 @@ class StudioState {
     this.nightMaskBlendMode = 'normal';
     this.nightMaskBlur = 0;
 
-    this.dayMaskVisible = false;
-    this.dayMaskColor = 8;
-    this.dayMaskOpacity = 0.5;
+    this.dayMaskVisible = true;
+    this.dayMaskColor = 4;
+    this.dayMaskOpacity = 0.05;
     this.dayMaskBlendMode = 'normal';
-    this.dayMaskBlur = 0;
+    this.dayMaskBlur = 25;
 
     this.showCompass = false;
     this.dynamicShadow = false;
@@ -183,7 +181,7 @@ class StudioState {
     this.labelHiddenTypes = new Set();
     this.labelColorPoints = 3;
     this.labelColorText = 8;
-    this.limbGlow = false;
+    this.limbGlow = true;
     this.limbGlowColor = 0;
     this.limbGlowOpacity = STUDIO.limbGlowOpacityDefault;
     this.limbGlowThickness = STUDIO.limbGlowThicknessDefault;

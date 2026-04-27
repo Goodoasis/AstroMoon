@@ -11,17 +11,6 @@
     isOpen = !isOpen;
   }
 
-  // Label search
-  let labelSearch = $state("");
-  let newLabelText = $state("");
-
-  const cropLabels = {
-    free: "Libre",
-    "16:9": "16:9",
-    "4:3": "4:3",
-    "1:1": "1:1",
-    "3:2": "3:2",
-  };
 
   function resetAll() {
     studioState.brightness = STUDIO.brightnessDefault;
@@ -35,7 +24,6 @@
     studioState.rotation = 0;
     studioState.flipH = false;
     studioState.flipV = false;
-    studioState.cropRatio = "free";
     studioState.dynamicShadow = false;
     studioState.limbGlow = false;
     studioState.limbGlowIntensity = STUDIO.limbGlowDefault;
@@ -61,7 +49,6 @@
     const _ro = studioState.rotation;
     const _fh = studioState.flipH;
     const _fv = studioState.flipV;
-    const _cr = studioState.cropRatio;
 
     untrack(() => {
       layerState.layerTransformDirty = true;
@@ -329,21 +316,6 @@
               </svg>
               ↕ V
             </button>
-          </div>
-          <div class="sa-crop-row">
-            <span class="sa-slider-label">Recadrage</span>
-            <div class="sa-crop-pills">
-              {#each STUDIO.cropRatios as ratio}
-                <button
-                  class="sa-pill"
-                  class:active={studioState.cropRatio === ratio}
-                  onclick={() => {
-                    studioState.cropRatio = ratio;
-                    onParamChange();
-                  }}>{cropLabels[ratio]}</button
-                >
-              {/each}
-            </div>
           </div>
         </section>
       </div>
@@ -727,86 +699,8 @@
     box-shadow: 0 0 10px rgba(255, 64, 129, 0.2);
   }
 
-  /* Crop pills */
-  .sa-crop-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 6px 0;
-  }
 
-  .sa-crop-pills {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
 
-  .sa-pill {
-    padding: 3px 10px;
-    border: 1px solid rgba(255, 64, 129, 0.2);
-    border-radius: var(--radius-pill);
-    background: rgba(255, 64, 129, 0.04);
-    color: var(--color-text-dim);
-    font-family: var(--font-main);
-    font-size: 10px;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-  }
-
-  .sa-pill:hover {
-    border-color: rgba(255, 64, 129, 0.4);
-    background: rgba(255, 64, 129, 0.08);
-  }
-
-  .sa-pill.active {
-    background: #ff4081;
-    color: #fff;
-    border-color: #ff4081;
-    box-shadow: 0 0 8px rgba(255, 64, 129, 0.4);
-    font-weight: 600;
-  }
-
-  /* Search */
-  .sa-search {
-    width: 100%;
-    padding: 6px 10px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 64, 129, 0.12);
-    border-radius: var(--radius-sm);
-    color: var(--color-text);
-    font-family: var(--font-main);
-    font-size: 11px;
-    outline: none;
-    transition: border-color var(--transition-fast);
-    margin-bottom: 6px;
-  }
-
-  .sa-search:focus {
-    border-color: rgba(255, 64, 129, 0.4);
-  }
-
-  .sa-search::placeholder {
-    color: var(--color-text-dim);
-    opacity: 0.5;
-  }
-
-  .sa-crater-list {
-    max-height: 120px;
-    overflow-y: auto;
-    scrollbar-width: none;
-    margin-bottom: 8px;
-  }
-  .sa-crater-list::-webkit-scrollbar {
-    display: none;
-  }
-
-  .sa-crater-empty {
-    font-size: 10px;
-    color: var(--color-text-dim);
-    opacity: 0.4;
-    text-align: center;
-    padding: 12px 0;
-  }
 
   /* Footer */
   .sa-footer {

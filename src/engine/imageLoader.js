@@ -12,6 +12,7 @@ import { PixiRenderer } from './pixi_renderer.js';
 import { uiState } from '../stores/uiState.svelte.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
+import { decodeToBlob } from './imageDecoder.js';
 
 export function extractDateFromName(filename) {
   // Support YYYY-MM-DD-HHhMM etc...
@@ -76,9 +77,18 @@ export async function handleImageUpload(file, dispatchToast) {
     spatialState.lon = spatialState.userManualLocation.lon;
   }
 
+  // Decode special formats (TIFF, FITS, HEIC) or pass-through native formats
+  let processedBlob = file;
+  try {
+    processedBlob = await decodeToBlob(file, dispatchToast);
+  } catch (err) {
+    if (dispatchToast) dispatchToast(err.message || "Erreur de décodage");
+    return;
+  }
+
   // Read image via Object URL (Faster than DataURL, avoids blocking main thread with huge strings)
   return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
+    const objectUrl = URL.createObjectURL(processedBlob);
     const img = new Image();
     
     img.onload = () => {

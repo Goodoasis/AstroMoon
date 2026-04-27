@@ -431,7 +431,7 @@
           
           <span class="sl-layer-name" class:dimmed={!studioState.dayMaskVisible} title="Lumière (Jour)">Lumière (Jour)</span>
           
-          <input type="range" class="sl-mini-slider" min={STUDIO.nightMaskOpacityMin} max={STUDIO.nightMaskOpacityMax} step={STUDIO.nightMaskOpacityStep} value={studioState.dayMaskOpacity} onclick={(e) => e.stopPropagation()} oninput={(e) => { studioState.dayMaskOpacity = parseFloat(e.target.value); layerState.layerTransformDirty = true; }} style:--slider-color={getColorHex(studioState.dayMaskColor)} />
+          <input type="range" class="sl-mini-slider" min={STUDIO.dayMaskOpacityMin} max={STUDIO.dayMaskOpacityMax} step={STUDIO.dayMaskOpacityStep} value={studioState.dayMaskOpacity} onclick={(e) => e.stopPropagation()} oninput={(e) => { studioState.dayMaskOpacity = parseFloat(e.target.value); layerState.layerTransformDirty = true; }} style:--slider-color={getColorHex(studioState.dayMaskColor)} />
           
           <span class="sl-expand-indicator" class:expanded={expandedLayer === 'dayMask'}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6,4 10,8 6,12"/></svg>
@@ -450,7 +450,7 @@
             </div>
             <div class="sl-detail-row">
               <span class="sl-detail-label">Flou (Gradient)</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.nightMaskBlurMin} max={STUDIO.nightMaskBlurMax} step={STUDIO.nightMaskBlurStep} bind:value={studioState.dayMaskBlur} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.dayMaskColor)} />
+              <input type="range" class="sl-detail-slider" min={STUDIO.dayMaskBlurMin} max={STUDIO.dayMaskBlurMax} step={STUDIO.dayMaskBlurStep} bind:value={studioState.dayMaskBlur} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.dayMaskColor)} />
               <span class="sl-detail-val">{studioState.dayMaskBlur}</span>
             </div>
           </div>

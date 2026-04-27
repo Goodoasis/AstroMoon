@@ -231,9 +231,9 @@ export const STUDIO = {
 
   /** Limb glow */
   limbGlowOpacityMin: 0, limbGlowOpacityMax: 1.0, limbGlowOpacityStep: 0.05, limbGlowOpacityDefault: 0.8,
-  limbGlowThicknessMin: 0.5, limbGlowThicknessMax: 10, limbGlowThicknessStep: 0.5, limbGlowThicknessDefault: 2,
-  limbGlowSpreadMin: 0, limbGlowSpreadMax: 50, limbGlowSpreadStep: 1, limbGlowSpreadDefault: 10, // Offset
-  limbGlowBlurMin: 0, limbGlowBlurMax: 20, limbGlowBlurStep: 1, limbGlowBlurDefault: 4,
+  limbGlowThicknessMin: 0.5, limbGlowThicknessMax: 10, limbGlowThicknessStep: 0.5, limbGlowThicknessDefault: 1.5,
+  limbGlowSpreadMin: 0, limbGlowSpreadMax: 50, limbGlowSpreadStep: 1, limbGlowSpreadDefault: 22, // Offset
+  limbGlowBlurMin: 0, limbGlowBlurMax: 20, limbGlowBlurStep: 1, limbGlowBlurDefault: 12,
 
   /** Layer style ranges */
   layerOpacityMin: 0, layerOpacityMax: 1.0, layerOpacityStep: 0.05,
@@ -250,6 +250,10 @@ export const STUDIO = {
   /** Night Mask ranges */
   nightMaskOpacityMin: 0.0, nightMaskOpacityMax: 1.0, nightMaskOpacityStep: 0.05,
   nightMaskBlurMin: 0, nightMaskBlurMax: 50, nightMaskBlurStep: 1,
+
+  /** Day Mask ranges */
+  dayMaskOpacityMin: 0.0, dayMaskOpacityMax: 0.4, dayMaskOpacityStep: 0.05,
+  dayMaskBlurMin: 0, dayMaskBlurMax: 50, dayMaskBlurStep: 1,
 
   /** Labels ranges */
   labelFontSizeMin: 8, labelFontSizeMax: 36, labelFontSizeStep: 1, labelFontSizeDefault: 14,
@@ -277,8 +281,6 @@ export const STUDIO = {
     exclusion: 'Exclusion ⚠️',
   },
 
-  /** Crop ratios */
-  cropRatios: ['free', '16:9', '4:3', '1:1', '3:2'],
 
   /** Limb glow types */
   limbGlowTypes: ['diffraction', 'neon', 'pulse'],
