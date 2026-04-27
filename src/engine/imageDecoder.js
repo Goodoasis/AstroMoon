@@ -1,6 +1,6 @@
 import UTIF from 'utif';
 import heic2any from 'heic2any';
-import 'fitsjs';
+import fitsRaw from 'fitsjs/lib/fits.js?raw';
 
 /**
  * AstroMoon — Image Decoder
@@ -52,9 +52,21 @@ export async function decodeToBlob(file, dispatchToast) {
     if (dispatchToast) dispatchToast("Décodage FITS en cours...");
     try {
       return new Promise((resolve, reject) => {
-        const FITS = window.astro ? window.astro.FITS : null;
+        if (!window.astro) window.astro = {};
+        if (!window.astro.FITS) {
+          try {
+            const fn = new Function(fitsRaw);
+            fn.call(window);
+          } catch (err) {
+            console.error("Failed to initialize FITS decoder:", err);
+            reject(new Error("Erreur d'initialisation du décodeur FITS."));
+            return;
+          }
+        }
+
+        const FITS = window.astro.FITS;
         if (!FITS) {
-          reject(new Error("Bibliothèque FITS introuvable."));
+          reject(new Error("Bibliothèque FITS introuvable après initialisation."));
           return;
         }
         
