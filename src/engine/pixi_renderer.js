@@ -16,7 +16,7 @@
  */
 
 import * as PIXI from 'pixi.js';
-import { GlowFilter } from 'pixi-filters';
+import { GlowFilter, ConvolutionFilter, AdjustmentFilter } from 'pixi-filters';
 import { GeoJSON } from './geojson.js';
 import { Transform } from './transform.js';
 import { Anchors } from './anchors.js';
@@ -45,6 +45,13 @@ let terminatorGfx, gridGfx, limbGlowGfx, anchorsGfx, dotsGfx, labelsBgGfx;
 let layerGraphicsMap = new Map(); // Store PIXI.Graphics objects indexed by layerIndex
 let textPool = [];
 let activeLabels = [];
+
+// Studio filters cache
+let _studioAdjustment = null;
+let _studioSharpen = null;
+let _studioDenoise = null;
+let _studioVignetteSprite = null; // Use a sprite for vignette fallback
+let _lastStudioState = {};
 
 // Hover
 let hoverBgGfx = null;
@@ -276,10 +283,138 @@ function getBackgroundDisplaySize() {
 
 /**
  * Update the viewport container transform (pan/zoom).
+ * In Studio mode, also applies global rotation and flip centered on the image.
  */
 function updateViewport(vp) {
-  viewportContainer.position.set(vp.tx, vp.ty);
-  viewportContainer.scale.set(vp.scale);
+  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  
+  if (isStudio) {
+    const s = studioState;
+    const center = Transform.getLayerCenter();
+    
+    // Set pivot to image center for rotation/flip around center
+    viewportContainer.pivot.set(center.x, center.y);
+    
+    // Adjust position to compensate for pivot shift
+    viewportContainer.position.set(
+      vp.tx + center.x * vp.scale, 
+      vp.ty + center.y * vp.scale
+    );
+    
+    // Global Rotation
+    viewportContainer.rotation = s.rotation * (Math.PI / 180);
+    
+    // Global Flip
+    viewportContainer.scale.set(
+      vp.scale * (s.flipH ? -1 : 1),
+      vp.scale * (s.flipV ? -1 : 1)
+    );
+  } else {
+    // Standard navigation
+    viewportContainer.pivot.set(0, 0);
+    viewportContainer.position.set(vp.tx, vp.ty);
+    viewportContainer.scale.set(vp.scale);
+    viewportContainer.rotation = 0;
+  }
+}
+
+/**
+ * Apply Studio image adjustments to the background sprite.
+ * Only affects bgSprite, not layers.
+ */
+function applyStudioAdjustments() {
+  if (!bgSprite || !bgSprite.visible) return;
+
+  const s = studioState;
+  const filters = [];
+
+  // --- 1. Brightness, Contrast & Saturation (AdjustmentFilter) ---
+  // Using AdjustmentFilter instead of ColorMatrix to avoid "stepping on each other"
+  if (s.brightness !== 1.0 || s.contrast !== 1.0 || s.grayscale) {
+    if (!_studioAdjustment) _studioAdjustment = new AdjustmentFilter();
+    
+    _studioAdjustment.brightness = s.brightness;
+    _studioAdjustment.contrast = s.contrast;
+    // For grayscale later (desaturate if s.grayscale is true)
+    _studioAdjustment.saturation = s.grayscale ? 0 : 1;
+    
+    filters.push(_studioAdjustment);
+  }
+
+  // --- 2. Sharpness & Clarity (Convolution) ---
+  if (s.sharpness > 0 || s.clarity !== 0.0) {
+    if (!_studioSharpen) {
+      _studioSharpen = new ConvolutionFilter({
+        matrix: [0, 0, 0, 0, 1, 0, 0, 0, 0],
+        width: bgSprite.width,
+        height: bgSprite.height
+      });
+    }
+    
+    // Softer sharpness progression
+    const kS = s.sharpness * 0.4; 
+    // Clarity as a slight contrast boost in the kernel
+    const kC = s.clarity * 0.2;
+    
+    const k = kS + kC;
+    _studioSharpen.matrix = [
+      0, -k, 0,
+      -k, 1 + 4*k, -k,
+      0, -k, 0
+    ];
+    
+    filters.push(_studioSharpen);
+  }
+
+  // --- 3. Denoising (Blur) ---
+  if (s.denoising > 0) {
+    if (!_studioDenoise) _studioDenoise = new PIXI.BlurFilter();
+    _studioDenoise.strength = s.denoising * 1.5;
+    filters.push(_studioDenoise);
+  }
+
+  // --- 4. Vignetting (Custom Implementation) ---
+  if (s.vignette > 0) {
+    if (!_studioVignetteSprite) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createRadialGradient(512, 512, 0, 512, 512, 512);
+      
+      // More aggressive gradient
+      grad.addColorStop(0, 'white'); 
+      grad.addColorStop(0.2, 'white'); 
+      grad.addColorStop(0.8, 'black'); // Total black earlier
+      grad.addColorStop(1, 'black');
+      
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1024, 1024);
+      
+      const texture = PIXI.Texture.from(canvas);
+      _studioVignetteSprite = new PIXI.Sprite(texture);
+      _studioVignetteSprite.anchor.set(0.5);
+      _studioVignetteSprite.blendMode = 'multiply'; // Real vignette feel
+      bgSprite.parent.addChildAt(_studioVignetteSprite, bgSprite.parent.getChildIndex(bgSprite) + 1);
+    }
+    
+    _studioVignetteSprite.visible = true;
+    _studioVignetteSprite.x = bgSprite.x + bgSprite.width / 2;
+    _studioVignetteSprite.y = bgSprite.y + bgSprite.height / 2;
+    
+    // Scale controls "Radius" 
+    // We must ensure corners are covered (1.42), but we want it closer
+    const minScale = 1.2; // A bit smaller than corners to allow "hard" vignette
+    const spread = minScale + (s.vignetteFeather * 0.8); // 1.2 to 2.0 range
+    _studioVignetteSprite.width = bgSprite.width * spread;
+    _studioVignetteSprite.height = bgSprite.height * spread;
+    
+    // Intensity
+    _studioVignetteSprite.alpha = s.vignette;
+  } else if (_studioVignetteSprite) {
+    _studioVignetteSprite.visible = false;
+  }
+
+  bgSprite.filters = filters.length > 0 ? filters : null;
 }
 
 // â”€â”€â”€ GeoJSON Rendering â”€â”€â”€
@@ -1582,9 +1717,18 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
   const h = app.screen.height;
 
   // 2. Frustum Culling temps rÃ©el STRICT
+  const s = studioState;
+  const isStudio = uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT';
+  const globalRot = isStudio ? s.rotation * (Math.PI / 180) : 0;
+  const globalFlipH = isStudio && s.flipH;
+  const globalFlipV = isStudio && s.flipV;
+
   for (const label of activeLabels) {
-    const sx = label._worldX * vp.scale + vp.tx;
-    const sy = label._worldY * vp.scale + vp.ty;
+    // Get screen position (taking into account pivot, rotation, scale, position)
+    const g = label.parent.toGlobal(new PIXI.Point(label._worldX, label._worldY - LABELS.labelOffsetY * invScale));
+    const sx = g.x;
+    const sy = g.y;
+    
     const textW = label.text.length * 8;
     const textH = 14;
     const boxX = sx - textW / 2;
@@ -1597,8 +1741,14 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       const fontSizeRatio = studioState.labelFontSize / 14;
       label.visible = true;
       label.position.set(label._worldX, label._worldY - LABELS.labelOffsetY * invScale);
-      label.scale.set(invScale * fontSizeRatio);
-      label.tint = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke; // Reset le tint obligatoire pour retirer l'effet bleu aprÃ¨s un hover
+      
+      // Scale compensation (keep labels at consistent size relative to screen, not world)
+      label.scale.set(invScale * fontSizeRatio * (globalFlipH ? -1 : 1), invScale * fontSizeRatio * (globalFlipV ? -1 : 1));
+      
+      // Rotation compensation (keep labels horizontal)
+      label.rotation = -globalRot;
+      
+      label.tint = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke;
     }
   }
 
@@ -1704,6 +1854,7 @@ export const PixiRenderer = {
   setBackgroundImage,
   getBackgroundDisplaySize,
   updateViewport,
+  applyStudioAdjustments,
   rebuildGeoJSON,
   rebuildNightMask,
   getHoveredCrater: () => _currentHoveredCrater,

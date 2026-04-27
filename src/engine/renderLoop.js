@@ -203,6 +203,10 @@ export function renderTick(ticker) {
 
   PixiRenderer.updateViewport(viewportState);
 
+  if (uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT') {
+    PixiRenderer.applyStudioAdjustments();
+  }
+
   const isInteracting = viewportState.isDragging || timeSincePanZoom < PERF.interactionFadeMs;
 
   if (PixiRenderer.showLabels && PixiRenderer.showLabels()) {

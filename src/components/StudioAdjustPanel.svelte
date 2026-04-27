@@ -1,7 +1,9 @@
 <script>
   import { studioState } from '@/stores/studioState.svelte.js';
+  import { layerState } from '@/stores/layerState.svelte.js';
   import { STUDIO } from '@/engine/config.js';
   import { tooltip } from '@/actions/tooltip.js';
+  import { untrack } from 'svelte';
 
   let isOpen = $state(true);
 
@@ -30,7 +32,33 @@
     studioState.limbGlow = false;
     studioState.limbGlowIntensity = STUDIO.limbGlowDefault;
     studioState.limbGlowType = 'diffraction';
+    onParamChange();
   }
+
+  function onParamChange() {
+    layerState.layerTransformDirty = true;
+  }
+
+  // Auto-refresh Pixi when studioState changes
+  $effect(() => {
+    // Read all relevant properties to establish dependencies
+    const _b = studioState.brightness;
+    const _c = studioState.contrast;
+    const _cl = studioState.clarity;
+    const _sh = studioState.sharpness;
+    const _de = studioState.denoising;
+    const _gr = studioState.grayscale;
+    const _vi = studioState.vignette;
+    const _vf = studioState.vignetteFeather;
+    const _ro = studioState.rotation;
+    const _fh = studioState.flipH;
+    const _fv = studioState.flipV;
+    const _cr = studioState.cropRatio;
+
+    untrack(() => {
+      layerState.layerTransformDirty = true;
+    });
+  });
 </script>
 
 {#snippet stSlider(label, value, initialValue, min, max, step, onChange, fixed = 2, suffix = '')}
@@ -42,16 +70,17 @@
          const delta = e.deltaY > 0 ? -step * mult : step * mult;
          const newVal = Math.max(min, Math.min(max, value + delta));
          onChange({ target: { value: newVal } });
+         onParamChange();
        }}
-       ondblclick={() => onChange({ target: { value: initialValue } })}
+       ondblclick={() => { onChange({ target: { value: initialValue } }); onParamChange(); }}
        title="Double-clic pour réinitialiser">
     <span class="sa-slider-label">{label}</span>
-    <input type="range" class="sa-slider" {min} {max} {step} {value} oninput={onChange} />
+    <input type="range" class="sa-slider" {min} {max} {step} {value} oninput={(e) => { onChange(e); onParamChange(); }} />
     <div class="sa-slider-val-wrapper">
       <input type="number" 
              {min} {max} {step} 
              value={Number(value).toFixed(fixed)} 
-             onchange={onChange} 
+             onchange={(e) => { onChange(e); onParamChange(); }} 
              class="sa-number-input" />
       {#if suffix}<span class="sa-suffix">{suffix}</span>{/if}
     </div>
@@ -92,7 +121,7 @@
           {@render stSlider('Netteté', studioState.sharpness, STUDIO.sharpnessDefault, STUDIO.sharpnessMin, STUDIO.sharpnessMax, STUDIO.sharpnessStep, (e) => studioState.sharpness = +e.target.value, 1)}
           {@render stSlider('Débruitage', studioState.denoising, STUDIO.denoisingDefault, STUDIO.denoisingMin, STUDIO.denoisingMax, STUDIO.denoisingStep, (e) => studioState.denoising = +e.target.value)}
           <label class="sa-toggle">
-            <input type="checkbox" bind:checked={studioState.grayscale} />
+            <input type="checkbox" bind:checked={studioState.grayscale} onchange={onParamChange} />
             <span class="sa-ttrack"><span class="sa-tthumb"></span></span>
             <span class="sa-toggle-label">Niveaux de gris</span>
           </label>
@@ -114,14 +143,14 @@
           <h4 class="sa-title">Transformation</h4>
           {@render stSlider('Rotation', studioState.rotation, 0, STUDIO.rotationMin, STUDIO.rotationMax, STUDIO.rotationStep, (e) => studioState.rotation = +e.target.value, 1, '°')}
           <div class="sa-flip-row">
-            <button class="sa-flip" class:active={studioState.flipH} onclick={() => studioState.flipH = !studioState.flipH}>
+            <button class="sa-flip" class:active={studioState.flipH} onclick={() => { studioState.flipH = !studioState.flipH; onParamChange(); }}>
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
                 <line x1="10" y1="2" x2="10" y2="18" stroke-dasharray="2 2" opacity="0.4"/>
                 <polyline points="7,6 3,10 7,14"/><polyline points="13,6 17,10 13,14"/>
               </svg>
               ↔ H
             </button>
-            <button class="sa-flip" class:active={studioState.flipV} onclick={() => studioState.flipV = !studioState.flipV}>
+            <button class="sa-flip" class:active={studioState.flipV} onclick={() => { studioState.flipV = !studioState.flipV; onParamChange(); }}>
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
                 <line x1="2" y1="10" x2="18" y2="10" stroke-dasharray="2 2" opacity="0.4"/>
                 <polyline points="6,7 10,3 14,7"/><polyline points="6,13 10,17 14,13"/>
@@ -133,7 +162,7 @@
             <span class="sa-slider-label">Recadrage</span>
             <div class="sa-crop-pills">
               {#each STUDIO.cropRatios as ratio}
-                <button class="sa-pill" class:active={studioState.cropRatio === ratio} onclick={() => studioState.cropRatio = ratio}>{cropLabels[ratio]}</button>
+                <button class="sa-pill" class:active={studioState.cropRatio === ratio} onclick={() => { studioState.cropRatio = ratio; onParamChange(); }}>{cropLabels[ratio]}</button>
               {/each}
             </div>
           </div>

@@ -1,0 +1,16 @@
+# Exclude massive data files from Vercel deployment
+data/
+user_exemple/
+.git/
+node_modules/
+dist/
+.agents/
+.gemini/
+.claude/
+*.tif
+*.zip
+*.rar
+*.mp4
+.kilo/
+.agents/
+
