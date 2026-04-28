@@ -43,6 +43,7 @@ let nightMaskBlurFilter = null;
 let dayMaskContainer, dayMaskGfx, dayMaskClip;
 let dayMaskBlurFilter = null;
 let terminatorGfx, gridGfx, limbGlowGfx, anchorsGfx, dotsGfx;
+let moonBackdropGfx, moonMaskGfx;
 let labelsBgGfx;
 let hoverContainer, hoverBgGfx, hoverLabel;
 let activeLabels = []; // Will now hold Containers
@@ -104,7 +105,7 @@ async function init(container) {
 
   await app.init({
     preference: 'webgl',
-    background: 0x06060c,
+    backgroundAlpha: 0,
     resizeTo: window,
     antialias: true,
     resolution: window.devicePixelRatio || 1,
@@ -120,8 +121,12 @@ async function init(container) {
   viewportContainer = new PIXI.Container();
   app.stage.addChild(viewportContainer);
 
+  moonBackdropGfx = new PIXI.Graphics();
+  viewportContainer.addChild(moonBackdropGfx);
+
   bgSprite = new PIXI.Sprite();
   bgSprite.visible = false;
+  bgSprite.mask = null;
   viewportContainer.addChild(bgSprite);
 
   geojsonContainer = new PIXI.Container();
@@ -218,6 +223,7 @@ function redrawAllLayers() {
     rebuildGeoJSON(_lastProjectedFeatures, _lastVp);
   }
   if (_lastTransformFn && _lastVp) {
+    rebuildMoonMask(_lastTransformFn);
     rebuildNightMask(_lastTransformFn);
     rebuildDayMask(_lastTransformFn);
     rebuildTerminator(_lastTransformFn, _lastVp);
@@ -423,7 +429,16 @@ function applyStudioAdjustments() {
   bgSprite.filters = filters.length > 0 ? filters : null;
 }
 
-// â”€â”€â”€ GeoJSON Rendering â”€â”€â”€
+/**
+ * Enable or disable the circular background mask (used to hide stars behind the grid).
+ */
+function setMoonMaskEnabled(enabled) {
+  if (moonBackdropGfx) {
+    moonBackdropGfx.visible = enabled;
+  }
+}
+
+// ─── GeoJSON Rendering ───
 
 /**
  * Rebuild all GeoJSON layer graphics from projected feature data.
@@ -624,6 +639,31 @@ function rebuildGeoJSON(projectedFeatures, vp) {
       gfx.fill({ color: colors.stroke, alpha: colors.alpha * opacity });
     }
   }
+}
+
+// ─── Moon Mask ───
+
+function rebuildMoonMask(transformFn) {
+  if (!moonBackdropGfx) return;
+  moonBackdropGfx.clear();
+  
+  // Get horizon shape from grid cache (independent of spacing)
+  const cache = _getGridCache(10);
+  const hb = cache.horizonNorm;
+  
+  let moved = false;
+  for (let i = 0; i < hb.length; i += 2) {
+    const pt = transformFn(hb[i], hb[i+1]);
+    if (!moved) {
+      moonBackdropGfx.moveTo(pt.x, pt.y);
+      moved = true;
+    } else {
+      moonBackdropGfx.lineTo(pt.x, pt.y);
+    }
+  }
+  
+  // Le fond plein pour cacher les étoiles physiquement derrière la lune (pendant IMPORT)
+  moonBackdropGfx.fill({ color: 0x06060c, alpha: 1.0 });
 }
 
 // â”€â”€â”€ Night Mask â”€â”€â”€
@@ -1915,7 +1955,6 @@ export const PixiRenderer = {
   applyStudioAdjustments,
   rebuildGeoJSON,
   rebuildNightMask,
-  getHoveredCrater: () => _currentHoveredCrater,
   rebuildDayMask,
   rebuildTerminator,
   rebuildGrid,
@@ -1923,6 +1962,8 @@ export const PixiRenderer = {
   rebuildAnchors,
   rebuildPivotAnchor,
   rebuildAnnotations,
+  rebuildMoonMask,
+  setMoonMaskEnabled,
   updateAnnotationsTransform,
   toggleGrid,
   toggleLabels,

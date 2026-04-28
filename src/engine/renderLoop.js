@@ -150,6 +150,7 @@ export function rebuildScene(forceAll = false, hadTransformChange = false, lodCh
   }
 
   if (rebuildEphemeris || rebuildTransform) {
+    PixiRenderer.rebuildMoonMask(transformFn);
     PixiRenderer.rebuildNightMask(transformFn);
     PixiRenderer.rebuildDayMask(transformFn);
     PixiRenderer.rebuildTerminator(transformFn, viewportState);
@@ -205,6 +206,12 @@ export function renderTick(ticker) {
 
   if (uiState.currentPhase === 'STUDIO' || uiState.currentPhase === 'EXPORT') {
     PixiRenderer.applyStudioAdjustments();
+  }
+  
+  if (uiState.currentPhase === 'IMPORT') {
+    PixiRenderer.setMoonMaskEnabled(true);
+  } else {
+    PixiRenderer.setMoonMaskEnabled(false);
   }
 
   const isInteracting = viewportState.isDragging || timeSincePanZoom < PERF.interactionFadeMs;

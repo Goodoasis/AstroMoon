@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import Starfield from './components/Starfield.svelte';
   import PixiCanvas from './components/PixiCanvas.svelte';
   import AnchorPanel from './components/AnchorPanel.svelte';
   import EmergencyPanel from './components/EmergencyPanel.svelte';
@@ -131,6 +132,9 @@
   class:anchor-active={isAnchorActive}
   style:--glow-color={glowColor}>
 
+<!-- Persistent Starfield Background -->
+<Starfield />
+
 <!-- Hidden file input -->
 <input type="file" id="input-image" name="inputImage" class="hidden-input" accept="image/*,.tif,.tiff,.fit,.fits,.heic,.heif" onchange={handleFileInput} />
 
@@ -207,6 +211,7 @@
     overflow: hidden;
     position: relative;
     box-sizing: border-box;
+    isolation: isolate;
   }
 
   .panel-layout-left {
