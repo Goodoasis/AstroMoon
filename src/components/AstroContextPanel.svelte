@@ -10,6 +10,8 @@
   import { Transform } from '@/engine/transform.js';
   import EquipmentSearch from './EquipmentSearch.svelte';
   import GoToCrater from './GoToCrater.svelte';
+  import NeonToggle from './NeonToggle.svelte';
+  import NeonButton from './NeonButton.svelte';
   import { tooltip } from '@/actions/tooltip.js';
 
   const dispatch = createEventDispatcher();
@@ -373,10 +375,11 @@
             </h3>
             <div class="mount-toggle-group" class:unverified={!isMountVerified}>
               <span class="label clickable" role="button" tabindex="0" class:active={!viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(false)} onkeydown={(e) => e.key === 'Enter' && toggleMount(false)}>Équatoriale</span>
-              <label class="switch">
-                <input type="checkbox" checked={viewportState.isAltAzMode} onchange={() => toggleMount()} />
-                <span class="slider"></span>
-              </label>
+              <NeonToggle 
+                checked={viewportState.isAltAzMode} 
+                color={isMountVerified ? "var(--color-cyan)" : "rgba(255,255,255,0.2)"}
+                onchange={(v) => toggleMount(v)} 
+              />
               <span class="label clickable" role="button" tabindex="0" class:active={viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(true)} onkeydown={(e) => e.key === 'Enter' && toggleMount(true)}>Trépied</span>
             </div>
           </section>
@@ -563,14 +566,21 @@
           {#if !uiState.emergencyMode}
             <div class="divider"></div>
             <section class="panel-section sticky-section">
-              <button class="emergency-btn" onclick={activateEmergency}>
-                <span class="emergency-stripes"></span>
-                <svg class="emergency-icon" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M10 1L19 18H1L10 1Z" stroke="currentColor" stroke-width="1" fill="none"/>
-                  <text x="10" y="15" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">!</text>
-                </svg>
-                <span>Mode Urgence</span>
-              </button>
+              <NeonButton
+                variant="panel"
+                label="Urgence"
+                color="#FF8C00"
+                fullWidth={true}
+                useColorForText={true}
+                onclick={activateEmergency}
+              >
+                {#snippet icon()}
+                  <svg class="emergency-icon" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 1L19 18H1L10 1Z" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <text x="10" y="15" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">!</text>
+                  </svg>
+                {/snippet}
+              </NeonButton>
             </section>
           {/if}
         </div>
@@ -768,53 +778,8 @@
   .label.clickable:hover { color: #fff; }
   .label.active { color: #fff; font-weight: 600; text-shadow: 0 0 8px var(--color-cyan); }
 
-  .mount-toggle-group.unverified .slider { opacity: 0.5; filter: grayscale(1); }
+  .mount-toggle-group.unverified { opacity: 0.6; }
   .mount-toggle-group.unverified .label.active { text-shadow: none; color: var(--color-text-dim); }
-
-  .switch { position: relative; width: 36px; height: 18px; cursor: pointer; }
-  .switch input { opacity: 0; width: 0; height: 0; }
-  .slider { 
-    position: absolute; 
-    inset: 0; 
-    background: rgba(255, 255, 255, 0.05); 
-    border: 1px solid rgba(255, 255, 255, 0.1); 
-    border-radius: 999px; 
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-  }
-  
-  .mount-toggle-group:not(.unverified) .slider {
-    border-color: rgba(0, 229, 255, 0.2);
-    box-shadow: 0 0 10px rgba(0, 229, 255, 0.05);
-  }
-
-  .slider:before { 
-    content: ""; 
-    position: absolute; 
-    height: 12px; 
-    width: 12px; 
-    left: 2px; 
-    bottom: 2px; 
-    background: var(--color-text-dim); 
-    border-radius: 50%; 
-    transition: 0.3s; 
-  }
-
-  /* Verified & Active state */
-  .mount-toggle-group:not(.unverified) .slider:before {
-    background: #fff;
-    box-shadow: 0 0 8px #fff;
-  }
-
-  input:checked + .slider { 
-    background: rgba(0, 229, 255, 0.1); 
-    border-color: var(--color-cyan) !important; 
-  }
-  
-  input:checked + .slider:before { 
-    transform: translateX(18px); 
-    background: var(--color-cyan) !important;
-    box-shadow: 0 0 10px var(--color-cyan) !important;
-  }
 
   .source-pills { display: flex; gap: 4px; background: rgba(0,0,0,0.2); padding: 2px; border-radius: 999px; }
   .pill { flex: 1; border: none; background: transparent; color: var(--color-text-dim); font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 4px; border-radius: 999px; cursor: pointer; transition: all 0.2s; }
@@ -974,62 +939,11 @@
     border-color: rgba(255, 255, 255, 0.2);
   }
 
-  /* Emergency Mode Button */
-  .emergency-btn {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    padding: 10px 14px;
-    border: 1px solid rgba(255, 140, 0, 0.3);
-    border-radius: var(--radius-sm);
-    background: linear-gradient(135deg, rgba(30, 15, 0, 0.8), rgba(50, 25, 0, 0.6));
-    color: #FF8C00;
-    font-family: var(--font-main);
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    cursor: pointer;
-    overflow: hidden;
-    transition: all 0.3s ease;
-  }
-
-  .emergency-stripes {
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 4px,
-      rgba(255, 140, 0, 0.04) 4px,
-      rgba(255, 140, 0, 0.04) 8px
-    );
-    pointer-events: none;
-  }
-
   .emergency-icon {
     width: 14px;
     height: 14px;
     color: #FF8C00;
     filter: drop-shadow(0 0 3px rgba(255, 140, 0, 0.5));
     z-index: 1;
-  }
-
-  .emergency-btn span:last-child {
-    z-index: 1;
-  }
-
-  .emergency-btn:hover {
-    border-color: rgba(255, 140, 0, 0.6);
-    background: linear-gradient(135deg, rgba(50, 25, 0, 0.9), rgba(80, 40, 0, 0.7));
-    box-shadow: 0 0 16px rgba(255, 140, 0, 0.25), inset 0 0 20px rgba(255, 140, 0, 0.05);
-    transform: scale(1.02);
-  }
-
-  .emergency-btn:active {
-    transform: scale(0.98);
   }
 </style>

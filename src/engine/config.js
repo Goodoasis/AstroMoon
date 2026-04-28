@@ -84,6 +84,9 @@ export const LABELS = {
   /** Frustum cull margin for crater dots (screen px) */
   cullMargin: 500,
 
+  /** Radius around the crater dot to trigger hover (screen px) */
+  hoverRadius: 30,
+
   /** Label offset above the dot (screen px, used as invScale multiplier) */
   labelOffsetY: 10,
 };
@@ -239,6 +242,7 @@ export const STUDIO = {
   layerOpacityMin: 0, layerOpacityMax: 1.0, layerOpacityStep: 0.05,
   layerGlowMin: 0, layerGlowMax: 2.0, layerGlowStep: 0.1,
   layerFineMin: 0.5, layerFineMax: 5.0, layerFineStep: 0.1,
+  layerBlurMin: 0, layerBlurMax: 20, layerBlurStep: 1, layerBlurDefault: 0,
 
   /** Grid ranges */
   gridIntervalMin: 5, gridIntervalMax: 30, gridIntervalStep: 5,

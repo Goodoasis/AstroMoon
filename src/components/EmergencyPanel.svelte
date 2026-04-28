@@ -1,5 +1,7 @@
 <script>
   import { untrack } from "svelte";
+  import RangeSlider from './RangeSlider.svelte';
+  import NeonButton from './NeonButton.svelte';
   import { uiState } from "@/stores/uiState.svelte.js";
   import { moonState } from "@/stores/moonState.svelte.js";
   import { layerState } from "@/stores/layerState.svelte.js";
@@ -351,53 +353,8 @@
   }
 </script>
 
-{#snippet emSlider(
-  label,
-  value,
-  initialValue,
-  min,
-  max,
-  step,
-  onChange,
-  onWheel,
-  isSun = false,
-  fixed = 1,
-  suffix = "°",
-)}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="slider-row"
-    class:modified={value !== initialValue}
-    onwheel={onWheel}
-    ondblclick={() => onChange({ target: { value: initialValue } })}
-    title="Double-clic pour réinitialiser"
-  >
-    <!-- svelte-ignore a11y_label_has_associated_control -->
-    <label>{label}</label>
-    <input
-      type="range"
-      {min}
-      {max}
-      {step}
-      {value}
-      oninput={onChange}
-      class="em-slider"
-      class:em-slider-sun={isSun}
-    />
-    <div class="slider-val-wrapper">
-      <input
-        type="number"
-        {min}
-        {max}
-        {step}
-        value={Number(value).toFixed(fixed)}
-        onchange={onChange}
-        class="em-number-input"
-      />
-      {#if suffix}<span class="suffix">{suffix}</span>{/if}
-    </div>
-  </div>
-{/snippet}
+<!-- Emergency slider helpers: bind-compatible wrapper callbacks -->
+<!-- The RangeSlider uses bind:value + oninput(newValue), so we adapt the existing onChange(event) pattern -->
 
 {#if uiState.emergencyMode}
   <aside id="emergency-panel">
@@ -427,147 +384,67 @@
     <!-- Libration Sliders -->
     <section class="em-section">
       <h4 class="em-section-title">Libration</h4>
-      {@render emSlider(
-        "Lat",
-        libLat,
-        initialStates.libLat,
-        EMERGENCY.libLatMin,
-        EMERGENCY.libLatMax,
-        EMERGENCY.libStep,
-        onLibLatChange,
-        onLibLatWheel,
-      )}
-      {@render emSlider(
-        "Lon",
-        libLon,
-        initialStates.libLon,
-        EMERGENCY.libLonMin,
-        EMERGENCY.libLonMax,
-        EMERGENCY.libStep,
-        onLibLonChange,
-        onLibLonWheel,
-      )}
+      <RangeSlider variant="full" label="Lat" color="#FF8C00" bind:value={libLat} initialValue={initialStates.libLat} min={EMERGENCY.libLatMin} max={EMERGENCY.libLatMax} step={EMERGENCY.libStep} fixed={1} suffix="°" oninput={(v) => { moonState.librationLat = v; compensatePivot(); }} onwheel={onLibLatWheel} />
+      <RangeSlider variant="full" label="Lon" color="#FF8C00" bind:value={libLon} initialValue={initialStates.libLon} min={EMERGENCY.libLonMin} max={EMERGENCY.libLonMax} step={EMERGENCY.libStep} fixed={1} suffix="°" oninput={(v) => { moonState.librationLon = v; compensatePivot(); }} onwheel={onLibLonWheel} />
     </section>
 
-    <p class="em-hint">Molette — Shift + Molette précis</p>
+
 
     <!-- Rotation & Barillet Sliders -->
     <section class="em-section">
       <h4 class="em-section-title">Rotation</h4>
-      {@render emSlider(
-        "PA",
-        rotation,
-        initialStates.rotation,
-        EMERGENCY.rotationMin,
-        EMERGENCY.rotationMax,
-        EMERGENCY.rotationStep,
-        onRotationChange,
-        onRotationWheel,
-      )}
-      {@render emSlider(
-        "Barillet",
-        barillet,
-        initialStates.barillet,
-        EMERGENCY.rotationMin,
-        EMERGENCY.rotationMax,
-        EMERGENCY.rotationStep,
-        onBarilletChange,
-        onBarilletWheel,
-      )}
+      <RangeSlider variant="full" label="PA" color="#FF8C00" bind:value={rotation} initialValue={initialStates.rotation} min={EMERGENCY.rotationMin} max={EMERGENCY.rotationMax} step={EMERGENCY.rotationStep} fixed={1} suffix="°" oninput={() => applyTransformRotation()} onwheel={onRotationWheel} />
+      <RangeSlider variant="full" label="Barillet" color="#FF8C00" bind:value={barillet} initialValue={initialStates.barillet} min={EMERGENCY.rotationMin} max={EMERGENCY.rotationMax} step={EMERGENCY.rotationStep} fixed={1} suffix="°" oninput={() => applyTransformRotation()} onwheel={onBarilletWheel} />
     </section>
 
     <!-- Refraction Sliders -->
     <section class="em-section">
       <h4 class="em-section-title">Réfraction Atmosphérique</h4>
-      {@render emSlider(
-        "Indice",
-        refractionSquash,
-        initialStates.refractionSquash,
-        EMERGENCY.refractionSquashMin,
-        EMERGENCY.refractionSquashMax,
-        EMERGENCY.refractionSquashStep,
-        onRefractionSquashChange,
-        onRefractionSquashWheel,
-        false,
-        3,
-        "",
-      )}
-      {@render emSlider(
-        "Angle Z",
-        refractionAngle,
-        initialStates.refractionAngle,
-        EMERGENCY.refractionAngleMin,
-        EMERGENCY.refractionAngleMax,
-        EMERGENCY.refractionAngleStep,
-        onRefractionAngleChange,
-        onRefractionAngleWheel,
-      )}
+      <RangeSlider variant="full" label="Indice" color="#FF8C00" bind:value={refractionSquash} initialValue={initialStates.refractionSquash} min={EMERGENCY.refractionSquashMin} max={EMERGENCY.refractionSquashMax} step={EMERGENCY.refractionSquashStep} fixed={3} suffix="" oninput={() => applyTransformRefraction()} onwheel={onRefractionSquashWheel} />
+      <RangeSlider variant="full" label="Angle Z" color="#FF8C00" bind:value={refractionAngle} initialValue={initialStates.refractionAngle} min={EMERGENCY.refractionAngleMin} max={EMERGENCY.refractionAngleMax} step={EMERGENCY.refractionAngleStep} fixed={1} suffix="°" oninput={() => applyTransformRefraction()} onwheel={onRefractionAngleWheel} />
     </section>
 
     <!-- Flip Buttons -->
     <section class="em-section">
       <h4 class="em-section-title">Miroir</h4>
       <div class="flip-row">
-        <button class="flip-btn" class:active={flipH} onclick={toggleFlipH}>
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          >
-            <line
-              x1="10"
-              y1="2"
-              x2="10"
-              y2="18"
-              stroke-dasharray="2 2"
-              opacity="0.4"
-            />
-            <polyline points="7,6 3,10 7,14" />
-            <polyline points="13,6 17,10 13,14" />
-          </svg>
-          ↔ Gauche / Droite
-        </button>
-        <button class="flip-btn" class:active={flipV} onclick={toggleFlipV}>
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          >
-            <line
-              x1="2"
-              y1="10"
-              x2="18"
-              y2="10"
-              stroke-dasharray="2 2"
-              opacity="0.4"
-            />
-            <polyline points="6,7 10,3 14,7" />
-            <polyline points="6,13 10,17 14,13" />
-          </svg>
-          ↕ Haut / Bas
-        </button>
+        <NeonButton
+          variant="panel"
+          label="Miroir H"
+          color="#FF8C00"
+          active={flipH}
+          fullWidth={true}
+          onclick={toggleFlipH}
+        >
+          {#snippet icon()}
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 16px; height: 16px;">
+              <line x1="10" y1="2" x2="10" y2="18" stroke-dasharray="2 2" opacity="0.4" />
+              <polyline points="7,6 3,10 7,14" /><polyline points="13,6 17,10 13,14" />
+            </svg>
+          {/snippet}
+        </NeonButton>
+        <NeonButton
+          variant="panel"
+          label="Miroir V"
+          color="#FF8C00"
+          active={flipV}
+          fullWidth={true}
+          onclick={toggleFlipV}
+        >
+          {#snippet icon()}
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 16px; height: 16px;">
+              <line x1="2" y1="10" x2="18" y2="10" stroke-dasharray="2 2" opacity="0.4" />
+              <polyline points="6,7 10,3 14,7" /><polyline points="6,13 10,17 14,13" />
+            </svg>
+          {/snippet}
+        </NeonButton>
       </div>
     </section>
 
     <!-- Terminator Slider -->
     <section class="em-section">
-      <h4 class="em-section-title">Terminateur</h4>
-      {@render emSlider(
-        "☀",
-        sunLon,
-        initialStates.sunLon,
-        EMERGENCY.sunLonMin,
-        EMERGENCY.sunLonMax,
-        EMERGENCY.sunLonStep,
-        onSunLonChange,
-        onSunLonWheel,
-        true,
-        0,
-      )}
+      <h4 class="em-section-title">Phase de lune</h4>
+      <RangeSlider variant="full" label="Terminateur" color="#FFD700" bind:value={sunLon} initialValue={initialStates.sunLon} min={EMERGENCY.sunLonMin} max={EMERGENCY.sunLonMax} step={EMERGENCY.sunLonStep} fixed={0} suffix="°" oninput={(v) => { moonState.sunLon = v; generateTerminator(v, 0); layerState.dirtyEphemeris = true; layerState.layerTransformDirty = true; }} onwheel={onSunLonWheel} />
     </section>
 
     <!-- Pivot Anchor -->
@@ -588,63 +465,67 @@
         <div class="pivot-coords">
           Lat: {pivot.geoLat.toFixed(2)}° | Lon: {pivot.geoLon.toFixed(2)}°
         </div>
-        <button class="em-btn em-btn-remove" onclick={removePivot}
-          >Supprimer Pivot</button
-        >
+        <NeonButton
+          variant="panel"
+          label="Supprimer Pivot"
+          color="#FF3B5C"
+          fullWidth={true}
+          useColorForText={true}
+          onclick={removePivot}
+        />
       {:else}
         <p class="pivot-hint">
-          Activez le mode ancrage (A) puis cliquez sur un cratère
-          reconnaissable.
+          Activez le mode ancrage (A) puis cliquez sur un cratère reconnaissable.
         </p>
-        <button class="em-btn em-btn-place" onclick={placePivot}>
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <circle cx="8" cy="8" r="5" />
-            <line x1="8" y1="1" x2="8" y2="5" />
-            <line x1="8" y1="11" x2="8" y2="15" />
-            <line x1="1" y1="8" x2="5" y2="8" />
-            <line x1="11" y1="8" x2="15" y2="8" />
-          </svg>
-          Placer Pivot
-        </button>
+        <NeonButton
+          variant="panel"
+          label="Placer Pivot"
+          color="#FF8C00"
+          fullWidth={true}
+          useColorForText={true}
+          onclick={placePivot}
+        >
+          {#snippet icon()}
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+              <circle cx="8" cy="8" r="5" /><line x1="8" y1="1" x2="8" y2="5" /><line x1="8" y1="11" x2="8" y2="15" /><line x1="1" y1="8" x2="5" y2="8" /><line x1="11" y1="8" x2="15" y2="8" />
+            </svg>
+          {/snippet}
+        </NeonButton>
       {/if}
     </section>
 
     <!-- Validate & Exit -->
     <div class="em-action-row">
-      <button
-        class="em-btn em-btn-cancel"
+      <NeonButton
+        variant="panel"
+        label="Quitter"
+        color="#FF3B5C"
+        fullWidth={true}
+        useColorForText={true}
         onclick={cancelAndExit}
         title="Annuler les ajustements en cours"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-        >
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-        Quitter
-      </button>
-      <button class="em-btn em-btn-validate" onclick={validateAndExit}>
-        <svg
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-        >
-          <polyline points="3,8 7,12 13,4" />
-        </svg>
-        Valider
-      </button>
+        {#snippet icon()}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width: 16px; height: 16px;">
+            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        {/snippet}
+      </NeonButton>
+
+      <NeonButton
+        variant="panel"
+        label="Valider"
+        color="#00FF88"
+        fullWidth={true}
+        useColorForText={true}
+        onclick={validateAndExit}
+      >
+        {#snippet icon()}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width: 16px; height: 16px;">
+            <polyline points="3,8 7,12 13,4" />
+          </svg>
+        {/snippet}
+      </NeonButton>
     </div>
   </aside>
 {/if}
@@ -743,150 +624,7 @@
     margin-bottom: 8px;
   }
 
-  .slider-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-
-  .slider-row label {
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--color-text-dim);
-    min-width: 28px;
-    text-align: right;
-  }
-
-  .em-slider {
-    flex: 1;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 4px;
-    background: rgba(255, 140, 0, 0.15);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-  }
-
-  .em-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #ff8c00;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(255, 140, 0, 0.5);
-    transition: box-shadow 0.2s;
-  }
-
-  .em-slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 0 12px rgba(255, 140, 0, 0.8);
-    transform: scale(1.1);
-  }
-
-  .em-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #ff8c00;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(255, 140, 0, 0.5);
-  }
-
-  .em-slider-sun::-webkit-slider-thumb {
-    background: #ffd700;
-    box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
-  }
-
-  .em-slider-sun {
-    background: rgba(255, 215, 0, 0.12);
-  }
-
-  .slider-val-wrapper {
-    display: flex;
-    align-items: center;
-    position: relative;
-    width: 48px;
-    justify-content: flex-end;
-    gap: 2px;
-  }
-
-  .em-number-input {
-    background: transparent;
-    border: none;
-    color: #ff8c00;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    width: 100%;
-    text-align: right;
-    padding: 0;
-    margin: 0;
-    outline: none;
-    line-height: 1;
-    -moz-appearance: textfield;
-    appearance: textfield;
-    transition:
-      background 0.2s,
-      color 0.2s;
-  }
-
-  .em-slider-sun + .slider-val-wrapper .em-number-input,
-  .em-slider-sun + .slider-val-wrapper .suffix {
-    color: #ffd700;
-  }
-
-  .em-number-input::-webkit-outer-spin-button,
-  .em-number-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-
-  .em-number-input:focus {
-    color: #fff;
-    background: rgba(255, 140, 0, 0.2);
-    border-radius: 2px;
-  }
-
-  .suffix {
-    color: #ff8c00;
-    font-family: var(--font-mono);
-    font-size: 10px;
-  }
-
-  .slider-row.modified label {
-    position: relative;
-    color: #ff8c00;
-    transition: color 0.2s;
-  }
-
-  .slider-row.modified label::before {
-    content: "";
-    position: absolute;
-    left: -10px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: #ff8c00;
-    box-shadow: 0 0 6px #ff8c00;
-    animation: pulse-glow 2s infinite alternate;
-  }
-
-  @keyframes pulse-glow {
-    from {
-      opacity: 0.7;
-      box-shadow: 0 0 2px #ff8c00;
-    }
-    to {
-      opacity: 1;
-      box-shadow: 0 0 6px #ff8c00;
-    }
-  }
+  /* Slider rows are now handled by RangeSlider component */
 
   .em-section-pivot {
     background: rgba(255, 140, 0, 0.04);
@@ -932,138 +670,15 @@
     margin-bottom: 8px;
   }
 
-  .em-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 100%;
-    padding: 8px 12px;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-main);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    cursor: pointer;
-    transition: all var(--transition-med);
-  }
-
-  .em-btn svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .em-btn-place {
-    background: rgba(255, 140, 0, 0.12);
-    color: #ff8c00;
-    border: 1px solid rgba(255, 140, 0, 0.25);
-  }
-
-  .em-btn-place:hover {
-    background: rgba(255, 140, 0, 0.2);
-    box-shadow: 0 0 12px rgba(255, 140, 0, 0.3);
-    transform: scale(1.02);
-  }
-
-  .em-btn-remove {
-    background: rgba(255, 59, 92, 0.1);
-    color: var(--color-danger);
-    border: 1px solid rgba(255, 59, 92, 0.2);
-    margin-top: 4px;
-  }
-
-  .em-btn-remove:hover {
-    background: rgba(255, 59, 92, 0.2);
-    box-shadow: 0 0 12px rgba(255, 59, 92, 0.3);
-  }
-
   .em-action-row {
     display: flex;
     gap: 8px;
     margin-top: 10px;
   }
 
-  .em-btn-cancel {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--color-text-dim);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .em-btn-cancel:hover {
-    background: rgba(255, 59, 92, 0.1);
-    color: var(--color-danger);
-    border-color: rgba(255, 59, 92, 0.3);
-    box-shadow: 0 0 12px rgba(255, 59, 92, 0.2);
-  }
-
-  .em-btn-validate {
-    flex: 1;
-    background: rgba(0, 255, 136, 0.08);
-    color: #00ff88;
-    border: 1px solid rgba(0, 255, 136, 0.25);
-    font-size: 11px;
-  }
-
-  .em-btn-validate:hover {
-    background: rgba(0, 255, 136, 0.15);
-    border-color: rgba(0, 255, 136, 0.5);
-    box-shadow: 0 0 14px rgba(0, 255, 136, 0.2);
-    transform: scale(1.02);
-  }
-
-  .em-hint {
-    font-size: 9px;
-    color: rgba(255, 140, 0, 0.35);
-    text-align: center;
-    margin: 0 0 8px 0;
-    letter-spacing: 0.5px;
-  }
-
   /* Flip Buttons */
   .flip-row {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .flip-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 7px 10px;
-    border: 1px solid rgba(255, 140, 0, 0.15);
-    border-radius: var(--radius-sm);
-    background: rgba(255, 140, 0, 0.04);
-    color: var(--color-text-dim);
-    font-family: var(--font-main);
-    font-size: 10px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-med);
-  }
-
-  .flip-btn svg {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
-
-  .flip-btn:hover {
-    background: rgba(255, 140, 0, 0.1);
-    border-color: rgba(255, 140, 0, 0.3);
-    color: #ff8c00;
-  }
-
-  .flip-btn.active {
-    background: rgba(255, 140, 0, 0.15);
-    border-color: rgba(255, 140, 0, 0.4);
-    color: #ff8c00;
-    box-shadow:
-      0 0 10px rgba(255, 140, 0, 0.2),
-      inset 0 0 8px rgba(255, 140, 0, 0.05);
+    gap: 4px;
   }
 </style>

@@ -25,7 +25,7 @@
   import StudioLabelPanel from './components/StudioLabelPanel.svelte';
   import StudioPinnedPanel from './components/StudioPinnedPanel.svelte';
   import StudioAdjustPanel from './components/StudioAdjustPanel.svelte';
-  import ExportPanel from './components/ExportPanel.svelte';
+
   import { equipmentState } from './stores/equipmentState.svelte.js';
   import { PixiRenderer } from './engine/pixi_renderer.js';
 
@@ -111,7 +111,7 @@
     (uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor') ? '#00FF88' : // Neon Green in anchor mode
     uiState.currentPhase === 'ALIGN' ? '#00E5FF' :
     uiState.currentPhase === 'STUDIO' ? '#FF4081' :
-    uiState.currentPhase === 'EXPORT' ? '#F59E0B' : 'transparent'
+    uiState.currentPhase === 'EXPORT' ? '#FFD700' : 'transparent'
   );
 
   let isAnchorActive = $derived(uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor');
@@ -167,14 +167,15 @@
   <div class="panel-layout-left">
     <StudioLayerPanel />
     <StudioLabelPanel />
+  </div>
+
+  <div class="panel-layout-right">
+    <StudioAdjustPanel />
     <StudioPinnedPanel />
   </div>
-  <StudioAdjustPanel />
 {/if}
 
-{#if uiState.currentPhase === 'EXPORT'}
-  <ExportPanel />
-{/if}
+
 
 {#if uiState.currentPhase !== 'IMPORT'}
   <!-- Bottom Dock (Global Info & Action Bar) -->
@@ -226,6 +227,18 @@
     pointer-events: none;
   }
 
+  .panel-layout-right {
+    position: fixed;
+    top: 74px;
+    right: 16px;
+    bottom: 74px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+    pointer-events: none;
+  }
+
   .rotation-guide {
     position: absolute;
     inset: 0;
@@ -249,7 +262,6 @@
   }
 
   .app-container.anchor-active::after {
-    animation: border-pulse-anchor 1.5s ease-in-out infinite alternate;
     border-width: 3px;
   }
 

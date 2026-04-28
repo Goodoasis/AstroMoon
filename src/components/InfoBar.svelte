@@ -9,6 +9,7 @@
   import { Anchors } from '@/engine/anchors.js';
 
   import { studioState } from '@/stores/studioState.svelte.js';
+  import NeonButton from './NeonButton.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -48,10 +49,10 @@
   // Phase colored glow for the dock border
   let dockGlow = $derived(
     uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor' ? '#00FF88' :
-    uiState.currentPhase === 'ALIGN' ? 'var(--color-cyan)' :
-    uiState.currentPhase === 'STUDIO' ? 'var(--color-violet)' :
-    uiState.currentPhase === 'EXPORT' ? '#F59E0B' : 
-    'var(--color-border)'
+    uiState.currentPhase === 'ALIGN' ? '#00E5FF' :
+    uiState.currentPhase === 'STUDIO' ? '#FF4081' :
+    uiState.currentPhase === 'EXPORT' ? '#FFD700' : 
+    'rgba(255, 255, 255, 0.1)'
   );
 </script>
 
@@ -60,37 +61,67 @@
   <!-- GAUCHE : Boutons d'Action Rapide (Uniquement en phase ALIGN) -->
   {#if uiState.currentPhase === 'ALIGN'}
     <div class="dock-section dock-actions">
-      <!-- svelte-ignore a11y_consider_explicit_label -->
-      <button class="tb-btn" class:active={viewportState.mode === 'anchor'} onclick={toggleAnchorMode} title="Mode Ancrage (A)">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-          <circle cx="12" cy="10" r="3"></circle>
-        </svg>
-      </button>
-      <!-- svelte-ignore a11y_consider_explicit_label -->
-      <button class="tb-btn" class:active={studioState.gridVisible} onclick={toggleGrid} title="Grille Debug (G)">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="3" y1="9" x2="21" y2="9"></line>
-          <line x1="3" y1="15" x2="21" y2="15"></line>
-          <line x1="9" y1="3" x2="9" y2="21"></line>
-          <line x1="15" y1="3" x2="15" y2="21"></line>
-        </svg>
-      </button>
-      <!-- svelte-ignore a11y_consider_explicit_label -->
-      <button class="tb-btn" onclick={handleReset} title="Reset Position">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-          <path d="M3 3v5h5"></path>
-        </svg>
-      </button>
-      <!-- svelte-ignore a11y_consider_explicit_label -->
-      <button class="tb-btn" class:active={uiState.showLabels} onclick={toggleLabels} title="Noms des cratères (L)">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-          <line x1="7" y1="7" x2="7.01" y2="7"></line>
-        </svg>
-      </button>
+      <NeonButton
+        variant="icon"
+        color={dockGlow}
+        active={viewportState.mode === 'anchor'}
+        onclick={toggleAnchorMode}
+        title="Mode Ancrage (A)"
+      >
+        {#snippet icon()}
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+        {/snippet}
+      </NeonButton>
+
+      <NeonButton
+        variant="icon"
+        color={dockGlow}
+        active={studioState.gridVisible}
+        onclick={toggleGrid}
+        title="Grille Debug (G)"
+      >
+        {#snippet icon()}
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="3" y1="15" x2="21" y2="15"></line>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+            <line x1="15" y1="3" x2="15" y2="21"></line>
+          </svg>
+        {/snippet}
+      </NeonButton>
+
+      <NeonButton
+        variant="icon"
+        color={dockGlow}
+        onclick={handleReset}
+        title="Reset Position"
+      >
+        {#snippet icon()}
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+        {/snippet}
+      </NeonButton>
+
+      <NeonButton
+        variant="icon"
+        color={dockGlow}
+        active={uiState.showLabels}
+        onclick={toggleLabels}
+        title="Noms des cratères (L)"
+      >
+        {#snippet icon()}
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+          </svg>
+        {/snippet}
+      </NeonButton>
     </div>
     <div class="dock-sep"></div>
   {/if}
@@ -197,36 +228,13 @@ En attente
   }
 
   /* -- ACTIONS GAUCHE -- */
-  .dock-actions { gap: 6px; }
-
-  .tb-btn {
-    display: flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px;
-    border: 1px solid transparent; border-radius: 50%;
-    background: transparent; color: var(--color-text-dim);
-    cursor: pointer; transition: all 0.2s ease;
-    padding: 0;
-  }
+  .dock-actions { gap: 4px; }
 
   .btn-icon {
     width: 16px; 
     height: 16px;
     display: block;
-    transition: filter 0.2s;
   }
-
-  .tb-btn:hover {
-    background: rgba(255, 255, 255, 0.08); color: var(--color-text);
-    transform: scale(1.05);
-  }
-
-  .tb-btn.active {
-    background: rgba(0, 229, 255, 0.15); color: var(--color-cyan);
-    border-color: rgba(0, 229, 255, 0.4);
-    box-shadow: inset 0 0 12px rgba(0, 229, 255, 0.2);
-  }
-  
-  .tb-btn.active .btn-icon { filter: drop-shadow(0 0 6px var(--color-cyan)); }
 
   /* -- RACCOURCIS CENTRE -- */
   .info-hint { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-dim); }

@@ -265,7 +265,7 @@ export function onDoubleClick(e) {
 export function onKeyDown(e) {
   if (e.target.tagName === 'INPUT' && (e.target.type === 'text' || e.target.type === 'search' || e.target.type === 'number')) return;
   if (e.target.tagName === 'TEXTAREA') return;
-  if (e.key === 'a' || e.key === 'A') toggleAnchorMode();
+  if ((e.key === 'a' || e.key === 'A') && uiState.currentPhase === 'ALIGN') toggleAnchorMode();
   if (e.key === 'g' || e.key === 'G') {
     const on = PixiRenderer.toggleGrid();
     if (on) { 

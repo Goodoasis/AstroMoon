@@ -509,6 +509,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
     const fine = (isStudio && layerName) ? (studioState.layerFine[layerName] ?? 1.5) : 1.5;
     const isSmooth = (isStudio && layerName) ? (studioState.layerSmooth[layerName] ?? false) : false;
     const glow = (isStudio && layerName) ? (studioState.layerGlow[layerName] ?? 0.0) : 0.0;
+    const blur = (isStudio && layerName) ? (studioState.layerBlur[layerName] ?? 0.0) : 0.0;
 
     // --- Helper to trace paths for Z-Indexed rendering ---
     const traceRing = (ring) => {
@@ -584,21 +585,28 @@ function rebuildGeoJSON(projectedFeatures, vp) {
         gfx.stroke({ width: fine * invScale, color: colors.stroke, alpha: colors.alpha * opacity });
       }
 
+      const activeFilters = [];
       if (glow > 0 && (hasPolys || hasLines)) {
-        gfx.filters = [new GlowFilter({ 
+        activeFilters.push(new GlowFilter({ 
           distance: glow * 12, 
           outerStrength: 2, 
           innerStrength: 0, 
           color: colors.stroke, 
           quality: 0.5 
-        })];
-      } else {
-        gfx.filters = null;
+        }));
       }
+      if (blur > 0) {
+        activeFilters.push(new PIXI.BlurFilter({ strength: blur }));
+      }
+      gfx.filters = activeFilters.length > 0 ? activeFilters : null;
 
     } else {
       // â”€â”€â”€ Z-INDEX GLOW METHOD (Fast Path, High Performance) â”€â”€â”€
-      gfx.filters = null;
+      const activeFilters = [];
+      if (blur > 0) {
+        activeFilters.push(new PIXI.BlurFilter({ strength: blur }));
+      }
+      gfx.filters = activeFilters.length > 0 ? activeFilters : null;
 
       const hasPolys = tracePolygons();
       const hasLines = traceLines();
@@ -1054,6 +1062,7 @@ function rebuildTerminator(transformFn, vp) {
   const termThick = isStudio ? studioState.terminatorThickness : RENDER.terminatorCoreWidth;
   const termOpacity = isStudio ? studioState.terminatorOpacity : 1.0;
   const termGlow = isStudio ? studioState.terminatorGlow : 1.0; 
+  const termBlur = isStudio ? studioState.terminatorBlur : 0.0;
   const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : (isStudio ? studioState.useShaderGlow : true);
   
   terminatorGfx.blendMode = isStudio ? studioState.terminatorBlendMode : 'normal';
@@ -1074,13 +1083,23 @@ function rebuildTerminator(transformFn, vp) {
   if (useShaderGlow) {
     traceTerminator();
     terminatorGfx.stroke({ width: termThick * invScale, color: termColor, alpha: termOpacity });
+    
+    const activeFilters = [];
     if (termGlow > 0) {
-      terminatorGfx.filters = [new GlowFilter({ distance: termGlow * 12, outerStrength: 2, innerStrength: 0, color: termColor, quality: 0.5 })];
-    } else {
-      terminatorGfx.filters = null;
+      activeFilters.push(new GlowFilter({ distance: termGlow * 12, outerStrength: 2, innerStrength: 0, color: termColor, quality: 0.5 }));
     }
+    if (termBlur > 0) {
+      activeFilters.push(new PIXI.BlurFilter({ strength: termBlur }));
+    }
+    terminatorGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+
   } else {
-    terminatorGfx.filters = null;
+    const activeFilters = [];
+    if (termBlur > 0) {
+      activeFilters.push(new PIXI.BlurFilter({ strength: termBlur }));
+    }
+    terminatorGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+
     traceTerminator();
     if (termGlow > 0) {
       if (!isStudio) {
@@ -1192,6 +1211,7 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
   const gridThick = isStudio ? studioState.gridThickness : GRID.lineWidth;
   const gridOpacity = isStudio ? studioState.gridOpacity : GRID.lineAlpha;
   const gridGlow = isStudio ? studioState.gridGlow : 0.0;
+  const gridBlur = isStudio ? studioState.gridBlur : 0.0;
   const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : (isStudio ? studioState.useShaderGlow : false);
 
   gridGfx.blendMode = isStudio ? studioState.gridBlendMode : 'normal';
@@ -1218,13 +1238,23 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
   if (useShaderGlow) {
     traceGrid();
     gridGfx.stroke({ width: gridThick * invScale, color: gridColor, alpha: gridOpacity });
+    
+    const activeFilters = [];
     if (gridGlow > 0) {
-      gridGfx.filters = [new GlowFilter({ distance: gridGlow * 12, outerStrength: 2, innerStrength: 0, color: gridColor, quality: 0.5 })];
-    } else {
-      gridGfx.filters = null;
+      activeFilters.push(new GlowFilter({ distance: gridGlow * 12, outerStrength: 2, innerStrength: 0, color: gridColor, quality: 0.5 }));
     }
+    if (gridBlur > 0) {
+      activeFilters.push(new PIXI.BlurFilter({ strength: gridBlur }));
+    }
+    gridGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+
   } else {
-    gridGfx.filters = null;
+    const activeFilters = [];
+    if (gridBlur > 0) {
+      activeFilters.push(new PIXI.BlurFilter({ strength: gridBlur }));
+    }
+    gridGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+
     traceGrid();
     if (gridGlow > 0) {
       const glowWidth = gridThick * invScale * (1 + gridGlow * 2.5);
@@ -1708,11 +1738,13 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
       container._bg = bg;
       container._text = text;
       
+      /*
       text.on('pointerdown', (e) => {
         e.stopPropagation();
         studioState.togglePinnedCrater(container._crater.name);
         layerState.layerTransformDirty = true;
       });
+      */
       
       labelsContainer.addChild(container);
     }
@@ -1757,7 +1789,10 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
  * Just updates transforms and scales without full rebuild or dot update.
  */
 function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mouseY = -1000) {
-  if (!_showLabels) return;
+  if (!_showLabels) {
+    _currentHoveredCrater = null;
+    return;
+  }
   const invScale = 1 / vp.scale;
 
   // 1. VisibilitÃ© & Fondu (Optimisation GPU)
@@ -1822,25 +1857,25 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   // 3. Hover : Scan optimisÃ© (influence rÃ©duite)
   let closestCandidate = null;
-  let closestDistSq = 144; // 12 * 12
+  let closestDistSq = LABELS.hoverRadius * LABELS.hoverRadius;
 
-  if (!isDragging) {
-    for (const cand of _allVisibleCraterPoints) {
-      // Get screen position accounting for the viewport transform
-      const g = viewportContainer.toGlobal(new PIXI.Point(cand.ptX, cand.ptY));
-      const sx = g.x;
-      const sy = g.y;
+  // We perform the scan even during drag so that onMouseUp can detect the click,
+  // but we only render the hover UI if not dragging.
+  for (const cand of _allVisibleCraterPoints) {
+    // Get screen position accounting for the viewport transform
+    const g = viewportContainer.toGlobal(new PIXI.Point(cand.ptX, cand.ptY));
+    const sx = g.x;
+    const sy = g.y;
 
-      const dx = sx - mouseX;
-      if (Math.abs(dx) > 15) continue;
-      const dy = sy - mouseY;
-      if (Math.abs(dy) > 15) continue;
+    const dx = sx - mouseX;
+    if (Math.abs(dx) > 15) continue;
+    const dy = sy - mouseY;
+    if (Math.abs(dy) > 15) continue;
 
-      const dSq = dx * dx + dy * dy;
-      if (dSq < closestDistSq) {
-        closestDistSq = dSq;
-        closestCandidate = cand;
-      }
+    const dSq = dx * dx + dy * dy;
+    if (dSq < closestDistSq) {
+      closestDistSq = dSq;
+      closestCandidate = cand;
     }
   }
 
@@ -1851,6 +1886,9 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   if (closestCandidate) {
     _currentHoveredCrater = closestCandidate.crater;
+    
+    // Only render hover visuals if not dragging
+    if (!isDragging) {
     // Vérifier si ce cratère possède DÉJÀ un label à l'écran (O(1) lookup)
     const existingLabel = _activeLabelMap.get(closestCandidate.crater) || null;
 
@@ -1910,6 +1948,7 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       hoverBgGfx.circle(0, 14, 8); // CoordonnÃ©es locales au hoverContainer
       hoverBgGfx.stroke({ width: 1.5, color: 0x00d4ff, alpha: 0.8 });
     }
+    }
   }
 }
 
@@ -1945,6 +1984,10 @@ function getPalette() {
   return LAYER_PALETTE;
 }
 
+function getHoveredCrater() {
+  return _currentHoveredCrater;
+}
+
 export const PixiRenderer = {
   init,
   getApp,
@@ -1970,5 +2013,6 @@ export const PixiRenderer = {
   setLabelsEnabled,
   showLabels: isLabelsEnabled,
   getLayerColor,
-  getPalette
+  getPalette,
+  getHoveredCrater
 };

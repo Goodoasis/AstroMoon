@@ -6,16 +6,17 @@
   import { Transform } from '../engine/transform.js';
   import { updateCursor } from '../engine/inputHandler.js';
   import AuthModule from './AuthModule.svelte';
+  import NeonButton from './NeonButton.svelte';
 
   const phases = $derived([
     { id: 'IMPORT', label: 'Import', color: '#94a3b8' },
     { 
       id: 'ALIGN', 
-      label: (uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor') ? 'Anchor' : 'Align', 
+      label: (uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor') ? 'Ancre' : 'Align', 
       color: (uiState.currentPhase === 'ALIGN' && viewportState.mode === 'anchor') ? '#00FF88' : '#00E5FF' 
     },
     { id: 'STUDIO', label: 'Studio', color: '#FF4081' },
-    { id: 'EXPORT', label: 'Export', color: '#F59E0B' }
+    { id: 'EXPORT', label: 'Export', color: '#FFD700' }
   ]);
 
   function setPhase(phaseId) {
@@ -80,17 +81,13 @@
   <!-- Center: Phase Navigation -->
   <nav class="phase-tabs-container">
     {#each phases as phase}
-      <div 
-        class="phase-tab {uiState.currentPhase === phase.id ? 'active' : ''}"
-        role="button"
-        tabindex="0"
-        style:--tab-color={phase.color}
+      <NeonButton
+        variant="tab"
+        label={phase.label}
+        color={phase.color}
+        active={uiState.currentPhase === phase.id}
         onclick={() => setPhase(phase.id)}
-        onkeydown={(e) => e.key === 'Enter' && setPhase(phase.id)}
-        data-text={phase.label}
-      >
-        {phase.label}
-      </div>
+      />
     {/each}
   </nav>
 
@@ -155,54 +152,7 @@
 
   .phase-tabs-container {
     display: flex;
-    gap: 4px;
+    gap: 8px;
     padding: 2px;
-  }
-
-  .phase-tab {
-    padding: 6px 14px;
-    border-radius: 9999px;
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.5);
-    cursor: pointer;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    user-select: none;
-    border: 1px solid transparent; /* Always present to prevent shift */
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-width: 80px; /* Prevent shrinking/expanding during label change */
-  }
-
-  /* Trick to reserve space for bold text without shifting layout */
-  .phase-tab::after {
-    content: attr(data-text);
-    height: 0;
-    visibility: hidden;
-    overflow: hidden;
-    user-select: none;
-    pointer-events: none;
-    font-weight: 700;
-  }
-
-  .phase-tab:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .phase-tab.active {
-    color: var(--tab-color);
-    background: rgba(255, 255, 255, 0.05); /* Flat background */
-    box-shadow: 
-      0 0 15px rgba(0, 0, 0, 0.4), 
-      0 0 10px var(--tab-color); /* Discreet glow */
-    text-shadow: 0 0 5px var(--tab-color);
-    border: 1px solid var(--tab-color);
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    filter: brightness(1.2);
   }
 </style>

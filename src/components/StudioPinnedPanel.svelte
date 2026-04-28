@@ -7,15 +7,10 @@
   let isOpen = $state(true);
   
   $effect(() => {
-    if (!uiState.showLabels) {
+    if (studioState.pinnedCraters.size > 0) {
+      isOpen = true;
+    } else if (studioState.pinnedCraters.size === 0) {
       isOpen = false;
-    }
-  });
-
-  $effect(() => {
-    if (isOpen && !uiState.showLabels) {
-      uiState.showLabels = true;
-      PixiRenderer.setLabelsEnabled(true);
     }
   });
 
@@ -34,7 +29,7 @@
   }
 </script>
 
-<div class="context-panel" class:open={isOpen} class:disabled={!uiState.showLabels || studioState.pinnedCraters.size === 0}>
+<div class="context-panel" class:open={isOpen} class:disabled={studioState.pinnedCraters.size === 0}>
   <!-- Trigger -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -49,6 +44,17 @@
       <span class="summary-sep">|</span>
       <span class="summary-item" style={studioState.pinnedCraters.size > 0 ? "color: #00E5FF;" : ""}>{studioState.pinnedCraters.size}</span>
     </div>
+
+    {#if studioState.pinnedCraters.size > 0}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="clear-all-btn-header" onclick={(e) => { e.stopPropagation(); unpinAll(); }} title="Vider la liste">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </div>
+    {/if}
   </div>
 
   <!-- Content -->
@@ -58,16 +64,6 @@
       <section class="panel-section">
         <div class="section-header">
           <h3 class="section-title">Labels Verrouillés</h3>
-          {#if studioState.pinnedCraters.size > 1}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="clear-all-btn" onclick={unpinAll}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </div>
-          {/if}
         </div>
 
         {#if studioState.pinnedCraters.size === 0}
@@ -100,7 +96,7 @@
 <style>
   /* Base Glassmorphism Panel styles imported from global context-panel or defined here */
   .context-panel {
-    width: 280px;
+    width: 270px;
     background: rgba(10, 11, 16, 0.7);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -112,6 +108,7 @@
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     flex-shrink: 0;
+    pointer-events: auto;
   }
 
   .context-panel.disabled {
@@ -174,6 +171,13 @@
     transition: grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  .context-panel.open {
+    border-color: rgba(0, 229, 255, 0.3);
+    box-shadow: 
+      0 10px 40px rgba(0, 0, 0, 0.6),
+      0 0 20px rgba(0, 229, 255, 0.15);
+  }
+
   .context-panel.open .panel-content {
     grid-template-rows: 1fr;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -215,20 +219,24 @@
     margin: 0;
   }
 
-  .clear-all-btn {
+  .clear-all-btn-header {
     color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
-    transition: color 0.2s;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 8px;
+    margin: -8px;
+    border-radius: 50%;
   }
 
-  .clear-all-btn:hover {
+  .clear-all-btn-header:hover {
     color: #FF4081;
+    background: rgba(255, 64, 129, 0.1);
   }
 
-  .clear-all-btn svg {
+  .clear-all-btn-header svg {
     width: 14px;
     height: 14px;
   }

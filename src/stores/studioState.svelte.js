@@ -32,6 +32,7 @@ class StudioState {
   layerGlow = $state({});         // { 'marias.geojson': 0.5, ... }
   layerFine = $state({});         // { 'marias.geojson': 1.5, ... }
   layerSmooth = $state({});       // { 'marias.geojson': false, ... }
+  layerBlur = $state({});         // { 'marias.geojson': 0, ... }
 
   // ─── Grid ───
   gridVisible = $state(false);
@@ -41,6 +42,7 @@ class StudioState {
   gridOpacity = $state(1.0);
   gridBlendMode = $state('normal');
   gridGlow = $state(0.0);
+  gridBlur = $state(0.0);
 
   // ─── Terminator ───
   terminatorVisible = $state(true);
@@ -49,6 +51,7 @@ class StudioState {
   terminatorOpacity = $state(1.0);
   terminatorBlendMode = $state('normal');
   terminatorGlow = $state(1.0);
+  terminatorBlur = $state(0.0);
 
   // ─── Night Mask ───
   nightMaskVisible = $state(true);
@@ -118,6 +121,7 @@ class StudioState {
         this.layerGlow[name] = 0.0;
         this.layerFine[name] = 1.5;
         this.layerSmooth[name] = true; // Enabled by default in Studio
+        this.layerBlur[name] = 0;
       }
     });
   }
@@ -141,6 +145,7 @@ class StudioState {
     this.layerGlow = {};
     this.layerFine = {};
     this.layerSmooth = {};
+    this.layerBlur = {};
     this.gridVisible = false;
     this.gridInterval = 10;
     this.gridThickness = 1.5;
@@ -148,6 +153,7 @@ class StudioState {
     this.gridOpacity = 1.0;
     this.gridBlendMode = 'normal';
     this.gridGlow = 0.0;
+    this.gridBlur = 0.0;
     
     this.terminatorVisible = true;
     this.terminatorThickness = 2.5;
@@ -155,6 +161,7 @@ class StudioState {
     this.terminatorOpacity = 1.0;
     this.terminatorBlendMode = 'normal';
     this.terminatorGlow = 1.0;
+    this.terminatorBlur = 0.0;
 
     this.nightMaskVisible = true;
     this.nightMaskColor = 9; // Index of 'Noir' in LAYER_PALETTE

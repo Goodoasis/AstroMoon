@@ -243,6 +243,5 @@
     background: rgba(255, 59, 92, 0.06);
     border: 1px solid rgba(255, 59, 92, 0.15);
     border-radius: var(--radius-sm);
-    animation: pulse-glow 2s ease-in-out infinite;
   }
 </style>

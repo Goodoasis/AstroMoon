@@ -4,6 +4,8 @@
   import { STUDIO, LAYER_PALETTE } from '@/engine/config.js';
   import { tooltip } from '@/actions/tooltip.js';
   import { untrack } from 'svelte';
+  import RangeSlider from './RangeSlider.svelte';
+  import NeonToggle from './NeonToggle.svelte';
 
   // Human-readable layer names derived from filenames
   const LAYER_LABELS = {
@@ -122,14 +124,15 @@
     <div class="trigger-summary">
       <span class="summary-item">Calques</span>
     </div>
-    <div class="sl-header-right" style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-      <span class="sl-hq-label" class:active={studioState.useShaderGlow} style="font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--color-text-dim); transition: color 0.3s; opacity: 1;">HQ</span>
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-      <label class="sl-mini-toggle" onclick={(e) => e.stopPropagation()} style="position: relative; cursor: pointer;">
-        <input type="checkbox" bind:checked={studioState.useShaderGlow} onchange={() => layerState.layerTransformDirty = true} style="display: none;" />
-        <span class="sl-toggle-track" style="display: block; width: 24px; height: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 999px; position: relative;"><span class="sl-toggle-thumb" style="position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; border-radius: 50%; background: #FF4081; transition: transform 0.3s;"></span></span>
-      </label>
+    <div style="margin-left: auto; display: flex;">
+      <NeonToggle 
+        label="HQ"
+        labelLeft={true}
+        size="md"
+        color="#FF4081" 
+        bind:checked={studioState.useShaderGlow} 
+        onchange={() => layerState.layerTransformDirty = true} 
+      />
     </div>
   </div>
 
@@ -182,15 +185,7 @@
             </span>
 
             <!-- Mini opacity slider -->
-            <input
-              type="range"
-              class="sl-mini-slider"
-              min="0" max="1" step="0.05"
-              value={opacity}
-              onclick={(e) => e.stopPropagation()}
-              oninput={(e) => studioState.layerOpacity[layerName] = parseFloat(e.target.value)}
-              style:--slider-color={getColorHex(colorIdx)}
-            />
+            <RangeSlider variant="mini" min={0} max={1} step={0.05} value={opacity} color={getColorHex(colorIdx)} stopPropagation={true} oninput={(v) => studioState.layerOpacity[layerName] = v} />
 
             <!-- Expand chevron -->
             <span class="sl-expand-indicator" class:expanded={isExpanded}>
@@ -205,15 +200,14 @@
             <div class="sl-layer-details">
               <!-- Épaisseur -->
               <div class="sl-detail-row">
-                <span class="sl-detail-label">Épaisseur</span>
-                <input type="range" class="sl-detail-slider" min={STUDIO.layerFineMin} max={STUDIO.layerFineMax} step={STUDIO.layerFineStep} bind:value={studioState.layerFine[layerName]} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(colorIdx)} />
-                <span class="sl-detail-val">{(studioState.layerFine[layerName] ?? 1.5).toFixed(1)}</span>
+                <RangeSlider variant="detail" label="Épaisseur" min={STUDIO.layerFineMin} max={STUDIO.layerFineMax} step={STUDIO.layerFineStep} bind:value={studioState.layerFine[layerName]} initialValue={1.5} color={getColorHex(colorIdx)} fixed={1} oninput={() => layerState.layerTransformDirty = true} />
               </div>
               <!-- Glow -->
               <div class="sl-detail-row">
-                <span class="sl-detail-label">Glow</span>
-                <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.layerGlow[layerName]} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(colorIdx)} />
-                <span class="sl-detail-val">{(studioState.layerGlow[layerName] ?? 0.5).toFixed(1)}</span>
+                <RangeSlider variant="detail" label="Glow" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.layerGlow[layerName]} initialValue={0} color={getColorHex(colorIdx)} fixed={1} oninput={() => layerState.layerTransformDirty = true} />
+              </div>
+              <div class="sl-detail-row">
+                <RangeSlider variant="detail" label="Flou" min={STUDIO.layerBlurMin} max={STUDIO.layerBlurMax} step={STUDIO.layerBlurStep} bind:value={studioState.layerBlur[layerName]} initialValue={STUDIO.layerBlurDefault} color={getColorHex(colorIdx)} fixed={0} oninput={() => layerState.layerTransformDirty = true} />
               </div>
               <!-- Blend mode -->
               <div class="sl-detail-row">
@@ -226,13 +220,14 @@
               </div>
               <!-- Smooth -->
               <div class="sl-detail-row">
-                <label class="sl-toggle-row">
-                  <input type="checkbox" bind:checked={studioState.layerSmooth[layerName]} onchange={() => {
-                    layerState.layerTransformDirty = true;
-                  }} />
-                  <span class="sl-toggle-track"><span class="sl-toggle-thumb"></span></span>
-                </label>
-                <span class="sl-detail-label">Adoucir</span>
+                <NeonToggle 
+                  label="Adoucir" 
+                  labelLeft={true}
+                  size="sm"
+                  color={getColorHex(colorIdx)} 
+                  bind:checked={studioState.layerSmooth[layerName]} 
+                  onchange={() => layerState.layerTransformDirty = true} 
+                />
               </div>
             </div>
           {/if}
@@ -262,7 +257,7 @@
           
           <span class="sl-layer-name" class:dimmed={!studioState.gridVisible} title="Grille Sélénographique">Grille Sélénographique</span>
           
-          <input type="range" class="sl-mini-slider" min="0" max="1" step="0.05" value={studioState.gridOpacity} onclick={(e) => e.stopPropagation()} oninput={(e) => { studioState.gridOpacity = parseFloat(e.target.value); layerState.layerTransformDirty = true; }} style:--slider-color={getColorHex(studioState.gridColor)} />
+          <RangeSlider variant="mini" min={0} max={1} step={0.05} value={studioState.gridOpacity} color={getColorHex(studioState.gridColor)} stopPropagation={true} oninput={(v) => { studioState.gridOpacity = v; layerState.layerTransformDirty = true; }} />
           
           <span class="sl-expand-indicator" class:expanded={expandedLayer === 'grid'}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6,4 10,8 6,12"/></svg>
@@ -272,14 +267,13 @@
         {#if expandedLayer === 'grid'}
           <div class="sl-layer-details">
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Épaisseur</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.gridThicknessMin} max={STUDIO.gridThicknessMax} step={STUDIO.gridThicknessStep} bind:value={studioState.gridThickness} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.gridColor)} />
-              <span class="sl-detail-val">{studioState.gridThickness.toFixed(1)}</span>
+              <RangeSlider variant="detail" label="Épaisseur" min={STUDIO.gridThicknessMin} max={STUDIO.gridThicknessMax} step={STUDIO.gridThicknessStep} bind:value={studioState.gridThickness} initialValue={1.5} color={getColorHex(studioState.gridColor)} fixed={1} oninput={() => layerState.layerTransformDirty = true} />
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Glow</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.gridGlow} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.gridColor)} />
-              <span class="sl-detail-val">{studioState.gridGlow.toFixed(1)}</span>
+              <RangeSlider variant="detail" label="Glow" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.gridGlow} initialValue={0} color={getColorHex(studioState.gridColor)} fixed={1} oninput={() => layerState.layerTransformDirty = true} />
+            </div>
+            <div class="sl-detail-row">
+              <RangeSlider variant="detail" label="Flou" min={STUDIO.layerBlurMin} max={STUDIO.layerBlurMax} step={STUDIO.layerBlurStep} bind:value={studioState.gridBlur} initialValue={0} color={getColorHex(studioState.gridColor)} fixed={0} oninput={() => layerState.layerTransformDirty = true} />
             </div>
             <div class="sl-detail-row">
               <span class="sl-detail-label">Incrustation</span>
@@ -290,9 +284,7 @@
               </select>
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Intervalle</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.gridIntervalMin} max={STUDIO.gridIntervalMax} step={STUDIO.gridIntervalStep} bind:value={studioState.gridInterval} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.gridColor)} />
-              <span class="sl-detail-val">{studioState.gridInterval}°</span>
+              <RangeSlider variant="detail" label="Intervalle" min={STUDIO.gridIntervalMin} max={STUDIO.gridIntervalMax} step={STUDIO.gridIntervalStep} bind:value={studioState.gridInterval} initialValue={10} color={getColorHex(studioState.gridColor)} fixed={0} suffix="°" oninput={() => layerState.layerTransformDirty = true} />
             </div>
           </div>
         {/if}
@@ -328,7 +320,7 @@
           
           <span class="sl-layer-name" class:dimmed={!studioState.terminatorVisible} title="Terminateur">Terminateur</span>
           
-          <input type="range" class="sl-mini-slider" min="0" max="1" step="0.05" value={studioState.terminatorOpacity} onclick={(e) => e.stopPropagation()} oninput={(e) => { studioState.terminatorOpacity = parseFloat(e.target.value); layerState.layerTransformDirty = true; }} style:--slider-color={getColorHex(studioState.terminatorColor)} />
+          <RangeSlider variant="mini" min={0} max={1} step={0.05} value={studioState.terminatorOpacity} color={getColorHex(studioState.terminatorColor)} stopPropagation={true} oninput={(v) => { studioState.terminatorOpacity = v; layerState.layerTransformDirty = true; }} />
           
           <span class="sl-expand-indicator" class:expanded={expandedLayer === 'terminator'}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6,4 10,8 6,12"/></svg>
@@ -338,14 +330,13 @@
         {#if expandedLayer === 'terminator'}
           <div class="sl-layer-details">
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Épaisseur</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.terminatorThicknessMin} max={STUDIO.terminatorThicknessMax} step={STUDIO.terminatorThicknessStep} bind:value={studioState.terminatorThickness} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.terminatorColor)} />
-              <span class="sl-detail-val">{studioState.terminatorThickness.toFixed(1)}</span>
+              <RangeSlider variant="detail" label="Épaisseur" min={STUDIO.terminatorThicknessMin} max={STUDIO.terminatorThicknessMax} step={STUDIO.terminatorThicknessStep} bind:value={studioState.terminatorThickness} initialValue={2.0} color={getColorHex(studioState.terminatorColor)} fixed={1} oninput={() => layerState.layerTransformDirty = true} />
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Glow</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.terminatorGlow} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.terminatorColor)} />
-              <span class="sl-detail-val">{studioState.terminatorGlow.toFixed(1)}</span>
+              <RangeSlider variant="detail" label="Glow" min={STUDIO.layerGlowMin} max={STUDIO.layerGlowMax} step={STUDIO.layerGlowStep} bind:value={studioState.terminatorGlow} initialValue={0} color={getColorHex(studioState.terminatorColor)} fixed={1} oninput={() => layerState.layerTransformDirty = true} />
+            </div>
+            <div class="sl-detail-row">
+              <RangeSlider variant="detail" label="Flou" min={STUDIO.layerBlurMin} max={STUDIO.layerBlurMax} step={STUDIO.layerBlurStep} bind:value={studioState.terminatorBlur} initialValue={0} color={getColorHex(studioState.terminatorColor)} fixed={0} oninput={() => layerState.layerTransformDirty = true} />
             </div>
             <div class="sl-detail-row">
               <span class="sl-detail-label">Incrustation</span>
@@ -382,7 +373,7 @@
           
           <span class="sl-layer-name" class:dimmed={!studioState.nightMaskVisible} title="Ombre (Nuit)">Ombre (Nuit)</span>
           
-          <input type="range" class="sl-mini-slider" min={STUDIO.nightMaskOpacityMin} max={STUDIO.nightMaskOpacityMax} step={STUDIO.nightMaskOpacityStep} value={studioState.nightMaskOpacity} onclick={(e) => e.stopPropagation()} oninput={(e) => { studioState.nightMaskOpacity = parseFloat(e.target.value); layerState.layerTransformDirty = true; }} style:--slider-color={getColorHex(studioState.nightMaskColor)} />
+          <RangeSlider variant="mini" min={STUDIO.nightMaskOpacityMin} max={STUDIO.nightMaskOpacityMax} step={STUDIO.nightMaskOpacityStep} value={studioState.nightMaskOpacity} color={getColorHex(studioState.nightMaskColor)} stopPropagation={true} oninput={(v) => { studioState.nightMaskOpacity = v; layerState.layerTransformDirty = true; }} />
           
           <span class="sl-expand-indicator" class:expanded={expandedLayer === 'nightMask'}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6,4 10,8 6,12"/></svg>
@@ -400,9 +391,7 @@
               </select>
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Flou (Gradient)</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.nightMaskBlurMin} max={STUDIO.nightMaskBlurMax} step={STUDIO.nightMaskBlurStep} bind:value={studioState.nightMaskBlur} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.nightMaskColor)} />
-              <span class="sl-detail-val">{studioState.nightMaskBlur}</span>
+              <RangeSlider variant="detail" label="Flou" min={STUDIO.nightMaskBlurMin} max={STUDIO.nightMaskBlurMax} step={STUDIO.nightMaskBlurStep} bind:value={studioState.nightMaskBlur} initialValue={STUDIO.nightMaskBlurMin} color={getColorHex(studioState.nightMaskColor)} fixed={0} oninput={() => layerState.layerTransformDirty = true} />
             </div>
           </div>
         {/if}
@@ -431,7 +420,7 @@
           
           <span class="sl-layer-name" class:dimmed={!studioState.dayMaskVisible} title="Lumière (Jour)">Lumière (Jour)</span>
           
-          <input type="range" class="sl-mini-slider" min={STUDIO.dayMaskOpacityMin} max={STUDIO.dayMaskOpacityMax} step={STUDIO.dayMaskOpacityStep} value={studioState.dayMaskOpacity} onclick={(e) => e.stopPropagation()} oninput={(e) => { studioState.dayMaskOpacity = parseFloat(e.target.value); layerState.layerTransformDirty = true; }} style:--slider-color={getColorHex(studioState.dayMaskColor)} />
+          <RangeSlider variant="mini" min={STUDIO.dayMaskOpacityMin} max={STUDIO.dayMaskOpacityMax} step={STUDIO.dayMaskOpacityStep} value={studioState.dayMaskOpacity} color={getColorHex(studioState.dayMaskColor)} stopPropagation={true} oninput={(v) => { studioState.dayMaskOpacity = v; layerState.layerTransformDirty = true; }} />
           
           <span class="sl-expand-indicator" class:expanded={expandedLayer === 'dayMask'}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6,4 10,8 6,12"/></svg>
@@ -449,9 +438,7 @@
               </select>
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Flou (Gradient)</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.dayMaskBlurMin} max={STUDIO.dayMaskBlurMax} step={STUDIO.dayMaskBlurStep} bind:value={studioState.dayMaskBlur} oninput={() => layerState.layerTransformDirty = true} style:--slider-color={getColorHex(studioState.dayMaskColor)} />
-              <span class="sl-detail-val">{studioState.dayMaskBlur}</span>
+              <RangeSlider variant="detail" label="Flou" min={STUDIO.dayMaskBlurMin} max={STUDIO.dayMaskBlurMax} step={STUDIO.dayMaskBlurStep} bind:value={studioState.dayMaskBlur} initialValue={STUDIO.dayMaskBlurMin} color={getColorHex(studioState.dayMaskColor)} fixed={0} oninput={() => layerState.layerTransformDirty = true} />
             </div>
           </div>
         {/if}
@@ -486,7 +473,7 @@
           
           <span class="sl-layer-name" class:dimmed={!studioState.limbGlow} title="Lueur de limbe">Lueur de limbe</span>
           
-          <input type="range" class="sl-mini-slider" min={STUDIO.limbGlowOpacityMin} max={STUDIO.limbGlowOpacityMax} step={STUDIO.limbGlowOpacityStep} value={studioState.limbGlowOpacity} onclick={(e) => e.stopPropagation()} oninput={(e) => { studioState.limbGlowOpacity = parseFloat(e.target.value); layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} style:--slider-color={getColorHex(studioState.limbGlowColor)} />
+          <RangeSlider variant="mini" min={STUDIO.limbGlowOpacityMin} max={STUDIO.limbGlowOpacityMax} step={STUDIO.limbGlowOpacityStep} value={studioState.limbGlowOpacity} color={getColorHex(studioState.limbGlowColor)} stopPropagation={true} oninput={(v) => { studioState.limbGlowOpacity = v; layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} />
           
           <span class="sl-expand-indicator" class:expanded={expandedLayer === 'limbGlow'}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6,4 10,8 6,12"/></svg>
@@ -496,19 +483,13 @@
         {#if expandedLayer === 'limbGlow'}
           <div class="sl-layer-details">
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Intensité</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.limbGlowThicknessMin} max={STUDIO.limbGlowThicknessMax} step={STUDIO.limbGlowThicknessStep} bind:value={studioState.limbGlowThickness} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} style:--slider-color={getColorHex(studioState.limbGlowColor)} />
-              <span class="sl-detail-val">{studioState.limbGlowThickness.toFixed(1)}</span>
+              <RangeSlider variant="detail" label="Intensité" min={STUDIO.limbGlowThicknessMin} max={STUDIO.limbGlowThicknessMax} step={STUDIO.limbGlowThicknessStep} bind:value={studioState.limbGlowThickness} initialValue={STUDIO.limbGlowThicknessDefault} color={getColorHex(studioState.limbGlowColor)} fixed={1} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} />
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Étendue</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.limbGlowSpreadMin} max={STUDIO.limbGlowSpreadMax} step={STUDIO.limbGlowSpreadStep} bind:value={studioState.limbGlowSpread} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} style:--slider-color={getColorHex(studioState.limbGlowColor)} />
-              <span class="sl-detail-val">{studioState.limbGlowSpread}</span>
+              <RangeSlider variant="detail" label="Étendue" min={STUDIO.limbGlowSpreadMin} max={STUDIO.limbGlowSpreadMax} step={STUDIO.limbGlowSpreadStep} bind:value={studioState.limbGlowSpread} initialValue={STUDIO.limbGlowSpreadDefault} color={getColorHex(studioState.limbGlowColor)} fixed={0} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} />
             </div>
             <div class="sl-detail-row">
-              <span class="sl-detail-label">Flou</span>
-              <input type="range" class="sl-detail-slider" min={STUDIO.limbGlowBlurMin} max={STUDIO.limbGlowBlurMax} step={STUDIO.limbGlowBlurStep} bind:value={studioState.limbGlowBlur} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} style:--slider-color={getColorHex(studioState.limbGlowColor)} />
-              <span class="sl-detail-val">{studioState.limbGlowBlur}</span>
+              <RangeSlider variant="detail" label="Flou" min={STUDIO.limbGlowBlurMin} max={STUDIO.limbGlowBlurMax} step={STUDIO.limbGlowBlurStep} bind:value={studioState.limbGlowBlur} initialValue={STUDIO.limbGlowBlurDefault} color={getColorHex(studioState.limbGlowColor)} fixed={0} oninput={() => { layerState.layerTransformDirty = true; layerState.dirtyEphemeris = true; }} />
             </div>
           </div>
         {/if}
@@ -606,36 +587,7 @@
   .scroll-container::-webkit-scrollbar { display: none; }
 
   /* ── Header overrides ── */
-  .sl-header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
 
-  .sl-hq-label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--color-text-dim);
-    opacity: 0.6;
-    letter-spacing: 0.5px;
-  }
-
-  .sl-hq-label.active {
-    color: #FF4081;
-    opacity: 1;
-    text-shadow: 0 0 8px rgba(255, 64, 129, 0.4);
-  }
-
-  .sl-mini-toggle {
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-  }
-
-  .sl-mini-toggle input {
-    display: none;
-  }
 
   /* ── Sections ── */
   .sl-section {
@@ -759,45 +711,6 @@
     opacity: 0.4;
   }
 
-  /* Mini opacity slider */
-  .sl-mini-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 60px;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  .sl-mini-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--slider-color, #FF4081);
-    border: 1.5px solid rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-    box-shadow: 0 0 4px var(--slider-color, rgba(255, 64, 129, 0.4));
-    transition: box-shadow 0.2s;
-  }
-
-  .sl-mini-slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 0 8px var(--slider-color, rgba(255, 64, 129, 0.7));
-  }
-
-  .sl-mini-slider::-moz-range-thumb {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--slider-color, #FF4081);
-    border: 1.5px solid rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-  }
-
   /* Expand indicator */
   .sl-expand-indicator {
     display: flex;
@@ -838,6 +751,8 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* Slider styles are now handled by RangeSlider component */
+
   .sl-detail-row {
     display: flex;
     align-items: center;
@@ -849,49 +764,6 @@
     font-weight: 500;
     color: var(--color-text-dim);
     min-width: 72px;
-  }
-
-  .sl-detail-slider {
-    flex: 1;
-    min-width: 0;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 3px;
-    background: rgba(255, 64, 129, 0.12);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-  }
-
-  .sl-detail-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--slider-color, #FF4081);
-    border: 1.5px solid rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-    box-shadow: 0 0 4px rgba(255, 64, 129, 0.4);
-  }
-
-  .sl-detail-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--slider-color, #FF4081);
-    border: 1.5px solid rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-  }
-
-  .sl-detail-val {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: #FF4081;
-    min-width: 24px;
-    text-align: right;
-    white-space: nowrap;
-    flex-shrink: 0;
   }
 
   /* ── Select dropdown ── */
@@ -918,53 +790,7 @@
     color: var(--color-text);
   }
 
-  /* ── Toggle ── */
-  .sl-toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    margin-bottom: 6px;
-  }
 
-  .sl-toggle-row input[type="checkbox"] {
-    display: none;
-  }
-
-  .sl-toggle-track {
-    position: relative;
-    width: 28px;
-    height: 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
-    transition: all 0.3s;
-    flex-shrink: 0;
-  }
-
-  .sl-toggle-thumb {
-    position: absolute;
-    top: 1px;
-    left: 1px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--color-text-dim);
-    transition: all 0.3s;
-  }
-
-  .sl-toggle-row input:checked + .sl-toggle-track,
-  .sl-mini-toggle input:checked + .sl-toggle-track {
-    background: rgba(255, 64, 129, 0.2);
-    border-color: rgba(255, 64, 129, 0.4);
-  }
-
-  .sl-toggle-row input:checked + .sl-toggle-track .sl-toggle-thumb,
-  .sl-mini-toggle input:checked + .sl-toggle-track .sl-toggle-thumb {
-    transform: translateX(14px);
-    background: #FF4081;
-    box-shadow: 0 0 6px rgba(255, 64, 129, 0.5);
-  }
 
 
 

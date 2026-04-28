@@ -6,6 +6,7 @@
   import { tooltip } from '@/actions/tooltip.js';
   import { untrack } from 'svelte';
   import { PixiRenderer } from '@/engine/pixi_renderer.js';
+  import RangeSlider from './RangeSlider.svelte';
 
   let isOpen = $state(true);
   
@@ -98,18 +99,10 @@
       <!-- Font Size & Count -->
       <section class="panel-section">
         <div class="sl-detail-row">
-          <span class="sl-detail-label">Taille Police</span>
-          <input type="range" class="sl-detail-slider" 
-                 min={STUDIO.labelFontSizeMin} max={STUDIO.labelFontSizeMax} step={STUDIO.labelFontSizeStep} 
-                 bind:value={studioState.labelFontSize} oninput={onParamChange} />
-          <span class="sl-detail-val">{studioState.labelFontSize}</span>
+          <RangeSlider variant="detail" label="Taille Police" min={STUDIO.labelFontSizeMin} max={STUDIO.labelFontSizeMax} step={STUDIO.labelFontSizeStep} bind:value={studioState.labelFontSize} initialValue={STUDIO.labelFontSizeDefault} fixed={0} oninput={onParamChange} />
         </div>
         <div class="sl-detail-row" style="margin-top: 6px;">
-          <span class="sl-detail-label">Nombre max</span>
-          <input type="range" class="sl-detail-slider" 
-                 min={STUDIO.labelCountMin} max={STUDIO.labelCountMax} step={STUDIO.labelCountStep} 
-                 bind:value={studioState.labelCount} oninput={onParamChange} />
-          <span class="sl-detail-val">{studioState.labelCount}</span>
+          <RangeSlider variant="detail" label="Nombre max" min={STUDIO.labelCountMin} max={STUDIO.labelCountMax} step={STUDIO.labelCountStep} bind:value={studioState.labelCount} initialValue={STUDIO.labelCountDefault} fixed={0} oninput={onParamChange} />
         </div>
       </section>
 
@@ -119,18 +112,10 @@
       <section class="panel-section">
         <h3 class="section-title">Diamètre Cratère</h3>
         <div class="sl-detail-row">
-          <span class="sl-detail-label">Min (km)</span>
-          <input type="range" class="sl-detail-slider" 
-                 min={STUDIO.labelSizeMin} max={STUDIO.labelSizeMax} step={STUDIO.labelSizeStep} 
-                 bind:value={studioState.labelMinSize} oninput={onParamChange} />
-          <span class="sl-detail-val">{studioState.labelMinSize}</span>
+          <RangeSlider variant="detail" label="Min (km)" min={STUDIO.labelSizeMin} max={STUDIO.labelSizeMax} step={STUDIO.labelSizeStep} bind:value={studioState.labelMinSize} initialValue={STUDIO.labelSizeDefaultMin} fixed={0} oninput={onParamChange} />
         </div>
         <div class="sl-detail-row" style="margin-top: 6px;">
-          <span class="sl-detail-label">Max (km)</span>
-          <input type="range" class="sl-detail-slider" 
-                 min={STUDIO.labelSizeMin} max={STUDIO.labelSizeMax} step={STUDIO.labelSizeStep} 
-                 bind:value={studioState.labelMaxSize} oninput={onParamChange} />
-          <span class="sl-detail-val">{studioState.labelMaxSize}</span>
+          <RangeSlider variant="detail" label="Max (km)" min={STUDIO.labelSizeMin} max={STUDIO.labelSizeMax} step={STUDIO.labelSizeStep} bind:value={studioState.labelMaxSize} initialValue={STUDIO.labelSizeDefaultMax} fixed={0} oninput={onParamChange} />
         </div>
       </section>
 
@@ -286,22 +271,10 @@
     display: flex; align-items: center; gap: 8px;
   }
 
+  /* Slider styles are now handled by RangeSlider component */
+
   .sl-detail-label {
     font-size: 10px; font-weight: 500; color: var(--color-text-dim); min-width: 60px;
-  }
-
-  .sl-detail-slider {
-    flex: 1; min-width: 0; height: 3px;
-    background: rgba(255, 64, 129, 0.12); border-radius: 2px;
-    appearance: none; -webkit-appearance: none; outline: none; cursor: pointer;
-  }
-  .sl-detail-slider::-webkit-slider-thumb {
-    appearance: none; -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
-    background: #FF4081; border: 1.5px solid rgba(255, 255, 255, 0.3);
-  }
-
-  .sl-detail-val {
-    font-family: var(--font-mono); font-size: 10px; color: #FF4081; min-width: 24px; text-align: right;
   }
 
   .type-grid {
