@@ -7,6 +7,12 @@
   import { PixiRenderer } from '@/engine/pixi_renderer.js';
   import RangeSlider from './RangeSlider.svelte';
   import NeonToggle from './NeonToggle.svelte';
+  import NeonSelect from './NeonSelect.svelte';
+
+  const fontOptions = STUDIO.labelPoliceFonts;
+  const shapeOptions = STUDIO.labelPointShapes;
+
+  let isDropdownActive = $state(false);
 
   let isOpen = $state(true);
   let expandedSection = $state(null);
@@ -76,7 +82,7 @@
   }
 </script>
 
-<div class="context-panel" class:open={isOpen && uiState.showLabels} class:disabled={!uiState.showLabels}>
+<div class="context-panel" class:open={isOpen && uiState.showLabels} class:disabled={!uiState.showLabels} class:select-open={isDropdownActive}>
   <!-- Trigger -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -153,11 +159,14 @@
                 </div>
                 <div class="sl-detail-row" class:sl-disabled={!studioState.labelHQ}>
                   <span class="sl-detail-label">Typo</span>
-                  <select class="sl-select" bind:value={studioState.labelPoliceFont} onchange={onParamChange} disabled={!studioState.labelHQ}>
-                    {#each STUDIO.labelPoliceFonts as f}
-                      <option value={f}>{f}</option>
-                    {/each}
-                  </select>
+                  <NeonSelect 
+                    options={fontOptions} 
+                    bind:value={studioState.labelPoliceFont} 
+                    color={getColorHex(studioState.labelColorText)}
+                    disabled={!studioState.labelHQ}
+                    ontoggle={(v) => isDropdownActive = v}
+                    onchange={onParamChange}
+                  />
                 </div>
                 <div class="sl-detail-row" class:sl-disabled={!studioState.labelHQ}>
                   <RangeSlider variant="detail" label="Graisse" min={STUDIO.labelWeightMin} max={STUDIO.labelWeightMax} step={STUDIO.labelWeightStep} bind:value={studioState.labelPoliceWeight} initialValue={STUDIO.labelPoliceWeightDefault} color={getColorHex(studioState.labelColorText)} oninput={onParamChange} disabled={!studioState.labelHQ} />
@@ -238,11 +247,13 @@
                 </div>
                 <div class="sl-detail-row">
                   <span class="sl-detail-label">Forme</span>
-                  <select class="sl-select" bind:value={studioState.labelPointShape} onchange={onParamChange}>
-                    {#each STUDIO.labelPointShapes as s}
-                      <option value={s}>{s}</option>
-                    {/each}
-                  </select>
+                  <NeonSelect 
+                    options={shapeOptions} 
+                    bind:value={studioState.labelPointShape} 
+                    color={getColorHex(studioState.labelColorPoints)}
+                    ontoggle={(v) => isDropdownActive = v}
+                    onchange={onParamChange}
+                  />
                 </div>
                 <div class="sl-detail-row">
                   <RangeSlider variant="detail" label="Glow" min={0} max={STUDIO.labelPointGlowMax} step={0.5} bind:value={studioState.labelPointGlow} initialValue={STUDIO.labelPointGlowDefault} color={getColorHex(studioState.labelColorPoints)} oninput={onParamChange} />
@@ -319,7 +330,8 @@
     transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1), all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .context-panel.open:hover {
+  .context-panel.open:hover,
+  .context-panel.select-open {
     flex: 3;
   }
 
@@ -393,12 +405,6 @@
     border-top: 1px solid rgba(255, 64, 129, 0.06); background: rgba(0,0,0,0.2);
   }
 
-  .sl-select {
-    flex: 1; background: rgba(255, 64, 129, 0.06); border: 1px solid rgba(255, 64, 129, 0.15);
-    border-radius: 4px; color: var(--color-text-dim); font-size: 10px; padding: 2px 4px; outline: none;
-  }
-
-  .sl-select:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .sl-disabled { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
 

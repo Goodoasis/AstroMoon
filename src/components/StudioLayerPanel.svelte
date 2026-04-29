@@ -1,11 +1,17 @@
 <script>
   import { studioState } from '@/stores/studioState.svelte.js';
   import { layerState } from '@/stores/layerState.svelte.js';
+  import { uiState } from '@/stores/uiState.svelte.js';
   import { STUDIO, LAYER_PALETTE } from '@/engine/config.js';
   import { tooltip } from '@/actions/tooltip.js';
   import { untrack } from 'svelte';
   import RangeSlider from './RangeSlider.svelte';
   import NeonToggle from './NeonToggle.svelte';
+  import NeonSelect from './NeonSelect.svelte';
+
+  const blendOptions = STUDIO.blendModes.map(m => ({ value: m, label: STUDIO.blendModeLabels[m] }));
+
+  let isDropdownActive = $state(false);
 
   // Human-readable layer names derived from filenames
   const LAYER_LABELS = {
@@ -110,7 +116,7 @@
     }
   </script>
 
-<div class="context-panel" class:open={isOpen}>
+<div class="context-panel" class:open={isOpen} class:select-open={isDropdownActive}>
   <!-- Trigger -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -210,11 +216,12 @@
               <!-- Blend mode -->
               <div class="sl-detail-row">
                 <span class="sl-detail-label">Incrustation</span>
-                <select class="sl-select" bind:value={studioState.layerBlendMode[layerName]}>
-                  {#each STUDIO.blendModes as mode}
-                    <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
-                  {/each}
-                </select>
+                  <NeonSelect 
+                    options={blendOptions} 
+                    bind:value={studioState.layerBlendMode[layerName]} 
+                    color={getColorHex(colorIdx)}
+                    ontoggle={(v) => isDropdownActive = v}
+                  />
               </div>
               <!-- Smooth -->
               <div class="sl-detail-row">
@@ -275,11 +282,13 @@
             </div>
             <div class="sl-detail-row">
               <span class="sl-detail-label">Incrustation</span>
-              <select class="sl-select" bind:value={studioState.gridBlendMode} onchange={() => layerState.layerTransformDirty = true}>
-                {#each STUDIO.blendModes as mode}
-                  <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
-                {/each}
-              </select>
+              <NeonSelect 
+                options={blendOptions} 
+                bind:value={studioState.gridBlendMode} 
+                color={getColorHex(studioState.gridColor)}
+                ontoggle={(v) => isDropdownActive = v}
+                onchange={() => layerState.layerTransformDirty = true}
+              />
             </div>
             <div class="sl-detail-row">
               <RangeSlider variant="detail" label="Intervalle" min={STUDIO.gridIntervalMin} max={STUDIO.gridIntervalMax} step={STUDIO.gridIntervalStep} bind:value={studioState.gridInterval} initialValue={10} color={getColorHex(studioState.gridColor)} fixed={0} suffix="°" oninput={() => layerState.layerTransformDirty = true} />
@@ -338,11 +347,13 @@
             </div>
             <div class="sl-detail-row">
               <span class="sl-detail-label">Incrustation</span>
-              <select class="sl-select" bind:value={studioState.terminatorBlendMode} onchange={() => layerState.layerTransformDirty = true}>
-                {#each STUDIO.blendModes as mode}
-                  <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
-                {/each}
-              </select>
+              <NeonSelect 
+                options={blendOptions} 
+                bind:value={studioState.terminatorBlendMode} 
+                color={getColorHex(studioState.terminatorColor)}
+                ontoggle={(v) => isDropdownActive = v}
+                onchange={() => layerState.layerTransformDirty = true}
+              />
             </div>
           </div>
         {/if}
@@ -382,11 +393,13 @@
           <div class="sl-layer-details">
             <div class="sl-detail-row">
               <span class="sl-detail-label">Incrustation</span>
-              <select class="sl-select" bind:value={studioState.nightMaskBlendMode} onchange={() => layerState.layerTransformDirty = true}>
-                {#each STUDIO.blendModes as mode}
-                  <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
-                {/each}
-              </select>
+              <NeonSelect 
+                options={blendOptions} 
+                bind:value={studioState.nightMaskBlendMode} 
+                color={getColorHex(studioState.nightMaskColor)}
+                ontoggle={(v) => isDropdownActive = v}
+                onchange={() => layerState.layerTransformDirty = true}
+              />
             </div>
             <div class="sl-detail-row">
               <RangeSlider variant="detail" label="Flou" min={STUDIO.nightMaskBlurMin} max={STUDIO.nightMaskBlurMax} step={STUDIO.nightMaskBlurStep} bind:value={studioState.nightMaskBlur} initialValue={STUDIO.nightMaskBlurMin} color={getColorHex(studioState.nightMaskColor)} fixed={0} oninput={() => layerState.layerTransformDirty = true} />
@@ -429,11 +442,13 @@
           <div class="sl-layer-details">
             <div class="sl-detail-row">
               <span class="sl-detail-label">Incrustation</span>
-              <select class="sl-select" bind:value={studioState.dayMaskBlendMode} onchange={() => layerState.layerTransformDirty = true}>
-                {#each STUDIO.blendModes as mode}
-                  <option value={mode}>{STUDIO.blendModeLabels[mode]}</option>
-                {/each}
-              </select>
+              <NeonSelect 
+                options={blendOptions} 
+                bind:value={studioState.dayMaskBlendMode} 
+                color={getColorHex(studioState.dayMaskColor)}
+                ontoggle={(v) => isDropdownActive = v}
+                onchange={() => layerState.layerTransformDirty = true}
+              />
             </div>
             <div class="sl-detail-row">
               <RangeSlider variant="detail" label="Flou" min={STUDIO.dayMaskBlurMin} max={STUDIO.dayMaskBlurMax} step={STUDIO.dayMaskBlurStep} bind:value={studioState.dayMaskBlur} initialValue={STUDIO.dayMaskBlurMin} color={getColorHex(studioState.dayMaskColor)} fixed={0} oninput={() => layerState.layerTransformDirty = true} />
@@ -529,7 +544,8 @@
     transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1), all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .context-panel.open:hover {
+  .context-panel.open:hover,
+  .context-panel.select-open {
     flex: 3;
   }
 
@@ -772,28 +788,6 @@
   }
 
   /* ── Select dropdown ── */
-  .sl-select {
-    flex: 1;
-    background: rgba(255, 64, 129, 0.06);
-    border: 1px solid rgba(255, 64, 129, 0.15);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-dim);
-    font-family: var(--font-main);
-    font-size: 10px;
-    padding: 3px 6px;
-    outline: none;
-    cursor: pointer;
-    transition: border-color var(--transition-fast);
-  }
-
-  .sl-select:hover, .sl-select:focus {
-    border-color: rgba(255, 64, 129, 0.4);
-  }
-
-  .sl-select option {
-    background: #0A0B10;
-    color: var(--color-text);
-  }
 
 
 
