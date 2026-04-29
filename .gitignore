@@ -33,3 +33,5 @@ studio_logic_plan.md
 # firebase config — keep in repo
 # .firebaserc  ← contient le project ID, à committer
 # firebase.json ← config hosting, à committer
+
+.firebase/
