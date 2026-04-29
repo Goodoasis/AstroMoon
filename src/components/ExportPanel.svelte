@@ -42,6 +42,7 @@
   <div class="export-group">
     <div class="group-label">OPTIONS</div>
     <NeonToggle 
+      variant="full"
       label="Nerd Mode (HUD Metadata)" 
       bind:checked={projectStore.exportConfig.texts} 
       color="#FF4081"

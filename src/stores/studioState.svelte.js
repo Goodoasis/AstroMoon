@@ -94,7 +94,7 @@ class StudioState {
 
   // Advanced Label Fond (Background)
   labelFondVisible = $state(true);
-  labelFondOpacity = $state(0.8);
+  labelFondOpacity = $state(0.85);
   labelFondColor = $state(9); // Noir
   labelFondSizeX = $state(STUDIO.labelFondSizeXDefault);
   labelFondSizeY = $state(STUDIO.labelFondSizeYDefault);
@@ -223,7 +223,7 @@ class StudioState {
     this.labelPoliceWeight = STUDIO.labelPoliceWeightDefault;
 
     this.labelFondVisible = true;
-    this.labelFondOpacity = 0.8;
+    this.labelFondOpacity = 0.85;
     this.labelFondColor = 9;
     this.labelFondSizeX = STUDIO.labelFondSizeXDefault;
     this.labelFondSizeY = STUDIO.labelFondSizeYDefault;

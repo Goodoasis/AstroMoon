@@ -376,6 +376,7 @@
             <div class="mount-toggle-group" class:unverified={!isMountVerified}>
               <span class="label clickable" role="button" tabindex="0" class:active={!viewportState.isAltAzMode && isMountVerified} onclick={() => toggleMount(false)} onkeydown={(e) => e.key === 'Enter' && toggleMount(false)}>Équatoriale</span>
               <NeonToggle 
+                variant="mini"
                 checked={viewportState.isAltAzMode} 
                 color={isMountVerified ? "var(--color-cyan)" : "rgba(255,255,255,0.2)"}
                 onchange={(v) => toggleMount(v)} 

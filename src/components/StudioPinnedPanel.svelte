@@ -174,10 +174,16 @@
   .context-panel.open {
     flex: 1;
     min-height: 0;
+    max-height: none;
     border-color: rgba(0, 229, 255, 0.3);
     box-shadow: 
       0 10px 40px rgba(0, 0, 0, 0.6),
       0 0 20px rgba(0, 229, 255, 0.15);
+    transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1), all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .context-panel.open:hover {
+    flex: 3;
   }
 
   .context-panel.open .panel-content {

@@ -108,6 +108,7 @@
           <RangeSlider variant="full" label="Netteté" bind:value={studioState.sharpness} initialValue={STUDIO.sharpnessDefault} min={STUDIO.sharpnessMin} max={STUDIO.sharpnessMax} step={STUDIO.sharpnessStep} fixed={1} oninput={onParamChange} />
           <RangeSlider variant="full" label="Débruitage" bind:value={studioState.denoising} initialValue={STUDIO.denoisingDefault} min={STUDIO.denoisingMin} max={STUDIO.denoisingMax} step={STUDIO.denoisingStep} oninput={onParamChange} />
           <NeonToggle 
+            variant="full"
             label="Niveaux de gris" 
             bind:checked={studioState.grayscale} 
             color="#FF4081"
@@ -218,13 +219,20 @@
   }
 
   .sa-panel.open {
-    max-height: 85vh;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     border-radius: 16px;
     border-color: rgba(255, 64, 129, 0.3);
     box-shadow:
       0 10px 40px rgba(0, 0, 0, 0.6),
       0 0 20px rgba(255, 64, 129, 0.15);
     overflow: visible;
+    transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1), all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sa-panel.open:hover {
+    flex: 3;
   }
 
   /* Trigger */

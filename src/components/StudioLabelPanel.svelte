@@ -97,8 +97,7 @@
     <div style="margin-left: auto; display: flex;">
       <NeonToggle 
         label="HQ"
-        labelLeft={true}
-        size="md"
+        variant="detail"
         color="#FF4081" 
         bind:checked={studioState.labelHQ} 
         onchange={onParamChange} 
@@ -205,12 +204,10 @@
                   <RangeSlider variant="detail" label="Arrondi" min={0} max={STUDIO.labelFondRadiusMax} step={1} bind:value={studioState.labelFondRadius} initialValue={STUDIO.labelFondRadiusDefault} color={getColorHex(studioState.labelFondColor)} oninput={onParamChange} />
                 </div>
                 <div class="sl-detail-row">
-                  <span class="sl-detail-label">Surbrillance</span>
-                  <NeonToggle size="md" color="#00E5FF" bind:checked={studioState.labelShowLockHighlight} onchange={onParamChange} />
+                  <NeonToggle variant="detail" label="Surbrillance" color="#00E5FF" bind:checked={studioState.labelShowLockHighlight} onchange={onParamChange} />
                 </div>
                 <div class="sl-detail-row">
-                  <span class="sl-detail-label">Ombre Portée ⚠️</span>
-                  <NeonToggle size="md" color={getColorHex(studioState.labelFondColor)} bind:checked={studioState.labelFondShadow} onchange={onParamChange} />
+                  <NeonToggle variant="detail" label="Ombre Portée ⚠️" color={getColorHex(studioState.labelFondColor)} bind:checked={studioState.labelFondShadow} onchange={onParamChange} />
                 </div>
               </div>
             {/if}
@@ -313,11 +310,17 @@
   }
 
   .context-panel.open {
-    max-height: 100%;
-    flex: 1 1 auto;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     border-radius: 16px;
     border-color: rgba(255, 64, 129, 0.3);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 64, 129, 0.15);
+    transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1), all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .context-panel.open:hover {
+    flex: 3;
   }
 
   .context-panel.disabled { opacity: 0.6; pointer-events: none; }

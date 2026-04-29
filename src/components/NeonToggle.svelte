@@ -1,32 +1,61 @@
 <script>
   /**
-   * NeonToggle - Premium Cyber-Vibrant Switch Component
-   * Part of the AstroMoon design system.
+   * NeonToggle — Composant toggle (switch) unifié AstroMoon.
+   * 
+   * Variantes :
+   *   "full"   — Layout large  : label (flex) + toggle
+   *   "detail" — Layout compact : label (60px) + toggle
+   *   "mini"   — Toggle seul   : pas de label, compact
+   * 
+   * Fonctionnalités :
+   *   • initialValue : affiche un glow sur le label si value ≠ initialValue
+   *   • bindable checked : synchronisation réactive
+   *   • color : couleur d'accentuation (néon)
    */
+
+  /** @type {{ 
+   *    variant?: 'full' | 'detail' | 'mini', 
+   *    label?: string, 
+   *    checked?: boolean, 
+   *    color?: string, 
+   *    disabled?: boolean, 
+   *    initialValue?: boolean,
+   *    labelLeft?: boolean,
+   *    onchange?: (v: boolean) => void 
+   *  }} */
   let { 
+    variant = 'detail', 
     label = '', 
     checked = $bindable(false), 
     color = '#00E5FF', 
     disabled = false,
-    size = 'md', // 'sm' | 'md'
-    labelLeft = false,
+    initialValue = undefined,
+    labelLeft = false, // backward compat for placement, but variant usually dictates it
     onchange = null
   } = $props();
 
+  let isModified = $derived(initialValue !== undefined && checked !== initialValue);
+
   function handleChange(e) {
     if (onchange) onchange(e.target.checked);
+  }
+
+  function handleContainerClick(e) {
+    if (disabled) return;
+    e.stopPropagation();
   }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <label 
-  class="nt-container nt-{size}" 
+  class="nt-container nt-{variant}" 
   class:disabled 
   class:checked
+  class:modified={isModified}
   class:label-left={labelLeft}
   style:--nt-color={color}
-  onclick={(e) => e.stopPropagation()}
+  onclick={handleContainerClick}
 >
   <input 
     type="checkbox" 
@@ -35,7 +64,7 @@
     onchange={handleChange}
   />
   
-  {#if label && labelLeft}
+  {#if label && (labelLeft || variant === 'full' || variant === 'detail')}
     <span class="nt-label">{label}</span>
   {/if}
 
@@ -43,7 +72,7 @@
     <div class="nt-thumb"></div>
   </div>
 
-  {#if label && !labelLeft}
+  {#if label && !labelLeft && variant !== 'full' && variant !== 'detail'}
     <span class="nt-label">{label}</span>
   {/if}
 </label>
@@ -52,16 +81,43 @@
   .nt-container {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
     user-select: none;
     transition: all 0.3s var(--transition-med);
   }
 
-  .nt-container.label-left {
-    gap: 10px;
+  /* ── Variants Layout ── */
+  .nt-full {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
   }
 
+  .nt-detail {
+    display: flex;
+    align-items: center;
+  }
+
+  .nt-detail .nt-label {
+    min-width: 32px;
+    max-width: 60px;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nt-mini.label-left .nt-label {
+    max-width: 60px;
+    text-align: right;
+  }
+
+  .nt-mini {
+    gap: 6px;
+  }
+
+  /* ── States ── */
   .nt-container.disabled {
     opacity: 0.3;
     cursor: not-allowed;
@@ -70,6 +126,14 @@
 
   .nt-container input {
     display: none;
+  }
+
+  /* label coloré quand modifié */
+  .nt-container.modified .nt-label {
+    color: var(--nt-color);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--nt-color) 60%, transparent);
+    filter: brightness(1.1);
+    transition: all 0.3s var(--transition-med);
   }
 
   /* ── Track ── */
@@ -83,6 +147,19 @@
     box-sizing: border-box;
   }
 
+  /* Standard Size (Detail / Full) */
+  .nt-full .nt-track,
+  .nt-detail .nt-track {
+    width: 28px;
+    height: 14px;
+  }
+
+  /* Mini Size */
+  .nt-mini .nt-track {
+    width: 22px;
+    height: 12px;
+  }
+
   /* ── Thumb ── */
   .nt-thumb {
     position: absolute;
@@ -92,33 +169,35 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
 
-  /* Medium (Standard / HQ) */
-  .nt-md .nt-track {
-    width: 36px;
-    height: 18px;
-  }
-  .nt-md .nt-thumb {
-    top: 2px;
-    left: 2px;
-    width: 14px;
-    height: 14px;
-  }
-  .nt-md input:checked ~ .nt-track .nt-thumb {
-    transform: translateX(18px);
-  }
-
-  /* Small (Mini) */
-  .nt-sm .nt-track {
-    width: 24px;
-    height: 14px;
-  }
-  .nt-sm .nt-thumb {
-    top: 2px;
-    left: 2px;
+  .nt-full .nt-thumb,
+  .nt-detail .nt-thumb {
+    top: 1px;
+    left: 1px;
     width: 10px;
     height: 10px;
   }
-  .nt-sm input:checked ~ .nt-track .nt-thumb {
+
+  .nt-mini .nt-thumb {
+    top: 1px;
+    left: 1px;
+    width: 8px;
+    height: 8px;
+  }
+
+  /* Translation */
+  input:checked ~ .nt-track .nt-thumb {
+    background: var(--nt-color);
+    box-shadow: 
+      0 0 12px color-mix(in srgb, var(--nt-color) 70%, transparent),
+      0 0 4px rgba(255, 255, 255, 0.4);
+  }
+
+  .nt-full input:checked ~ .nt-track .nt-thumb,
+  .nt-detail input:checked ~ .nt-track .nt-thumb {
+    transform: translateX(14px);
+  }
+
+  .nt-mini input:checked ~ .nt-track .nt-thumb {
     transform: translateX(10px);
   }
 
@@ -131,16 +210,9 @@
       0 0 15px color-mix(in srgb, var(--nt-color) 10%, transparent);
   }
 
-  input:checked ~ .nt-track .nt-thumb {
-    background: var(--nt-color);
-    box-shadow: 
-      0 0 12px color-mix(in srgb, var(--nt-color) 70%, transparent),
-      0 0 4px rgba(255, 255, 255, 0.4);
-  }
-
   /* ── Label ── */
   .nt-label {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     color: var(--color-text-dim, #94a3b8);
     transition: all 0.3s ease;
@@ -148,7 +220,7 @@
 
   input:checked ~ .nt-label {
     color: var(--nt-color);
-    text-shadow: 0 0 10px color-mix(in srgb, var(--nt-color) 50%, transparent);
+    text-shadow: 0 0 12px color-mix(in srgb, var(--nt-color) 40%, transparent);
   }
 
   /* ── Hover ── */
@@ -172,6 +244,8 @@
   .nt-container.checked:hover .nt-label,
   .nt-container:hover input:checked ~ .nt-label {
     color: var(--nt-color);
-    filter: brightness(1.2);
+    filter: brightness(1.3);
   }
+
 </style>
+

@@ -127,8 +127,7 @@
     <div style="margin-left: auto; display: flex;">
       <NeonToggle 
         label="HQ"
-        labelLeft={true}
-        size="md"
+        variant="detail"
         color="#FF4081" 
         bind:checked={studioState.useShaderGlow} 
         onchange={() => layerState.layerTransformDirty = true} 
@@ -221,9 +220,9 @@
               <!-- Smooth -->
               <div class="sl-detail-row">
                 <NeonToggle 
+                  variant="mini"
                   label="Adoucir" 
                   labelLeft={true}
-                  size="md"
                   color={getColorHex(colorIdx)} 
                   bind:checked={studioState.layerSmooth[layerName]} 
                   onchange={() => layerState.layerTransformDirty = true} 
@@ -521,11 +520,17 @@
   }
 
   .context-panel.open {
-    max-height: 100%;
-    flex: 1 1 auto;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     border-radius: 16px;
     border-color: rgba(255, 64, 129, 0.3);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 64, 129, 0.15);
+    transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1), all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .context-panel.open:hover {
+    flex: 3;
   }
 
   .panel-trigger {

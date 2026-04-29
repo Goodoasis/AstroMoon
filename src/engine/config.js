@@ -270,11 +270,11 @@ export const STUDIO = {
   labelPoliceWeightDefault: 700,
   labelWeightMin: 100, labelWeightMax: 900, labelWeightStep: 100,
 
-  labelFondSizeXMin: -20, labelFondSizeXMax: 20, labelFondSizeXStep: 1, labelFondSizeXDefault: 0,
-  labelFondSizeYMin: -20, labelFondSizeYMax: 20, labelFondSizeYStep: 1, labelFondSizeYDefault: 0,
+  labelFondSizeXMin: -20, labelFondSizeXMax: 20, labelFondSizeXStep: 1, labelFondSizeXDefault: 10,
+  labelFondSizeYMin: -20, labelFondSizeYMax: 20, labelFondSizeYStep: 1, labelFondSizeYDefault: -7,
   labelFondGlowMax: 10, labelFondGlowStep: 0.5, labelFondGlowDefault: 0,
   labelFondBlurMax: 10, labelFondBlurStep: 0.5, labelFondBlurDefault: 0,
-  labelFondRadiusMax: 20, labelFondRadiusStep: 1, labelFondRadiusDefault: 3,
+  labelFondRadiusMax: 20, labelFondRadiusStep: 1, labelFondRadiusDefault: 20,
   labelFondShapes: ['rect', 'pill', 'circle'],
 
   labelPointShapes: ['circle', 'square', 'ring', 'cross'],

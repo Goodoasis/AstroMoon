@@ -1827,43 +1827,31 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const textColor = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke;
     
     // Update Text Style
-    if (isSpecialCrater) {
-      if (studioState.labelHQ) {
-        text.style.fontFamily = 'Space Grotesk';
-        text.style.fontWeight = '700';
-        text.style.fontSize = 14;
-      } else {
-        text.style.fontFamily = 'SpaceGrotesk';
-        text.style.fontSize = 14;
-      }
-      text.tint = 0xffffff;
-      text.alpha = 1.0;
-      text.visible = true;
+    if (studioState.labelHQ) {
+      text.style.fontFamily = studioState.labelPoliceFont;
+      text.style.fontWeight = studioState.labelPoliceWeight.toString();
+      text.style.fontSize = studioState.labelFontSize;
     } else {
-      if (studioState.labelHQ) {
-        text.style.fontFamily = studioState.labelPoliceFont;
-        text.style.fontWeight = studioState.labelPoliceWeight.toString();
-        text.style.fontSize = studioState.labelFontSize;
-      } else {
-        text.style.fontFamily = 'SpaceGrotesk';
-        text.style.fontSize = studioState.labelFontSize;
-      }
-      text.tint = textColor;
-      text.alpha = studioState.labelPoliceOpacity;
-      text.visible = studioState.labelPoliceVisible;
+      text.style.fontFamily = 'SpaceGrotesk';
+      text.style.fontSize = studioState.labelFontSize;
     }
+    text.tint = textColor;
+    text.alpha = studioState.labelPoliceOpacity;
+    text.visible = studioState.labelPoliceVisible;
 
     // Redraw Background
     bg.clear();
-    if (isSpecialCrater || studioState.labelFondVisible) {
-      const bgW = text.width + (isSpecialCrater ? 10 : 10 + studioState.labelFondSizeX);
-      const bgH = text.height + (isSpecialCrater ? 6 : 6 + studioState.labelFondSizeY);
-      const bgAlpha = isSpecialCrater ? 0.85 : studioState.labelFondOpacity;
-      const bgColor = isSpecialCrater ? 0x06060c : LAYER_PALETTE[studioState.labelFondColor % LAYER_PALETTE.length].stroke;
-      const bgRadius = isSpecialCrater ? 3 : studioState.labelFondRadius;
+    if (studioState.labelFondVisible) {
+      const bgW = text.width + (10 + studioState.labelFondSizeX);
+      const bgH = text.height + (6 + studioState.labelFondSizeY);
+      container._bgW = bgW;
+      container._bgH = bgH;
+      const bgAlpha = studioState.labelFondOpacity;
+      const bgColor = LAYER_PALETTE[studioState.labelFondColor % LAYER_PALETTE.length].stroke;
+      const bgRadius = studioState.labelFondRadius;
       bg.roundRect(-bgW / 2, -bgH, bgW, bgH, bgRadius);
       
-      bg.fill({ color: isSpecialCrater ? 0x06060c : bgColor, alpha: bgAlpha });
+      bg.fill({ color: bgColor, alpha: bgAlpha });
       
       if (item.isPinned && studioState.labelShowLockHighlight) {
         bg.stroke({ width: 2, color: 0x00E5FF, alpha: 1.0 });
@@ -1873,7 +1861,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
       }
 
       // Filters for background (Glow/Blur)
-      if (!isSpecialCrater && (studioState.labelFondGlow > 0 || studioState.labelFondBlur > 0)) {
+      if (studioState.labelFondGlow > 0 || studioState.labelFondBlur > 0) {
         const filters = [];
         if (studioState.labelFondBlur > 0) {
           filters.push(new PIXI.BlurFilter({ strength: studioState.labelFondBlur }));
@@ -2017,25 +2005,20 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       existingLabel._text.tint = 0x00d4ff;
       
       // On utilise le hoverBgGfx pour dessiner la bordure par-dessus (pour ne pas polluer le cache du label)
-      const txtLen = closestCandidate.crater.name.length;
+      const hBgW = existingLabel._bgW || 0;
+      const hBgH = existingLabel._bgH || 0;
       const fontSizeRatio = studioState.labelFontSize / 14;
-      const hTextW = (txtLen * 8) * fontSizeRatio;
-      const hTextH = 14 * fontSizeRatio;
-      const hBgW = hTextW + 10;
-      const hBgH = hTextH + 6;
 
       // Positionnement de la bordure blanche autour du label existant
-      // existingLabel est un Container dont le (0,0) est la pointe du label (bas milieu)
-      // lx, ly sont en coordonnées monde (viewportContainer)
       const lx = existingLabel.x;
       const ly = existingLabel.y;
       
-      // On dessine dans l'espace de coordonnÃ©es du viewportContainer (car hoverContainer y est rattaché)
       hoverContainer.position.set(0, 0);
       hoverContainer.scale.set(1, 1);
       hoverContainer.rotation = 0;
 
-      hoverBgGfx.roundRect(lx - (hBgW * invScale) / 2, ly - (hBgH * invScale), hBgW * invScale, hBgH * invScale, 3 * invScale);
+      const finalScale = invScale * fontSizeRatio;
+      hoverBgGfx.roundRect(lx - (hBgW * finalScale) / 2, ly - (hBgH * finalScale), hBgW * finalScale, hBgH * finalScale, studioState.labelFondRadius * finalScale);
       hoverBgGfx.stroke({ width: 2 * invScale, color: 0xffffff, alpha: 1.0 });
 
       // Petit cercle de tÃ©moignage sur le point
@@ -2047,19 +2030,21 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       const txt = closestCandidate.crater.name;
       hoverLabel.text = txt;
 
-      const hTextW = txt.length * 9;
-      const hTextH = 22;
-      const hBgW = hTextW + 16;
-      const hBgH = hTextH + 8;
+      const fontSizeRatio = studioState.labelFontSize / 14;
+      const hTextW = hoverLabel.width;
+      const hTextH = hoverLabel.height;
+      const hBgW = hTextW + (10 + studioState.labelFondSizeX);
+      const hBgH = hTextH + (6 + studioState.labelFondSizeY);
       
       // On réinitialise le container car ici on l'utilise pour le positionnement relatif
       hoverContainer.position.set(closestCandidate.ptX, closestCandidate.ptY - 14 * invScale);
-      hoverContainer.scale.set(invScale * (globalFlipH ? -1 : 1), invScale * (globalFlipV ? -1 : 1));
+      const finalScale = invScale * fontSizeRatio;
+      hoverContainer.scale.set(finalScale * (globalFlipH ? -1 : 1), finalScale * (globalFlipV ? -1 : 1));
       hoverContainer.rotation = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
 
-      hoverBgGfx.roundRect(-hBgW / 2, -hBgH, hBgW, hBgH, 6);
+      hoverBgGfx.roundRect(-hBgW / 2, -hBgH, hBgW, hBgH, studioState.labelFondRadius);
       hoverBgGfx.fill({ color: 0x06060c, alpha: 0.95 });
-      hoverBgGfx.stroke({ width: 2, color: 0xffffff, alpha: 0.9 }); // Bordure blanche au hover
+      hoverBgGfx.stroke({ width: 2 / fontSizeRatio, color: 0xffffff, alpha: 0.9 }); // Bordure blanche au hover
 
       hoverLabel.tint = 0x00d4ff; // Texte Cyan au hover
       hoverLabel.visible = true;
