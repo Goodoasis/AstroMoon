@@ -172,6 +172,8 @@
   }
 
   .context-panel.open {
+    flex: 1;
+    min-height: 0;
     border-color: rgba(0, 229, 255, 0.3);
     box-shadow: 
       0 10px 40px rgba(0, 0, 0, 0.6),
@@ -181,6 +183,8 @@
   .context-panel.open .panel-content {
     grid-template-rows: 1fr;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
+    min-height: 0;
+    overflow: hidden;
   }
 
   .scroll-container {

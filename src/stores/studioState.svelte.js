@@ -85,6 +85,33 @@ class StudioState {
   labelColorPoints = $state(3);
   labelColorText = $state(8);
 
+  // Advanced Label Police (Text)
+  labelPoliceVisible = $state(true);
+  labelHQ = $state(false);
+  labelPoliceOpacity = $state(1.0);
+  labelPoliceFont = $state(STUDIO.labelPoliceFontDefault);
+  labelPoliceWeight = $state(STUDIO.labelPoliceWeightDefault);
+
+  // Advanced Label Fond (Background)
+  labelFondVisible = $state(true);
+  labelFondOpacity = $state(0.8);
+  labelFondColor = $state(9); // Noir
+  labelFondSizeX = $state(STUDIO.labelFondSizeXDefault);
+  labelFondSizeY = $state(STUDIO.labelFondSizeYDefault);
+  labelFondGlow = $state(STUDIO.labelFondGlowDefault);
+  labelFondBlur = $state(STUDIO.labelFondBlurDefault);
+  labelFondRadius = $state(STUDIO.labelFondRadiusDefault);
+  labelFondShadow = $state(false); // Emoji warning in UI
+  labelShowLockHighlight = $state(true);
+
+  // Advanced Label Point (Indicator)
+  labelPointVisible = $state(true);
+  labelPointOpacity = $state(1.0);
+  labelPointShape = $state(STUDIO.labelPointShapes[0]);
+  labelPointSize = $state(STUDIO.labelPointSizeDefault);
+  labelPointGlow = $state(STUDIO.labelPointGlowDefault);
+  labelPointBlur = $state(STUDIO.labelPointBlurDefault);
+
   // ─── Effects ───
   limbGlow = $state(true);
   limbGlowColor = $state(0); // Index in LAYER_PALETTE
@@ -188,6 +215,31 @@ class StudioState {
     this.labelHiddenTypes = new Set();
     this.labelColorPoints = 3;
     this.labelColorText = 8;
+
+    this.labelPoliceVisible = true;
+    this.labelHQ = false;
+    this.labelPoliceOpacity = 1.0;
+    this.labelPoliceFont = STUDIO.labelPoliceFontDefault;
+    this.labelPoliceWeight = STUDIO.labelPoliceWeightDefault;
+
+    this.labelFondVisible = true;
+    this.labelFondOpacity = 0.8;
+    this.labelFondColor = 9;
+    this.labelFondSizeX = STUDIO.labelFondSizeXDefault;
+    this.labelFondSizeY = STUDIO.labelFondSizeYDefault;
+    this.labelFondGlow = STUDIO.labelFondGlowDefault;
+    this.labelFondBlur = STUDIO.labelFondBlurDefault;
+    this.labelFondRadius = STUDIO.labelFondRadiusDefault;
+    this.labelFondShadow = false;
+    this.labelShowLockHighlight = true;
+
+    this.labelPointVisible = true;
+    this.labelPointOpacity = 1.0;
+    this.labelPointShape = STUDIO.labelPointShapes[0];
+    this.labelPointSize = STUDIO.labelPointSizeDefault;
+    this.labelPointGlow = STUDIO.labelPointGlowDefault;
+    this.labelPointBlur = STUDIO.labelPointBlurDefault;
+
     this.limbGlow = true;
     this.limbGlowColor = 0;
     this.limbGlowOpacity = STUDIO.limbGlowOpacityDefault;

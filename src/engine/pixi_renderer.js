@@ -1633,10 +1633,50 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
       dotsGfx.fill({ color: 0x00FF88, alpha: op });
     } else {
       // CratÃ¨re classique (Point)
-      dotsGfx.circle(ptX, ptY, baseR);
-      const craterColor = LAYER_PALETTE[studioState.labelColorPoints % LAYER_PALETTE.length].stroke;
-      dotsGfx.fill({ color: craterColor, alpha: op });
+      const isSpecial = type.startsWith('Mont') || type.startsWith('Promontorium') || type.startsWith('Vallis') || type.startsWith('Catena');
+      
+      if (isSpecial || studioState.labelPointVisible) {
+        const pColor = isSpecial ? 0xffffff : LAYER_PALETTE[studioState.labelColorPoints % LAYER_PALETTE.length].stroke;
+        const pOp = isSpecial ? op : op * studioState.labelPointOpacity;
+        const pShape = isSpecial ? 'circle' : studioState.labelPointShape;
+        const finalR = baseR * (isSpecial ? 1.0 : studioState.labelPointSize);
+
+        if (pShape === 'square') {
+          dotsGfx.rect(ptX - finalR, ptY - finalR, finalR * 2, finalR * 2);
+          dotsGfx.fill({ color: pColor, alpha: pOp });
+        } else if (pShape === 'ring') {
+          dotsGfx.circle(ptX, ptY, finalR);
+          dotsGfx.stroke({ width: 1.5 / vp.scale, color: pColor, alpha: pOp });
+        } else if (pShape === 'cross') {
+          const s = finalR * 1.2;
+          // IMPORTANT: beginPath for each cross to avoid connecting them
+          dotsGfx.moveTo(ptX - s, ptY); 
+          dotsGfx.lineTo(ptX + s, ptY);
+          dotsGfx.moveTo(ptX, ptY - s); 
+          dotsGfx.lineTo(ptX, ptY + s);
+          dotsGfx.stroke({ width: 2.0 / vp.scale, color: pColor, alpha: pOp });
+        } else {
+          // Circle - TOUJOURS PLEIN (Fill)
+          dotsGfx.circle(ptX, ptY, finalR);
+          dotsGfx.fill({ color: pColor, alpha: pOp });
+        }
+      }
     }
+
+    // Filters for Points (Glow/Blur)
+    const pointFilters = [];
+    if (studioState.labelPointBlur > 0) {
+      pointFilters.push(new PIXI.BlurFilter({ strength: studioState.labelPointBlur }));
+    }
+    if (studioState.labelPointGlow > 0) {
+      pointFilters.push(new GlowFilter({
+        distance: studioState.labelPointGlow,
+        outerStrength: 2,
+        color: LAYER_PALETTE[studioState.labelColorPoints % LAYER_PALETTE.length].stroke,
+        quality: 0.1
+      }));
+    }
+    dotsGfx.filters = pointFilters.length ? pointFilters : null;
 
     // Les petits cratÃ¨res ne dÃ©clenchent pas le survol pour Ã©viter le bruit
     // MAIS on force le survol pour les Ã©lÃ©ments spÃ©ciaux (Sondes, Montagnes, Mers)
@@ -1714,37 +1754,51 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
     // Get a label container from pool
     let container = textPool.pop();
-    if (!container) {
-      container = new PIXI.Container();
+    
+    // Si on a un container mais que le type de texte ne correspond pas au mode HQ/SQ, on le recrÃ©e
+    if (container) {
+      const isText = container._text instanceof PIXI.Text;
+      if (isText !== studioState.labelHQ) {
+        container.removeChild(container._text);
+        container._text.destroy();
+        container._text = null;
+      }
+    }
+
+    if (!container || !container._text) {
+      if (!container) container = new PIXI.Container();
       
-      const bg = new PIXI.Graphics();
-      container.addChild(bg);
+      if (!container._bg) {
+        const bg = new PIXI.Graphics();
+        container.addChild(bg);
+        container._bg = bg;
+      }
       
-      const text = new PIXI.BitmapText({
-        text: '',
-        style: {
-          fontFamily: 'Space Grotesk Bold',
-          fontSize: 14,
-          align: 'center',
-        }
-      });
+      let text;
+      if (studioState.labelHQ) {
+        text = new PIXI.Text({
+          text: '',
+          style: {
+            fontFamily: 'Space Grotesk',
+            fontSize: 14,
+            fill: 0xffffff,
+            fontWeight: '700',
+            align: 'center',
+          }
+        });
+      } else {
+        text = new PIXI.BitmapText({
+          text: '',
+          style: {
+            fontFamily: 'SpaceGrotesk',
+            fontSize: 14,
+            align: 'center',
+          }
+        });
+      }
       text.anchor.set(0.5, 1);
-      text.eventMode = 'static';
-      text.cursor = 'pointer';
-      
       container.addChild(text);
-      
-      // Store references
-      container._bg = bg;
       container._text = text;
-      
-      /*
-      text.on('pointerdown', (e) => {
-        e.stopPropagation();
-        studioState.togglePinnedCrater(container._crater.name);
-        layerState.layerTransformDirty = true;
-      });
-      */
       
       labelsContainer.addChild(container);
     }
@@ -1757,21 +1811,77 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     container.visible = true;
     container.alpha = item.op;
 
+    const isSpecialCrater = item.crater.type === 'Statio' || item.crater.type === 'Maria' || item.crater.type.startsWith('Mont');
+
     text.text = item.crater.name;
     const textColor = LAYER_PALETTE[studioState.labelColorText % LAYER_PALETTE.length].stroke;
-    text.tint = textColor;
-
-    // Redraw the pill (backdrop) locally in its container
-    bg.clear();
-    const bgW = adjustedTextWidth + 10;
-    const bgH = adjustedTextHeight + 6;
-    bg.roundRect(-bgW / 2, -bgH, bgW, bgH, 3);
-    bg.fill({ color: 0x06060c, alpha: 0.85 });
     
-    if (item.isPinned) {
-      bg.stroke({ width: 2, color: 0x00E5FF, alpha: 1.0 });
+    // Update Text Style
+    if (isSpecialCrater) {
+      if (studioState.labelHQ) {
+        text.style.fontFamily = 'Space Grotesk';
+        text.style.fontWeight = '700';
+        text.style.fontSize = 14;
+      } else {
+        text.style.fontFamily = 'SpaceGrotesk';
+        text.style.fontSize = 14;
+      }
+      text.tint = 0xffffff;
+      text.alpha = 1.0;
+      text.visible = true;
     } else {
-      bg.stroke({ width: 1, color: 0x22222a, alpha: 0.6 });
+      if (studioState.labelHQ) {
+        text.style.fontFamily = studioState.labelPoliceFont;
+        text.style.fontWeight = studioState.labelPoliceWeight.toString();
+        text.style.fontSize = studioState.labelFontSize;
+      } else {
+        text.style.fontFamily = 'SpaceGrotesk';
+        text.style.fontSize = studioState.labelFontSize;
+      }
+      text.tint = textColor;
+      text.alpha = studioState.labelPoliceOpacity;
+      text.visible = studioState.labelPoliceVisible;
+    }
+
+    // Redraw Background
+    bg.clear();
+    if (isSpecialCrater || studioState.labelFondVisible) {
+      const bgW = text.width + (isSpecialCrater ? 10 : 10 + studioState.labelFondSizeX);
+      const bgH = text.height + (isSpecialCrater ? 6 : 6 + studioState.labelFondSizeY);
+      const bgAlpha = isSpecialCrater ? 0.85 : studioState.labelFondOpacity;
+      const bgColor = isSpecialCrater ? 0x06060c : LAYER_PALETTE[studioState.labelFondColor % LAYER_PALETTE.length].stroke;
+      const bgRadius = isSpecialCrater ? 3 : studioState.labelFondRadius;
+      bg.roundRect(-bgW / 2, -bgH, bgW, bgH, bgRadius);
+      
+      bg.fill({ color: isSpecialCrater ? 0x06060c : bgColor, alpha: bgAlpha });
+      
+      if (item.isPinned && studioState.labelShowLockHighlight) {
+        bg.stroke({ width: 2, color: 0x00E5FF, alpha: 1.0 });
+      } else {
+        // Supprimé le cerclage par défaut pour éviter les artefacts avec le glow
+        bg.stroke({ width: 0 });
+      }
+
+      // Filters for background (Glow/Blur)
+      if (!isSpecialCrater && (studioState.labelFondGlow > 0 || studioState.labelFondBlur > 0)) {
+        const filters = [];
+        if (studioState.labelFondBlur > 0) {
+          filters.push(new PIXI.BlurFilter({ strength: studioState.labelFondBlur }));
+        }
+        if (studioState.labelFondGlow > 0) {
+          filters.push(new GlowFilter({
+            distance: studioState.labelFondGlow * 2,
+            outerStrength: 2,
+            color: bgColor,
+            quality: 0.1 // Performance
+          }));
+        }
+        bg.filters = filters.length ? filters : null;
+      } else {
+        bg.filters = null;
+      }
+    } else {
+      bg.visible = false;
     }
 
     activeLabels.push(container);

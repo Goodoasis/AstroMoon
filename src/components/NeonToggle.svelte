@@ -94,32 +94,32 @@
 
   /* Medium (Standard / HQ) */
   .nt-md .nt-track {
-    width: 28px;
-    height: 14px;
+    width: 36px;
+    height: 18px;
   }
   .nt-md .nt-thumb {
-    top: 1px;
-    left: 1px;
-    width: 10px;
-    height: 10px;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
   }
   .nt-md input:checked ~ .nt-track .nt-thumb {
-    transform: translateX(14px);
+    transform: translateX(18px);
   }
 
   /* Small (Mini) */
   .nt-sm .nt-track {
-    width: 18px;
-    height: 10px;
+    width: 24px;
+    height: 14px;
   }
   .nt-sm .nt-thumb {
-    top: 1px;
-    left: 1px;
-    width: 6px;
-    height: 6px;
+    top: 2px;
+    left: 2px;
+    width: 10px;
+    height: 10px;
   }
   .nt-sm input:checked ~ .nt-track .nt-thumb {
-    transform: translateX(8px);
+    transform: translateX(10px);
   }
 
   /* ── Active State (Checked) ── */

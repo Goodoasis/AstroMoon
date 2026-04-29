@@ -264,6 +264,24 @@ export const STUDIO = {
   labelSizeMin: 0, labelSizeMax: 1500, labelSizeStep: 10, labelSizeDefaultMin: 0, labelSizeDefaultMax: 1500,
   labelCountMin: 0, labelCountMax: 500, labelCountStep: 10, labelCountDefault: 150,
 
+  /** Labels advanced details */
+  labelPoliceFontDefault: 'Space Grotesk',
+  labelPoliceFonts: ['Space Grotesk', 'Inter', 'JetBrains Mono', 'Roboto'],
+  labelPoliceWeightDefault: 700,
+  labelWeightMin: 100, labelWeightMax: 900, labelWeightStep: 100,
+
+  labelFondSizeXMin: -20, labelFondSizeXMax: 20, labelFondSizeXStep: 1, labelFondSizeXDefault: 0,
+  labelFondSizeYMin: -20, labelFondSizeYMax: 20, labelFondSizeYStep: 1, labelFondSizeYDefault: 0,
+  labelFondGlowMax: 10, labelFondGlowStep: 0.5, labelFondGlowDefault: 0,
+  labelFondBlurMax: 10, labelFondBlurStep: 0.5, labelFondBlurDefault: 0,
+  labelFondRadiusMax: 20, labelFondRadiusStep: 1, labelFondRadiusDefault: 3,
+  labelFondShapes: ['rect', 'pill', 'circle'],
+
+  labelPointShapes: ['circle', 'square', 'ring', 'cross'],
+  labelPointSizeMin: 0.2, labelPointSizeMax: 5, labelPointSizeStep: 0.1, labelPointSizeDefault: 1,
+  labelPointGlowMax: 20, labelPointGlowStep: 0.5, labelPointGlowDefault: 0,
+  labelPointBlurMax: 10, labelPointBlurStep: 0.5, labelPointBlurDefault: 0,
+
   /** Rotation */
   rotationMin: -180, rotationMax: 180, rotationStep: 0.5,
 

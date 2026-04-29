@@ -223,7 +223,7 @@
                 <NeonToggle 
                   label="Adoucir" 
                   labelLeft={true}
-                  size="sm"
+                  size="md"
                   color={getColorHex(colorIdx)} 
                   bind:checked={studioState.layerSmooth[layerName]} 
                   onchange={() => layerState.layerTransformDirty = true} 
