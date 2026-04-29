@@ -54,12 +54,20 @@
       onwheel(e);
       return;
     }
-    e.preventDefault();
     const mult = e.shiftKey ? 0.1 : 1;
     const delta = e.deltaY > 0 ? -step * mult : step * mult;
     const newVal = Math.max(min, Math.min(max, value + delta));
     value = newVal;
     oninput(newVal);
+  }
+
+  function wheelAction(node) {
+    node.addEventListener('wheel', handleWheel, { passive: true });
+    return {
+      destroy() {
+        node.removeEventListener('wheel', handleWheel);
+      }
+    };
   }
 
   function handleDblClick() {
@@ -82,7 +90,7 @@
     class:rs-full={variant === 'full'}
     class:rs-detail={variant === 'detail'}
     class:modified={isModified}
-    onwheel={handleWheel}
+    use:wheelAction
     ondblclick={handleDblClick}
     title={initialValue !== undefined ? 'Double-clic pour réinitialiser' : undefined}
     style:--rs-color={color}

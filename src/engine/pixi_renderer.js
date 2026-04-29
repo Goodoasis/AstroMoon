@@ -94,7 +94,7 @@ async function init(container) {
     console.error("PixiRenderer: Font load error:", err);
   }
 
-  app = new PIXI.Application();
+  const _app = new PIXI.Application();
 
   // Register advanced blend modes
   console.log('Registering advanced blend modes, OverlayBlend is:', PIXI.OverlayBlend);
@@ -103,7 +103,7 @@ async function init(container) {
     PIXI.DifferenceBlend, PIXI.ExclusionBlend, PIXI.HardLightBlend, PIXI.LightenBlend, PIXI.SoftLightBlend
   );
 
-  await app.init({
+  await _app.init({
     preference: 'webgl',
     backgroundAlpha: 0,
     resizeTo: window,
@@ -113,13 +113,13 @@ async function init(container) {
   });
 
   // Canvas inherits positioning from #pixi-container (fixed in CSS)
-  app.canvas.id = 'main-canvas';
+  _app.canvas.id = 'main-canvas';
 
-  container.appendChild(app.canvas);
+  container.appendChild(_app.canvas);
 
   // Build scene tree
   viewportContainer = new PIXI.Container();
-  app.stage.addChild(viewportContainer);
+  _app.stage.addChild(viewportContainer);
 
   moonBackdropGfx = new PIXI.Graphics();
   viewportContainer.addChild(moonBackdropGfx);
@@ -215,6 +215,7 @@ async function init(container) {
     }
   });
 
+  app = _app; // NOW EXPOSE THE INITIALIZED APP
   return app;
 }
 
@@ -241,13 +242,14 @@ function redrawGrid() {
  * Get the PixiJS Application instance.
  */
 function getApp() {
-  return app;
+  return (app && app.renderer) ? app : null;
 }
 
 /**
  * Get screen dimensions.
  */
 function getScreenSize() {
+  if (!app || !app.screen) return { width: 0, height: 0 };
   return { width: app.screen.width, height: app.screen.height };
 }
 

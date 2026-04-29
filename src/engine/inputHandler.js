@@ -248,7 +248,6 @@ export function onWheel(e) {
     Transform.zoom(factor, w.x, w.y); 
     layerState.layerTransformDirty = true;
   }
-  e.preventDefault();
 }
 
 export function onDoubleClick(e) {
@@ -314,7 +313,7 @@ export function bindInputHandlers(canvas) {
   canvas.addEventListener('mousemove', onMouseMove);
   canvas.addEventListener('mouseup', onMouseUp);
   canvas.addEventListener('mouseleave', onMouseUp);
-  canvas.addEventListener('wheel', onWheel, { passive: false });
+  canvas.addEventListener('wheel', onWheel, { passive: true });
   canvas.addEventListener('dblclick', onDoubleClick);
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('keydown', onKeyDown);
