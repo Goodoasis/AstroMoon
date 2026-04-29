@@ -296,6 +296,7 @@ function getBackgroundDisplaySize() {
  * Also updates the contentContainer for Studio rotation/flip centered on image.
  */
 function updateViewport(vp) {
+  if (!viewportContainer) return;
   const isStudio = uiState.currentPhase !== 'ALIGN';
   
   if (isStudio && bgSprite && bgSprite.visible) {
@@ -445,6 +446,7 @@ function setMoonMaskEnabled(enabled) {
  * Called only when data changes (dirty flag), not every frame.
  */
 function rebuildGeoJSON(projectedFeatures, vp) {
+  if (!geojsonContainer || !app) return;
   _lastProjectedFeatures = projectedFeatures;
   _lastVp = vp;
 
@@ -652,6 +654,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
 // ─── Moon Mask ───
 
 function rebuildMoonMask(transformFn) {
+  if (!moonMaskGfx || !app) return;
   if (!moonBackdropGfx) return;
   moonBackdropGfx.clear();
   
@@ -704,6 +707,7 @@ function _getTerminatorProjections() {
 }
 
 function rebuildNightMask(transformFn) {
+  if (!nightMaskGfx || !app) return;
   try {
     _lastTransformFn = transformFn;
     nightMaskGfx.clear();
@@ -862,11 +866,11 @@ function rebuildNightMask(transformFn) {
 // â”€â”€â”€ Day Mask (inverse of Night Mask) â”€â”€â”€
 
 function rebuildDayMask(transformFn) {
+  if (!dayMaskGfx || !app) return;
   try {
     _lastTransformFn = transformFn;
     dayMaskGfx.clear();
     dayMaskClip.clear();
-
     const isStudio = uiState.currentPhase !== 'ALIGN';
     const showMask = isStudio ? studioState.dayMaskVisible : false;
     if (!showMask) {
@@ -1021,6 +1025,7 @@ function rebuildDayMask(transformFn) {
 // â”€â”€â”€ Terminator Line â”€â”€â”€
 
 function rebuildTerminator(transformFn, vp) {
+  if (!terminatorGfx || !app) return;
   _lastTransformFn = transformFn;
   _lastVp = vp;
   terminatorGfx.clear();
@@ -1181,6 +1186,7 @@ function _getGridCache(spacing = 10) {
 }
 
 function rebuildGrid(transformFn, vp, lodLevel = 0) {
+  if (!gridGfx || !app) return;
   _lastTransformFn = transformFn;
   _lastVp = vp;
   _lastLodLevel = lodLevel;
@@ -1273,6 +1279,7 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
 let _limbGlowBlurFilter = null;
 
 function rebuildLimbGlow(transformFn, vp) {
+  if (!limbGlowGfx || !app) return;
   _lastTransformFn = transformFn;
   _lastVp = vp;
   limbGlowGfx.clear();
@@ -1420,6 +1427,7 @@ function rebuildLimbGlow(transformFn, vp) {
 
 
 function rebuildAnchors(anchorsData, vp, activeAnchorId) {
+  if (!anchorsGfx || !app) return;
   anchorsGfx.clear();
   if (anchorsData.length === 0 || uiState.currentPhase !== 'ALIGN') return;
 
@@ -1462,6 +1470,7 @@ function rebuildAnchors(anchorsData, vp, activeAnchorId) {
  * Render the emergency mode pivot anchor (orange diamond).
  */
 function rebuildPivotAnchor(vp) {
+  if (!anchorsGfx || !app) return;
   const pivot = uiState.pivotAnchor;
   if (!pivot || !uiState.emergencyMode) return;
 
@@ -1490,6 +1499,7 @@ function rebuildPivotAnchor(vp) {
 // â”€â”€â”€ Annotations (Crater Labels) â”€â”€â”€
 
 function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
+  if (!annotationsContainer || !app) return;
   if (!_showLabels || !cratersDB || cratersDB.length === 0) {
     annotationsContainer.visible = false;
     return;

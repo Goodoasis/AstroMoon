@@ -13,4 +13,7 @@ dist/
 *.mp4
 .kilo/
 .agents/
-
+CLAUDE_fixed.md
+CLAUDE*.md
+CLAUDE_header.md
+CLAUDE_new.md

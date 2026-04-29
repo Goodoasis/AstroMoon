@@ -17,7 +17,11 @@ user_exemple/
 .vscode/
 calque_geojson_backup/
 .claude/
-CLAUDE.md
+CLAUDE*.md
+CLAUDE_fixed.md
+CLAUDE*.md
+CLAUDE_header.md
+CLAUDE_new.md
 gemini.md
 implementation_plan.md
 ROADMAP.md
