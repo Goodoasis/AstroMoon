@@ -31,7 +31,7 @@
 
   let {
     label = '',
-    color = '#00E5FF',
+    color = undefined,
     variant = 'primary',
     active = false,
     radius = undefined,
@@ -47,6 +47,8 @@
     children = undefined,
     icon = undefined,
   } = $props();
+
+  const effectiveColor = $derived(color || 'var(--nb-panel-color, #00E5FF)');
 </script>
 
 <button
@@ -58,11 +60,11 @@
   class:nb-animate-in={animateIn}
   class:nb-full-width={fullWidth}
   onclick={onclick}
-  style:--nb-color={color}
+  style:--nb-color={effectiveColor}
   style:--nb-delay={animateDelay}
   style:--nb-radius={radius}
   style:--nb-font-weight={bold ? 700 : 500}
-  style:--nb-text-color={ (variant === 'panel' || useColorForText) ? color : '#fff' }
+  style:--nb-text-color={ (variant === 'panel' || useColorForText) ? effectiveColor : '#fff' }
 >
   {#if icon}
     <span class="nb-icon-wrap">

@@ -29,7 +29,6 @@
         <NeonButton
           variant="tab"
           label={ratio.id}
-          color="#FF4081"
           active={projectStore.exportConfig.ratio === ratio.id}
           onclick={() => projectStore.exportConfig.ratio = ratio.id}
         />
@@ -45,7 +44,6 @@
       variant="full"
       label="Nerd Mode (HUD Metadata)" 
       bind:checked={projectStore.exportConfig.texts} 
-      color="#FF4081"
     />
   </div>
 
@@ -53,7 +51,6 @@
     <NeonButton
       variant="primary"
       label="TÉLÉCHARGER"
-      color="#FF4081"
       onclick={triggerDownload}
     >
       {#snippet icon()}
@@ -73,12 +70,14 @@
     backdrop-filter: blur(12px);
     padding: 20px 32px;
     border-radius: 20px;
-    border: 1px solid #FF4081;
-    box-shadow: 0 0 20px rgba(255, 64, 129, 0.2), 0 4px 15px rgba(0, 0, 0, 0.6);
+    border: 1px solid #FFD700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.2), 0 4px 15px rgba(0, 0, 0, 0.6);
     z-index: 1000;
     display: flex;
     align-items: center;
     gap: 32px;
+    --nb-panel-color: #FFD700;
+    --nt-panel-color: #FFD700;
   }
 
   .export-group {
@@ -92,7 +91,9 @@
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 1.5px;
-    color: #FF4081;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #FFD700;
     opacity: 0.8;
   }
 

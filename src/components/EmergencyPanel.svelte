@@ -550,6 +550,8 @@
     z-index: 91;
     padding: 14px;
     animation: slide-in-left 0.3s var(--transition-slow);
+    --nb-panel-color: #FF8C00;
+    --nt-panel-color: #FF8C00;
   }
 
   .em-header {

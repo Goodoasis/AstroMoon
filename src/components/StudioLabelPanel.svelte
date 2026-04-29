@@ -98,7 +98,6 @@
       <NeonToggle 
         label="HQ"
         variant="detail"
-        color="#FF4081" 
         bind:checked={studioState.labelHQ} 
         onchange={onParamChange} 
       />
@@ -204,10 +203,10 @@
                   <RangeSlider variant="detail" label="Arrondi" min={0} max={STUDIO.labelFondRadiusMax} step={1} bind:value={studioState.labelFondRadius} initialValue={STUDIO.labelFondRadiusDefault} color={getColorHex(studioState.labelFondColor)} oninput={onParamChange} />
                 </div>
                 <div class="sl-detail-row">
-                  <NeonToggle variant="detail" label="Surbrillance" color="#00E5FF" bind:checked={studioState.labelShowLockHighlight} onchange={onParamChange} />
+                  <NeonToggle variant="mini" label="Surbrillance" labelLeft={true} color={getColorHex(studioState.labelFondColor)} bind:checked={studioState.labelShowLockHighlight} onchange={onParamChange} />
                 </div>
                 <div class="sl-detail-row">
-                  <NeonToggle variant="detail" label="Ombre Portée ⚠️" color={getColorHex(studioState.labelFondColor)} bind:checked={studioState.labelFondShadow} onchange={onParamChange} />
+                  <NeonToggle variant="mini" label="Ombre Portée ⚠️" labelLeft={true} color={getColorHex(studioState.labelFondColor)} bind:checked={studioState.labelFondShadow} onchange={onParamChange} />
                 </div>
               </div>
             {/if}
@@ -307,6 +306,7 @@
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
     pointer-events: auto;
+    --nt-panel-color: #FF4081;
   }
 
   .context-panel.open {

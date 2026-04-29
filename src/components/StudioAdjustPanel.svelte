@@ -111,7 +111,6 @@
             variant="full"
             label="Niveaux de gris" 
             bind:checked={studioState.grayscale} 
-            color="#FF4081"
             onchange={onParamChange} 
           />
         </section>
@@ -216,6 +215,7 @@
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
     pointer-events: auto;
+    --nt-panel-color: #FF4081;
   }
 
   .sa-panel.open {

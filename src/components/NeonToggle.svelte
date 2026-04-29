@@ -27,10 +27,10 @@
     variant = 'detail', 
     label = '', 
     checked = $bindable(false), 
-    color = '#00E5FF', 
+    color = undefined, 
     disabled = false,
     initialValue = undefined,
-    labelLeft = false, // backward compat for placement, but variant usually dictates it
+    labelLeft = false, 
     onchange = null
   } = $props();
 
@@ -54,7 +54,7 @@
   class:checked
   class:modified={isModified}
   class:label-left={labelLeft}
-  style:--nt-color={color}
+  style:--nt-color={color || 'var(--nt-panel-color, #00E5FF)'}
   onclick={handleContainerClick}
 >
   <input 
