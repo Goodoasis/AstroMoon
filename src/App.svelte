@@ -25,8 +25,12 @@
   import StudioLabelPanel from './components/StudioLabelPanel.svelte';
   import StudioPinnedPanel from './components/StudioPinnedPanel.svelte';
   import StudioAdjustPanel from './components/StudioAdjustPanel.svelte';
+  import ExportPanel from './components/ExportPanel.svelte';
+  import Handwriting from './components/Handwriting.svelte';
+  import SignaturePanel from './components/SignaturePanel.svelte';
 
   import { equipmentState } from './stores/equipmentState.svelte.js';
+  import { projectStore } from './stores/projectStore.svelte.js';
 
   let toastMessage = $state('');
   let toastVisible = $state(false);
@@ -171,6 +175,23 @@
   <div class="panel-layout-right">
     <StudioAdjustPanel />
     <StudioPinnedPanel />
+  </div>
+{/if}
+
+{#if uiState.currentPhase === 'EXPORT'}
+  <ExportPanel />
+  <SignaturePanel />
+  
+  <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 600px; pointer-events: none; display: flex; justify-content: center; align-items: center;">
+    <Handwriting 
+      text={projectStore.signature.activeText} 
+      styleId={projectStore.signature.activeStyle} 
+      bias={projectStore.signature.activeBias} 
+      modelStrokeWidth={projectStore.signature.activeStrokeWidth} 
+      triggerSeed={projectStore.signature.triggerSeed} 
+      stroke="#ffffff" 
+      strokeWidth="2" 
+    />
   </div>
 {/if}
 

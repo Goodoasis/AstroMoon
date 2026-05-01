@@ -33,6 +33,18 @@ class ProjectStore {
         ratio: '16:9'
     });
 
+    signature = $state({
+        text: 'AstroMoon',
+        styleId: 21,
+        bias: 0.75,
+        strokeWidth: 0.75,
+        activeText: 'AstroMoon',
+        activeStyle: 21,
+        activeBias: 0.75,
+        activeStrokeWidth: 0.75,
+        triggerSeed: 0
+    });
+
     reset() {
         this.meta = {
             date: null,
@@ -58,6 +70,17 @@ class ProjectStore {
             crop: null,
             texts: true,
             ratio: '16:9'
+        };
+        this.signature = {
+            text: 'AstroMoon',
+            styleId: 21,
+            bias: 0.75,
+            strokeWidth: 0.75,
+            activeText: 'AstroMoon',
+            activeStyle: 21,
+            activeBias: 0.75,
+            activeStrokeWidth: 0.75,
+            triggerSeed: 0
         };
     }
 }
