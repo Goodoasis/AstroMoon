@@ -27,7 +27,6 @@
   import StudioAdjustPanel from './components/StudioAdjustPanel.svelte';
 
   import { equipmentState } from './stores/equipmentState.svelte.js';
-  import { PixiRenderer } from './engine/pixi_renderer.js';
 
   let toastMessage = $state('');
   let toastVisible = $state(false);

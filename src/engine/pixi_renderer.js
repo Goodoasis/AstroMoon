@@ -43,7 +43,7 @@ let nightMaskBlurFilter = null;
 let dayMaskContainer, dayMaskGfx, dayMaskClip;
 let dayMaskBlurFilter = null;
 let terminatorGfx, gridGfx, limbGlowGfx, anchorsGfx, dotsGfx;
-let moonBackdropGfx, moonMaskGfx;
+let moonBackdropGfx;
 let labelsBgGfx;
 let hoverContainer, hoverBgGfx, hoverLabel;
 let activeLabels = []; // Will now hold Containers
@@ -55,7 +55,7 @@ let _studioAdjustment = null;
 let _studioSharpen = null;
 let _studioDenoise = null;
 let _studioVignetteSprite = null; // Use a sprite for vignette fallback
-let _lastStudioState = {};
+
 
 let _showLabels = false;
 let _labelsTargetAlpha = 1;
@@ -97,7 +97,6 @@ async function init(container) {
   const _app = new PIXI.Application();
 
   // Register advanced blend modes
-  console.log('Registering advanced blend modes, OverlayBlend is:', PIXI.OverlayBlend);
   PIXI.extensions.add(
     PIXI.OverlayBlend, PIXI.ColorBurnBlend, PIXI.ColorDodgeBlend, PIXI.DarkenBlend, 
     PIXI.DifferenceBlend, PIXI.ExclusionBlend, PIXI.HardLightBlend, PIXI.LightenBlend, PIXI.SoftLightBlend
@@ -132,8 +131,7 @@ async function init(container) {
   geojsonContainer = new PIXI.Container();
   viewportContainer.addChild(geojsonContainer);
 
-  // Lazy initialized in rebuildNightMask to survive HMR resets
-  // nightMaskBlurFilter = new PIXI.BlurFilter({ strength: 0 });
+
 
   nightMaskContainer = new PIXI.Container();
   viewportContainer.addChild(nightMaskContainer);
@@ -245,13 +243,7 @@ function getApp() {
   return (app && app.renderer) ? app : null;
 }
 
-/**
- * Get screen dimensions.
- */
-function getScreenSize() {
-  if (!app || !app.screen) return { width: 0, height: 0 };
-  return { width: app.screen.width, height: app.screen.height };
-}
+
 
 /**
  * Set the background moon image from an HTMLImageElement.
@@ -656,8 +648,7 @@ function rebuildGeoJSON(projectedFeatures, vp) {
 // ─── Moon Mask ───
 
 function rebuildMoonMask(transformFn) {
-  if (!moonMaskGfx || !app) return;
-  if (!moonBackdropGfx) return;
+  if (!moonBackdropGfx || !app) return;
   moonBackdropGfx.clear();
   
   // Get horizon shape from grid cache (independent of spacing)
@@ -708,39 +699,29 @@ function _getTerminatorProjections() {
   return _termProjCache;
 }
 
-function rebuildNightMask(transformFn) {
-  if (!nightMaskGfx || !app) return;
-  try {
-    _lastTransformFn = transformFn;
-    nightMaskGfx.clear();
-    nightMaskClip.clear();
-
-  const isStudio = uiState.currentPhase !== 'ALIGN';
-  const showMask = isStudio ? studioState.nightMaskVisible : true;
-  if (!showMask) {
-    nightMaskContainer.visible = false;
-    return;
-  }
-  nightMaskContainer.visible = true;
-
+/**
+ * Extract the contiguous visible arc from the terminator projection cache.
+ * Shared by nightMask, dayMask, limbGlow.
+ * @returns {{ visiblePoints, first, last } | null}
+ */
+function _getVisibleTerminatorArc() {
   const projCache = _getTerminatorProjections();
-  if (!projCache) return;
+  if (!projCache) return null;
 
   const pts = projCache.projNorm;
-  const state = moonState;
   const n = pts.length;
+
+  // Find the first visible point whose predecessor is null (arc start boundary)
   let startIdx = 0;
   let found = false;
   for (let i = 0; i < n; i++) {
     if (pts[i] !== null && pts[(i - 1 + n) % n] === null) {
-      startIdx = i;
-      found = true;
-      break;
+      startIdx = i; found = true; break;
     }
   }
   if (!found) {
     startIdx = pts.findIndex(p => p !== null);
-    if (startIdx === -1) return;
+    if (startIdx === -1) return null;
   }
 
   const visiblePoints = [];
@@ -750,112 +731,145 @@ function rebuildNightMask(transformFn) {
     else if (visiblePoints.length > 0) break;
   }
 
-  if (visiblePoints.length < 2) return;
+  if (visiblePoints.length < 2) return null;
+  return { visiblePoints, first: visiblePoints[0], last: visiblePoints[visiblePoints.length - 1] };
+}
 
-  const first = visiblePoints[0];
-  const last = visiblePoints[visiblePoints.length - 1];
+/**
+ * Determine if a given angle on the disc midpoint falls on the night side.
+ * Uses inverse projection with fallback at reduced radius.
+ * @param {number} aMid - Angle in radians from disc center
+ * @returns {boolean}
+ */
+function _isNightSide(aMid) {
+  const state = moonState;
+  const DEG2RAD = Math.PI / 180;
+  const sLon = state.sunLon * DEG2RAD;
+  const sLat = (state.sunLat || 0) * DEG2RAD;
+  const cosSLat = Math.cos(sLat), sinSLat = Math.sin(sLat);
+  const cosSLon = Math.cos(sLon), sinSLon = Math.sin(sLon);
 
-  // Draw solid night mask
-  let moved = false;
-  for (const p of visiblePoints) {
-    const pt = transformFn(p[0], p[1]);
-    if (!moved) { 
-      nightMaskGfx.moveTo(pt.x, pt.y); 
-      nightMaskClip.moveTo(pt.x, pt.y);
-      moved = true; 
-    } else { 
-      nightMaskGfx.lineTo(pt.x, pt.y); 
-      nightMaskClip.lineTo(pt.x, pt.y);
+  for (const r of [0.49, 0.45]) {
+    const nx = 0.5 + r * Math.cos(aMid);
+    const ny = 0.5 + r * Math.sin(aMid);
+    const geo = GeoJSON.inverseProject(nx, ny);
+    if (geo) {
+      const gLon = geo.lon * DEG2RAD, gLat = geo.lat * DEG2RAD;
+      const dot = Math.cos(gLat) * Math.cos(gLon) * cosSLat * cosSLon +
+                  Math.cos(gLat) * Math.sin(gLon) * cosSLat * sinSLon +
+                  Math.sin(gLat) * sinSLat;
+      return dot < 0;
     }
   }
+  return false;
+}
 
-  const cx = 0.5, cy = 0.5;
-  const aLast = Math.atan2(last[1] - cy, last[0] - cx);
-  const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
-
-  let diff = aFirst - aLast;
-  if (diff < 0) diff += Math.PI * 2;
-  const aMid1 = aLast + diff / 2;
-  const testNx = 0.5 + 0.49 * Math.cos(aMid1);
-  const testNy = 0.5 + 0.49 * Math.sin(aMid1);
-
-  let isNight1 = false;
-  const geo = GeoJSON.inverseProject(testNx, testNy);
-  if (geo) {
-    const sLon = state.sunLon * Math.PI / 180;
-    const sLat = (state.sunLat || 0) * Math.PI / 180;
-    const geoLon = geo.lon * Math.PI / 180;
-    const geoLat = geo.lat * Math.PI / 180;
-    const px = Math.cos(geoLat) * Math.cos(geoLon);
-    const py = Math.cos(geoLat) * Math.sin(geoLon);
-    const pz = Math.sin(geoLat);
-    const sx = Math.cos(sLat) * Math.cos(sLon);
-    const sy = Math.cos(sLat) * Math.sin(sLon);
-    const sz = Math.sin(sLat);
-    isNight1 = (sx * px + sy * py + sz * pz) < 0;
-  } else {
-    const testNx2 = 0.5 + 0.45 * Math.cos(aMid1);
-    const testNy2 = 0.5 + 0.45 * Math.sin(aMid1);
-    const geo2 = GeoJSON.inverseProject(testNx2, testNy2);
-    if (geo2) {
-      const sLon = state.sunLon * Math.PI / 180;
-      const sLat = (state.sunLat || 0) * Math.PI / 180;
-      const geoLon = geo2.lon * Math.PI / 180;
-      const geoLat = geo2.lat * Math.PI / 180;
-      const px = Math.cos(geoLat) * Math.cos(geoLon);
-      const py = Math.cos(geoLat) * Math.sin(geoLon);
-      const pz = Math.sin(geoLat);
-      const sx = Math.cos(sLat) * Math.cos(sLon);
-      const sy = Math.cos(sLat) * Math.sin(sLon);
-      const sz = Math.sin(sLat);
-      isNight1 = (sx * px + sy * py + sz * pz) < 0;
-    }
-  }
-
-  // Close the mask with an arc along the disc edge
-  const steps = 40;
-  if (isNight1) {
+/**
+ * Close a mask shape along the lunar disc edge (CW or CCW arc).
+ * @param {PIXI.Graphics[]} gfxList - Graphics objects to draw on simultaneously
+ * @param {Function} transformFn - Normalized → world coordinate transform
+ * @param {number} aLast - Angle of last visible terminator point
+ * @param {number} aFirst - Angle of first visible terminator point
+ * @param {boolean} closeCW - true = sweep CW (aLast→aFirst), false = sweep CCW
+ * @param {number} [steps=40] - Number of arc segments
+ */
+function _closeArcOnDisc(gfxList, transformFn, aLast, aFirst, closeCW, steps = 40) {
+  if (closeCW) {
+    let diff = aFirst - aLast;
+    if (diff < 0) diff += Math.PI * 2;
     for (let i = 1; i <= steps; i++) {
-      let a = aLast + diff * (i / steps);
-      let nx = 0.5 + 0.5 * Math.cos(a);
-      let ny = 0.5 + 0.5 * Math.sin(a);
-      let pt = transformFn(nx, ny);
-      nightMaskGfx.lineTo(pt.x, pt.y);
-      nightMaskClip.lineTo(pt.x, pt.y);
+      const a = aLast + diff * (i / steps);
+      const pt = transformFn(0.5 + 0.5 * Math.cos(a), 0.5 + 0.5 * Math.sin(a));
+      for (const gfx of gfxList) gfx.lineTo(pt.x, pt.y);
     }
   } else {
     let diffCCW = aLast - aFirst;
     if (diffCCW < 0) diffCCW += Math.PI * 2;
     for (let i = 1; i <= steps; i++) {
-      let a = aLast - diffCCW * (i / steps);
-      let nx = 0.5 + 0.5 * Math.cos(a);
-      let ny = 0.5 + 0.5 * Math.sin(a);
-      let pt = transformFn(nx, ny);
-      nightMaskGfx.lineTo(pt.x, pt.y);
-      nightMaskClip.lineTo(pt.x, pt.y);
+      const a = aLast - diffCCW * (i / steps);
+      const pt = transformFn(0.5 + 0.5 * Math.cos(a), 0.5 + 0.5 * Math.sin(a));
+      for (const gfx of gfxList) gfx.lineTo(pt.x, pt.y);
     }
   }
+}
 
-  nightMaskGfx.closePath();
-  nightMaskClip.closePath();
+/**
+ * Apply glow and/or blur filters to a Graphics object (shared pattern).
+ * @param {PIXI.Graphics} gfx
+ * @param {{ glow?: number, glowColor?: number, blur?: number }} opts
+ */
+function _applyFilters(gfx, { glow = 0, glowColor = 0xffffff, blur = 0 } = {}) {
+  const filters = [];
+  if (glow > 0) {
+    filters.push(new GlowFilter({ distance: glow * 12, outerStrength: 2, innerStrength: 0, color: glowColor, quality: 0.5 }));
+  }
+  if (blur > 0) {
+    filters.push(new PIXI.BlurFilter({ strength: blur }));
+  }
+  gfx.filters = filters.length > 0 ? filters : null;
+}
 
-  const maskColor = isStudio ? LAYER_PALETTE[studioState.nightMaskColor % LAYER_PALETTE.length].fill : RENDER.nightMaskColor;
-  const maskOpacity = isStudio ? studioState.nightMaskOpacity : RENDER.nightMaskAlpha;
-  
-  nightMaskContainer.blendMode = isStudio ? studioState.nightMaskBlendMode : 'normal';
-  nightMaskGfx.fill({ color: maskColor, alpha: maskOpacity });
-  nightMaskClip.fill({ color: 0xffffff, alpha: 1.0 });
+function rebuildNightMask(transformFn) {
+  if (!nightMaskGfx || !app) return;
+  try {
+    _lastTransformFn = transformFn;
+    nightMaskGfx.clear();
+    nightMaskClip.clear();
 
-  const maskBlur = isStudio ? studioState.nightMaskBlur : 0;
-  
+    const isStudio = uiState.currentPhase !== 'ALIGN';
+    const showMask = isStudio ? studioState.nightMaskVisible : true;
+    if (!showMask) {
+      nightMaskContainer.visible = false;
+      return;
+    }
+    nightMaskContainer.visible = true;
+
+    const arc = _getVisibleTerminatorArc();
+    if (!arc) return;
+    const { visiblePoints, first, last } = arc;
+
+    // Trace the terminator curve on both graphics
+    const gfxPair = [nightMaskGfx, nightMaskClip];
+    let moved = false;
+    for (const p of visiblePoints) {
+      const pt = transformFn(p[0], p[1]);
+      if (!moved) { 
+        for (const gfx of gfxPair) gfx.moveTo(pt.x, pt.y);
+        moved = true; 
+      } else { 
+        for (const gfx of gfxPair) gfx.lineTo(pt.x, pt.y);
+      }
+    }
+
+    // Determine night side and close along it
+    const cx = 0.5, cy = 0.5;
+    const aLast = Math.atan2(last[1] - cy, last[0] - cx);
+    const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
+    let diff = aFirst - aLast;
+    if (diff < 0) diff += Math.PI * 2;
+    const aMid = aLast + diff / 2;
+    const isNight1 = _isNightSide(aMid);
+
+    // Close arc through the night side
+    _closeArcOnDisc(gfxPair, transformFn, aLast, aFirst, isNight1);
+
+    for (const gfx of gfxPair) gfx.closePath();
+
+    const maskColor = isStudio ? LAYER_PALETTE[studioState.nightMaskColor % LAYER_PALETTE.length].fill : RENDER.nightMaskColor;
+    const maskOpacity = isStudio ? studioState.nightMaskOpacity : RENDER.nightMaskAlpha;
+    
+    nightMaskContainer.blendMode = isStudio ? studioState.nightMaskBlendMode : 'normal';
+    nightMaskGfx.fill({ color: maskColor, alpha: maskOpacity });
+    nightMaskClip.fill({ color: 0xffffff, alpha: 1.0 });
+
+    const maskBlur = isStudio ? studioState.nightMaskBlur : 0;
     if (maskBlur > 0) {
       if (!nightMaskBlurFilter) {
         nightMaskBlurFilter = new PIXI.BlurFilter({ strength: maskBlur });
       } else {
         nightMaskBlurFilter.strength = maskBlur;
       }
-      // The blur spills into both sides. The clip mask perfectly cuts it off at the day side,
-      // confining the gradient purely to the night side.
+      // The blur spills into both sides. The clip mask perfectly cuts it off at the day side.
       nightMaskGfx.filters = [nightMaskBlurFilter];
     } else {
       nightMaskGfx.filters = null;
@@ -881,124 +895,36 @@ function rebuildDayMask(transformFn) {
     }
     dayMaskContainer.visible = true;
 
-    const projCache = _getTerminatorProjections();
-    if (!projCache) return;
+    const arc = _getVisibleTerminatorArc();
+    if (!arc) return;
+    const { visiblePoints, first, last } = arc;
 
-    const pts = projCache.projNorm;
-    const state = moonState;
-    const n = pts.length;
-    let startIdx = 0;
-    let found = false;
-    for (let i = 0; i < n; i++) {
-      if (pts[i] !== null && pts[(i - 1 + n) % n] === null) {
-        startIdx = i;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      startIdx = pts.findIndex(p => p !== null);
-      if (startIdx === -1) return;
-    }
-
-    const visiblePoints = [];
-    for (let i = 0; i < n; i++) {
-      const p = pts[(startIdx + i) % n];
-      if (p !== null) visiblePoints.push(p);
-      else if (visiblePoints.length > 0) break;
-    }
-
-    if (visiblePoints.length < 2) return;
-
-    const first = visiblePoints[0];
-    const last = visiblePoints[visiblePoints.length - 1];
-
-    // Trace the terminator curve
+    // Trace the terminator curve on both graphics
+    const gfxPair = [dayMaskGfx, dayMaskClip];
     let moved = false;
     for (const p of visiblePoints) {
       const pt = transformFn(p[0], p[1]);
       if (!moved) {
-        dayMaskGfx.moveTo(pt.x, pt.y);
-        dayMaskClip.moveTo(pt.x, pt.y);
+        for (const gfx of gfxPair) gfx.moveTo(pt.x, pt.y);
         moved = true;
       } else {
-        dayMaskGfx.lineTo(pt.x, pt.y);
-        dayMaskClip.lineTo(pt.x, pt.y);
+        for (const gfx of gfxPair) gfx.lineTo(pt.x, pt.y);
       }
     }
 
+    // Determine night side; close along the DAY side (inverse)
     const cx = 0.5, cy = 0.5;
     const aLast = Math.atan2(last[1] - cy, last[0] - cx);
     const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
-
     let diff = aFirst - aLast;
     if (diff < 0) diff += Math.PI * 2;
-    const aMid1 = aLast + diff / 2;
-    const testNx = 0.5 + 0.49 * Math.cos(aMid1);
-    const testNy = 0.5 + 0.49 * Math.sin(aMid1);
+    const aMid = aLast + diff / 2;
+    const isNight1 = _isNightSide(aMid);
 
-    // Determine which side is night (same logic as nightMask)
-    let isNight1 = false;
-    const geo = GeoJSON.inverseProject(testNx, testNy);
-    if (geo) {
-      const sLon = state.sunLon * Math.PI / 180;
-      const sLat = (state.sunLat || 0) * Math.PI / 180;
-      const geoLon = geo.lon * Math.PI / 180;
-      const geoLat = geo.lat * Math.PI / 180;
-      const px = Math.cos(geoLat) * Math.cos(geoLon);
-      const py = Math.cos(geoLat) * Math.sin(geoLon);
-      const pz = Math.sin(geoLat);
-      const sx = Math.cos(sLat) * Math.cos(sLon);
-      const sy = Math.cos(sLat) * Math.sin(sLon);
-      const sz = Math.sin(sLat);
-      isNight1 = (sx * px + sy * py + sz * pz) < 0;
-    } else {
-      const testNx2 = 0.5 + 0.45 * Math.cos(aMid1);
-      const testNy2 = 0.5 + 0.45 * Math.sin(aMid1);
-      const geo2 = GeoJSON.inverseProject(testNx2, testNy2);
-      if (geo2) {
-        const sLon = state.sunLon * Math.PI / 180;
-        const sLat = (state.sunLat || 0) * Math.PI / 180;
-        const geoLon = geo2.lon * Math.PI / 180;
-        const geoLat = geo2.lat * Math.PI / 180;
-        const px = Math.cos(geoLat) * Math.cos(geoLon);
-        const py = Math.cos(geoLat) * Math.sin(geoLon);
-        const pz = Math.sin(geoLat);
-        const sx = Math.cos(sLat) * Math.cos(sLon);
-        const sy = Math.cos(sLat) * Math.sin(sLon);
-        const sz = Math.sin(sLat);
-        isNight1 = (sx * px + sy * py + sz * pz) < 0;
-      }
-    }
+    // Close arc through the day side (inverted from night mask)
+    _closeArcOnDisc(gfxPair, transformFn, aLast, aFirst, !isNight1);
 
-    // Close the mask along the DAY side arc (INVERSE of night mask)
-    const steps = 40;
-    if (!isNight1) {
-      // Arc1 is the day side â†’ close along it
-      for (let i = 1; i <= steps; i++) {
-        let a = aLast + diff * (i / steps);
-        let nx = 0.5 + 0.5 * Math.cos(a);
-        let ny = 0.5 + 0.5 * Math.sin(a);
-        let pt = transformFn(nx, ny);
-        dayMaskGfx.lineTo(pt.x, pt.y);
-        dayMaskClip.lineTo(pt.x, pt.y);
-      }
-    } else {
-      // Arc2 is the day side â†’ close CCW
-      let diffCCW = aLast - aFirst;
-      if (diffCCW < 0) diffCCW += Math.PI * 2;
-      for (let i = 1; i <= steps; i++) {
-        let a = aLast - diffCCW * (i / steps);
-        let nx = 0.5 + 0.5 * Math.cos(a);
-        let ny = 0.5 + 0.5 * Math.sin(a);
-        let pt = transformFn(nx, ny);
-        dayMaskGfx.lineTo(pt.x, pt.y);
-        dayMaskClip.lineTo(pt.x, pt.y);
-      }
-    }
-
-    dayMaskGfx.closePath();
-    dayMaskClip.closePath();
+    for (const gfx of gfxPair) gfx.closePath();
 
     const maskColor = LAYER_PALETTE[studioState.dayMaskColor % LAYER_PALETTE.length].fill;
     const maskOpacity = studioState.dayMaskOpacity;
@@ -1090,22 +1016,10 @@ function rebuildTerminator(transformFn, vp) {
   if (useShaderGlow) {
     traceTerminator();
     terminatorGfx.stroke({ width: termThick * invScale, color: termColor, alpha: termOpacity });
-    
-    const activeFilters = [];
-    if (termGlow > 0) {
-      activeFilters.push(new GlowFilter({ distance: termGlow * 12, outerStrength: 2, innerStrength: 0, color: termColor, quality: 0.5 }));
-    }
-    if (termBlur > 0) {
-      activeFilters.push(new PIXI.BlurFilter({ strength: termBlur }));
-    }
-    terminatorGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+    _applyFilters(terminatorGfx, { glow: termGlow, glowColor: termColor, blur: termBlur });
 
   } else {
-    const activeFilters = [];
-    if (termBlur > 0) {
-      activeFilters.push(new PIXI.BlurFilter({ strength: termBlur }));
-    }
-    terminatorGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+    _applyFilters(terminatorGfx, { blur: termBlur });
 
     traceTerminator();
     if (termGlow > 0) {
@@ -1247,21 +1161,10 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
     traceGrid();
     gridGfx.stroke({ width: gridThick * invScale, color: gridColor, alpha: gridOpacity });
     
-    const activeFilters = [];
-    if (gridGlow > 0) {
-      activeFilters.push(new GlowFilter({ distance: gridGlow * 12, outerStrength: 2, innerStrength: 0, color: gridColor, quality: 0.5 }));
-    }
-    if (gridBlur > 0) {
-      activeFilters.push(new PIXI.BlurFilter({ strength: gridBlur }));
-    }
-    gridGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+    _applyFilters(gridGfx, { glow: gridGlow, glowColor: gridColor, blur: gridBlur });
 
   } else {
-    const activeFilters = [];
-    if (gridBlur > 0) {
-      activeFilters.push(new PIXI.BlurFilter({ strength: gridBlur }));
-    }
-    gridGfx.filters = activeFilters.length > 0 ? activeFilters : null;
+    _applyFilters(gridGfx, { blur: gridBlur });
 
     traceGrid();
     if (gridGlow > 0) {
@@ -1275,8 +1178,7 @@ function rebuildGrid(transformFn, vp, lodLevel = 0) {
   }
 }
 
-
-// â”€â”€â”€ Limb Glow (aesthetic day-side edge glow) â”€â”€â”€
+// --- Limb Glow (aesthetic day-side edge glow) ---
 
 let _limbGlowBlurFilter = null;
 
@@ -1293,76 +1195,36 @@ function rebuildLimbGlow(transformFn, vp) {
   }
   limbGlowGfx.visible = true;
 
-  const projCache = _getTerminatorProjections();
-  const state = moonState;
   const opacity = studioState.limbGlowOpacity;
   const thickness = studioState.limbGlowThickness;
   const spread = studioState.limbGlowSpread;
   const blur = studioState.limbGlowBlur;
   const invScale = 1 / vp.scale;
-  const useShaderGlow = uiState.currentPhase === 'EXPORT' ? true : studioState.useShaderGlow;
 
-  // â”€â”€ Determine day-side arc boundaries â”€â”€
+  // ── Determine day-side arc boundaries ──
   let dayArcStart = 0;
   let dayArcSweep = Math.PI * 2; // fallback: full circle
 
-  if (projCache && projCache.projNorm) {
-    const pts = projCache.projNorm;
-    const n = pts.length;
+  const arc = _getVisibleTerminatorArc();
+  if (arc) {
+    const { first, last } = arc;
+    const cx = 0.5, cy = 0.5;
+    const aLast = Math.atan2(last[1] - cy, last[0] - cx);
+    const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
 
-    let startIdx = 0;
-    let found = false;
-    for (let i = 0; i < n; i++) {
-      if (pts[i] !== null && pts[(i - 1 + n) % n] === null) {
-        startIdx = i; found = true; break;
-      }
-    }
-    if (!found) startIdx = pts.findIndex(p => p !== null);
+    let diff = aFirst - aLast;
+    if (diff < 0) diff += Math.PI * 2;
+    const aMid = aLast + diff / 2;
+    const isNight1 = _isNightSide(aMid);
 
-    if (startIdx >= 0) {
-      const visiblePoints = [];
-      for (let i = 0; i < n; i++) {
-        const p = pts[(startIdx + i) % n];
-        if (p !== null) visiblePoints.push(p);
-        else if (visiblePoints.length > 0) break;
-      }
-
-      if (visiblePoints.length >= 2) {
-        const first = visiblePoints[0];
-        const last = visiblePoints[visiblePoints.length - 1];
-        const cx = 0.5, cy = 0.5;
-        const aLast = Math.atan2(last[1] - cy, last[0] - cx);
-        const aFirst = Math.atan2(first[1] - cy, first[0] - cx);
-
-        let diff = aFirst - aLast;
-        if (diff < 0) diff += Math.PI * 2;
-        const aMid1 = aLast + diff / 2;
-        const testNx = 0.5 + 0.49 * Math.cos(aMid1);
-        const testNy = 0.5 + 0.49 * Math.sin(aMid1);
-
-        let isNight1 = false;
-        const geo = GeoJSON.inverseProject(testNx, testNy);
-        if (geo) {
-          const sLon = state.sunLon * Math.PI / 180;
-          const sLat = (state.sunLat || 0) * Math.PI / 180;
-          const geoLon = geo.lon * Math.PI / 180;
-          const geoLat = geo.lat * Math.PI / 180;
-          const dot = (Math.cos(geoLat) * Math.cos(geoLon) * Math.cos(sLat) * Math.cos(sLon)) +
-                      (Math.cos(geoLat) * Math.sin(geoLon) * Math.cos(sLat) * Math.sin(sLon)) +
-                      (Math.sin(geoLat) * Math.sin(sLat));
-          isNight1 = dot < 0;
-        }
-
-        if (!isNight1) {
-          dayArcStart = aLast;
-          dayArcSweep = diff;
-        } else {
-          let diffCCW = aLast - aFirst;
-          if (diffCCW < 0) diffCCW += Math.PI * 2;
-          dayArcStart = aLast;
-          dayArcSweep = -diffCCW;
-        }
-      }
+    if (!isNight1) {
+      dayArcStart = aLast;
+      dayArcSweep = diff;
+    } else {
+      let diffCCW = aLast - aFirst;
+      if (diffCCW < 0) diffCCW += Math.PI * 2;
+      dayArcStart = aLast;
+      dayArcSweep = -diffCCW;
     }
   }
 
@@ -1511,6 +1373,14 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   dotsGfx.clear();
   labelsBgGfx.clear();
 
+  const isStudio = uiState.currentPhase !== 'ALIGN';
+  const s = studioState;
+  const invScale = 1 / vp.scale;
+  const fontSizeRatio = s.labelFontSize / 14;
+  const globalRot = isStudio ? s.rotation * (Math.PI / 180) : 0;
+  const globalFlipH = isStudio && s.flipH;
+  const globalFlipV = isStudio && s.flipV;
+
   // Move current labels to pool
   for (const label of activeLabels) {
     label.visible = false;
@@ -1540,8 +1410,9 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
 
     const pt = transformFn(crater.nx, crater.ny);
     const ptX = pt.x, ptY = pt.y; // Copy from scratch object
-    const sx = ptX * vp.scale + vp.tx;
-    const sy = ptY * vp.scale + vp.ty;
+    const g = viewportContainer.toGlobal(new PIXI.Point(ptX, ptY));
+    const sx = g.x;
+    const sy = g.y;
 
     const isPinned = studioState.pinnedCraters.has(crater.name);
 
@@ -1578,6 +1449,13 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     sinSLat = Math.sin(sLatR); cosSLat = Math.cos(sLatR);
   }
 
+  // To keep icons upright on screen, we need to apply the inverse of the parent's flip/rotation
+  const iconCompRot = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
+  const iconCompFH = globalFlipH ? -1 : 1;
+  const iconCompFV = globalFlipV ? -1 : 1;
+  const cosIco = Math.cos(iconCompRot);
+  const sinIco = Math.sin(iconCompRot);
+
   // Passe 2 : Dessiner le Top N des plus gros cratÃ¨res de la zone
   for (let i = 0; i < dotsCount; i++) {
     const item = combinedDots[i];
@@ -1601,47 +1479,63 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const baseR = onScreenRadius / vp.scale;
     const type = crater.type;
 
+    // Local transform helper for icon points
+    const tr = (dx, dy) => {
+      let x = dx * iconCompFH;
+      let y = dy * iconCompFV;
+      const rx = x * cosIco - y * sinIco;
+      const ry = x * sinIco + y * cosIco;
+      return { x: ptX + rx, y: ptY + ry };
+    };
+
     if (type === 'Mons, montes') {
       // Montagne (Triangle) - Neon Pink
       const r = baseR * 2.5;
-      dotsGfx.poly([
-        ptX, ptY - r,
-        ptX + r, ptY + r,
-        ptX - r, ptY + r
-      ]);
+      const p1 = tr(0, -r), p2 = tr(r, r), p3 = tr(-r, r);
+      dotsGfx.poly([p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
       dotsGfx.fill({ color: 0xFF4081, alpha: op });
     } else if (type === 'Mare, maria' || type === 'Oceanus, oceani' || type === 'Sinus, sinÅ«s' || type === 'Lacus, lacÅ«s' || type === 'Palus, paludes') {
       // Vague (Wave) - Electric Cyan
       const r = baseR * 2.5;
-      dotsGfx.moveTo(ptX - r, ptY);
-      dotsGfx.quadraticCurveTo(ptX - r/2, ptY - r, ptX, ptY);
-      dotsGfx.quadraticCurveTo(ptX + r/2, ptY + r, ptX + r, ptY);
+      const p1 = tr(-r, 0), p2 = tr(-r/2, -r), p3 = tr(0, 0), p4 = tr(r/2, r), p5 = tr(r, 0);
+      dotsGfx.moveTo(p1.x, p1.y);
+      dotsGfx.quadraticCurveTo(p2.x, p2.y, p3.x, p3.y);
+      dotsGfx.quadraticCurveTo(p4.x, p4.y, p5.x, p5.y);
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00E5FF, alpha: op });
     } else if (type === 'Statio') {
-      // IcÃ´ne "Satellite Dish" (Lucide SVG traduit en vectoriel natif) - Neon Green
-      const s = baseR * 0.4; // Ã‰chelle
-      const px = (x) => ptX + (x - 12) * s;
-      const py = (y) => ptY + (y - 12) * s;
+      // IcÃ´ne "Satellite Dish" - Neon Green
+      const s = baseR * 0.4;
+      const px = (x, y) => tr((x - 12) * s, (y - 12) * s);
 
-      // Bras du rÃ©cepteur (m9 15 3-3)
-      dotsGfx.moveTo(px(9), py(15));
-      dotsGfx.lineTo(px(12), py(12));
+      // Bras du rÃ©cepteur
+      const b1 = px(9, 15), b2 = px(12, 12);
+      dotsGfx.moveTo(b1.x, b1.y);
+      dotsGfx.lineTo(b2.x, b2.y);
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
 
-      // Onde interne (M17 13a6 6 0 0 0-6-6)
-      dotsGfx.moveTo(px(11), py(7)); // Point de dÃ©part de l'arc
-      dotsGfx.arc(px(11), py(13), 6 * s, -Math.PI/2, 0);
+      // Onde interne (Arc approximated by points since tr() doesn't support arc natively)
+      const center = px(11, 13);
+      const startAngle = -Math.PI/2 + iconCompRot;
+      const endAngle = 0 + iconCompRot;
+      // We flip the sweep if handedness is different
+      const sweep = (iconCompFH !== iconCompFV) ? -Math.PI/2 : Math.PI/2;
+      
+      dotsGfx.moveTo(px(11, 7).x, px(11, 7).y); // This point is already tr'd via px
+      // PIXI.Graphics.arc() doesn't handle non-identity parent well if we want screen-upright
+      // so we use simple arc command with transformed angles
+      dotsGfx.arc(center.x, center.y, 6 * s, startAngle, startAngle + sweep, sweep < 0);
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
 
-      // Onde externe (M21 13A10 10 0 0 0 11 3)
-      dotsGfx.moveTo(px(11), py(3)); // Point de dÃ©part de l'arc
-      dotsGfx.arc(px(11), py(13), 10 * s, -Math.PI/2, 0);
+      // Onde externe
+      dotsGfx.moveTo(px(11, 3).x, px(11, 3).y);
+      dotsGfx.arc(center.x, center.y, 10 * s, startAngle, startAngle + sweep, sweep < 0);
       dotsGfx.stroke({ width: 1.5 / vp.scale, color: 0x00FF88, alpha: op });
 
-      // Parabole (M4 10a7.31... Z) - reproduite via bÃ©zier
-      dotsGfx.moveTo(px(4), py(10));
-      dotsGfx.quadraticCurveTo(px(4), py(20), px(14), py(20));
-      dotsGfx.lineTo(px(4), py(10));
+      // Parabole
+      const v1 = px(4, 10), v2 = px(4, 20), v3 = px(14, 20);
+      dotsGfx.moveTo(v1.x, v1.y);
+      dotsGfx.quadraticCurveTo(v2.x, v2.y, v3.x, v3.y);
+      dotsGfx.lineTo(v1.x, v1.y);
       dotsGfx.fill({ color: 0x00FF88, alpha: op });
     } else {
       // CratÃ¨re classique (Point)
@@ -1654,21 +1548,20 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
         const finalR = baseR * (isSpecial ? 1.0 : studioState.labelPointSize);
 
         if (pShape === 'square') {
-          dotsGfx.rect(ptX - finalR, ptY - finalR, finalR * 2, finalR * 2);
+          const p1 = tr(-finalR, -finalR), p2 = tr(finalR, -finalR), p3 = tr(finalR, finalR), p4 = tr(-finalR, finalR);
+          dotsGfx.poly([p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y]);
           dotsGfx.fill({ color: pColor, alpha: pOp });
         } else if (pShape === 'ring') {
-          dotsGfx.circle(ptX, ptY, finalR);
+          dotsGfx.circle(ptX, ptY, finalR); // Circle is rotation invariant
           dotsGfx.stroke({ width: 1.5 / vp.scale, color: pColor, alpha: pOp });
         } else if (pShape === 'cross') {
           const s = finalR * 1.2;
-          // IMPORTANT: beginPath for each cross to avoid connecting them
-          dotsGfx.moveTo(ptX - s, ptY); 
-          dotsGfx.lineTo(ptX + s, ptY);
-          dotsGfx.moveTo(ptX, ptY - s); 
-          dotsGfx.lineTo(ptX, ptY + s);
+          const h1 = tr(-s, 0), h2 = tr(s, 0), v1 = tr(0, -s), v2 = tr(0, s);
+          dotsGfx.moveTo(h1.x, h1.y); dotsGfx.lineTo(h2.x, h2.y);
+          dotsGfx.moveTo(v1.x, v1.y); dotsGfx.lineTo(v2.x, v2.y);
           dotsGfx.stroke({ width: 2.0 / vp.scale, color: pColor, alpha: pOp });
         } else {
-          // Circle - TOUJOURS PLEIN (Fill)
+          // Circle
           dotsGfx.circle(ptX, ptY, finalR);
           dotsGfx.fill({ color: pColor, alpha: pOp });
         }
@@ -1728,7 +1621,7 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
   // Tri par prioritÃ© dÃ©croissante
   _candidates.sort((a, b) => b.score - a.score);
 
-  const invScale = 1 / vp.scale;
+
 
   let autoLabelsCount = 0;
   for (const item of _candidates) {
@@ -1739,7 +1632,6 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     const pad = 12; // Réduit pour permettre une plus haute densité
     
     // Adjust text width based on target font size
-    const fontSizeRatio = studioState.labelFontSize / 14;
     const adjustedTextWidth = item.textWidth * fontSizeRatio;
     const adjustedTextHeight = item.textHeight * fontSizeRatio;
 
@@ -1820,6 +1712,17 @@ function rebuildAnnotations(transformFn, cratersDB, vp, canvasW, canvasH) {
     container._worldX = item.ptX;
     container._worldY = item.ptY;
     container._crater = item.crater;
+    
+    // Initial compensation to avoid flicker/vertical labels on first frame
+
+    container.position.set(item.ptX, item.ptY);
+    container.pivot.y = LABELS.labelOffsetY / fontSizeRatio;
+    container.scale.set(
+      invScale * fontSizeRatio * (globalFlipH ? -1 : 1),
+      invScale * fontSizeRatio * (globalFlipV ? -1 : 1)
+    );
+    container.rotation = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
+
     container.visible = true;
     container.alpha = item.op;
 
@@ -1935,8 +1838,11 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
 
   for (const labelObj of activeLabels) {
     const { _worldX, _worldY } = labelObj;
-    // Get screen position accounting for the viewport transform
-    const g = viewportContainer.toGlobal(new PIXI.Point(_worldX, _worldY - LABELS.labelOffsetY * invScale));
+    
+    const verticalOffset = LABELS.labelOffsetY * invScale * (globalFlipV ? -1 : 1);
+    
+    // Get screen position for culling. We use the offset point to check if the box is on screen.
+    const g = viewportContainer.toGlobal(new PIXI.Point(_worldX, _worldY - verticalOffset));
     const sx = g.x;
     const sy = g.y;
     
@@ -1951,12 +1857,20 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
     } else {
       const fontSizeRatio = studioState.labelFontSize / 14;
       labelObj.visible = true;
-      labelObj.position.set(_worldX, _worldY - LABELS.labelOffsetY * invScale);
       
-      // Scale compensation
-      labelObj.scale.set(invScale * fontSizeRatio * (globalFlipH ? -1 : 1), invScale * fontSizeRatio * (globalFlipV ? -1 : 1));
+      // Position exactly on crater, use pivot for screen-space consistent offset
+      labelObj.position.set(_worldX, _worldY);
+      labelObj.pivot.y = LABELS.labelOffsetY / fontSizeRatio;
       
-      // Rotation compensation (compensates BOTH text and bg since they are in the same container)
+      // Scale compensation: Double flip makes it upright
+      labelObj.scale.set(
+        invScale * fontSizeRatio * (globalFlipH ? -1 : 1), 
+        invScale * fontSizeRatio * (globalFlipV ? -1 : 1)
+      );
+      
+      // Rotation compensation: 
+      // If handedness changed (1 flip), local rotation must follow parent to cancel out.
+      // If handedness same (0 or 2 flips), local rotation must oppose parent.
       labelObj.rotation = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
       
       // RESET TINTS (Container level for PixiJS v8 + Text level)
@@ -2011,21 +1925,22 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       const hBgH = existingLabel._bgH || 0;
       const fontSizeRatio = studioState.labelFontSize / 14;
 
-      // Positionnement de la bordure blanche autour du label existant
-      const lx = existingLabel.x;
-      const ly = existingLabel.y;
-      
-      hoverContainer.position.set(0, 0);
-      hoverContainer.scale.set(1, 1);
-      hoverContainer.rotation = 0;
+      // Position exactly on crater, use same pivot as labels
+      hoverContainer.position.set(closestCandidate.ptX, closestCandidate.ptY);
+      hoverContainer.pivot.y = LABELS.labelOffsetY / fontSizeRatio;
 
       const finalScale = invScale * fontSizeRatio;
-      hoverBgGfx.roundRect(lx - (hBgW * finalScale) / 2, ly - (hBgH * finalScale), hBgW * finalScale, hBgH * finalScale, studioState.labelFondRadius * finalScale);
-      hoverBgGfx.stroke({ width: 2 * invScale, color: 0xffffff, alpha: 1.0 });
+      hoverContainer.scale.set(finalScale * (globalFlipH ? -1 : 1), finalScale * (globalFlipV ? -1 : 1));
+      hoverContainer.rotation = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
 
-      // Petit cercle de tÃ©moignage sur le point
-      hoverBgGfx.circle(closestCandidate.ptX, closestCandidate.ptY, 8 * invScale);
-      hoverBgGfx.stroke({ width: 1.5 * invScale, color: 0x00d4ff, alpha: 0.8 });
+      // Draw border in the compensated local space (0,0 is now the crater + vertical offset)
+      hoverBgGfx.roundRect(-hBgW / 2, -hBgH, hBgW, hBgH, studioState.labelFondRadius);
+      hoverBgGfx.stroke({ width: 2 / fontSizeRatio, color: 0xffffff, alpha: 1.0 });
+
+      // Petit cercle de témoignage sur le point
+      // Again, crater is at +OFFSET relative to our pivot.
+      hoverBgGfx.circle(0, LABELS.labelOffsetY / fontSizeRatio, 8);
+      hoverBgGfx.stroke({ width: 1.5 / fontSizeRatio, color: 0x00d4ff, alpha: 0.8 });
 
     } else {
       // S'il n'avait pas de label, on fait "pop" un label de hover classique
@@ -2038,8 +1953,10 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       const hBgW = hTextW + (10 + studioState.labelFondSizeX);
       const hBgH = hTextH + (6 + studioState.labelFondSizeY);
       
-      // On réinitialise le container car ici on l'utilise pour le positionnement relatif
-      hoverContainer.position.set(closestCandidate.ptX, closestCandidate.ptY - 14 * invScale);
+      // Position exactly on crater, use pivot for 14px offset
+      hoverContainer.position.set(closestCandidate.ptX, closestCandidate.ptY);
+      hoverContainer.pivot.y = 14 / fontSizeRatio;
+
       const finalScale = invScale * fontSizeRatio;
       hoverContainer.scale.set(finalScale * (globalFlipH ? -1 : 1), finalScale * (globalFlipV ? -1 : 1));
       hoverContainer.rotation = (globalFlipH !== globalFlipV) ? globalRot : -globalRot;
@@ -2051,8 +1968,10 @@ function updateAnnotationsTransform(vp, isDragging = false, mouseX = -1000, mous
       hoverLabel.tint = 0x00d4ff; // Texte Cyan au hover
       hoverLabel.visible = true;
 
-      // Cercle bleu sur le point mÃªme si label popup
-      hoverBgGfx.circle(0, 14, 8); // CoordonnÃ©es locales au hoverContainer
+      // Cercle bleu sur le point même si label popup
+      // Since pivot is at 14px above crater, and global scale is 1, 
+      // the crater is at exactly +14px locally.
+      hoverBgGfx.circle(0, 14 / fontSizeRatio, 8); 
       hoverBgGfx.stroke({ width: 1.5, color: 0x00d4ff, alpha: 0.8 });
     }
     }
@@ -2083,13 +2002,7 @@ function isLabelsEnabled() {
   return _showLabels;
 }
 
-function getLayerColor(layerIndex) {
-  return LAYER_PALETTE[layerIndex % LAYER_PALETTE.length];
-}
 
-function getPalette() {
-  return LAYER_PALETTE;
-}
 
 function getHoveredCrater() {
   return _currentHoveredCrater;
@@ -2098,7 +2011,6 @@ function getHoveredCrater() {
 export const PixiRenderer = {
   init,
   getApp,
-  getScreenSize,
   setBackgroundImage,
   getBackgroundDisplaySize,
   updateViewport,
@@ -2119,7 +2031,5 @@ export const PixiRenderer = {
   toggleLabels,
   setLabelsEnabled,
   showLabels: isLabelsEnabled,
-  getLayerColor,
-  getPalette,
   getHoveredCrater
 };

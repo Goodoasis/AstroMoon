@@ -2,7 +2,6 @@
   import { uiState } from '@/stores/uiState.svelte.js';
   import { studioState } from '@/stores/studioState.svelte.js';
   import { layerState } from '@/stores/layerState.svelte.js';
-  import { PixiRenderer } from '@/engine/pixi_renderer.js';
 
   let isOpen = $state(true);
   
