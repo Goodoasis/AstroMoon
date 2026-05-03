@@ -35,3 +35,20 @@ studio_logic_plan.md
 # firebase.json ← config hosting, à committer
 
 .firebase/
+.vercel/
+
+# Logs et caches génériques
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+.eslintcache
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Divers
+*.local
+
