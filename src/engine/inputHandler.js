@@ -308,6 +308,8 @@ export function onKeyUp(e) {
   }
 }
 
+import { exportState } from '../stores/exportState.svelte.js';
+
 export function bindInputHandlers(canvas) {
   canvas.addEventListener('mousedown', onMouseDown);
   canvas.addEventListener('mousemove', onMouseMove);
@@ -318,4 +320,41 @@ export function bindInputHandlers(canvas) {
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+
+  // Drag and Drop (HTML -> Canvas)
+  canvas.addEventListener('dragover', (e) => {
+    if (uiState.currentPhase === 'EXPORT') {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      
+      const cardData = exportState.draggedCardData;
+      if (cardData) {
+        PixiRenderer.updateExportDrag(cardData, e.clientX, e.clientY);
+      }
+    }
+  });
+
+  canvas.addEventListener('dragleave', (e) => {
+    if (uiState.currentPhase === 'EXPORT') {
+      PixiRenderer.cancelExportDrag();
+    }
+  });
+
+  canvas.addEventListener('drop', (e) => {
+    if (uiState.currentPhase === 'EXPORT') {
+      e.preventDefault();
+      const data = e.dataTransfer.getData('text/plain');
+      if (data) {
+        try {
+          const card = JSON.parse(data);
+          PixiRenderer.endExportDrag(card, e.clientX, e.clientY);
+        } catch (err) {
+          console.error("Invalid drop data", err);
+          PixiRenderer.cancelExportDrag();
+        }
+      } else {
+        PixiRenderer.cancelExportDrag();
+      }
+    }
+  });
 }

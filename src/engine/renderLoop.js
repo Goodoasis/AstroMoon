@@ -214,6 +214,10 @@ export function renderTick(ticker) {
     PixiRenderer.setMoonMaskEnabled(false);
   }
 
+  if (uiState.currentPhase === 'EXPORT') {
+    PixiRenderer.tickExportLayout();
+  }
+
   const isInteracting = viewportState.isDragging || timeSincePanZoom < PERF.interactionFadeMs;
 
   if (PixiRenderer.showLabels && PixiRenderer.showLabels()) {

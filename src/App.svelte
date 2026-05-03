@@ -179,7 +179,10 @@
 {/if}
 
 {#if uiState.currentPhase === 'EXPORT'}
-  <ExportPanel />
+  <div class="panel-layout-right">
+    <ExportPanel />
+  </div>
+  
   <SignaturePanel />
   
   <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 600px; pointer-events: none; display: flex; justify-content: center; align-items: center;">

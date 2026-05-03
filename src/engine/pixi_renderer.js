@@ -26,6 +26,7 @@ import { uiState } from '../stores/uiState.svelte.js';
 import { viewportState } from '../stores/viewportState.svelte.js';
 import { studioState } from '../stores/studioState.svelte.js';
 import { layerState } from '../stores/layerState.svelte.js';
+import { initExportLayout, setExportVisibility, updateExportDrag, endExportDrag, cancelExportDrag, tickExportLayout } from './export_layout.js';
 
 // Cache for reactive redraws
 let _lastProjectedFeatures = null;
@@ -181,6 +182,8 @@ async function init(container) {
   dotsGfx = new PIXI.Graphics();
   annotationsContainer.addChild(dotsGfx);
 
+  initExportLayout(viewportContainer);
+
   // Groupe Textes + Fonds (pour fondu indÃ©pendant)
   labelsContainer = new PIXI.Container();
   annotationsContainer.addChild(labelsContainer);
@@ -322,6 +325,15 @@ function updateViewport(vp) {
     viewportContainer.position.set(vp.tx, vp.ty);
     viewportContainer.scale.set(vp.scale);
     viewportContainer.rotation = 0;
+  }
+  
+  if (uiState.currentPhase === 'EXPORT') {
+      const bounds = getBackgroundDisplaySize();
+      if (bounds) {
+         setExportVisibility(true, { x: bgSprite.x - bounds.width/2, y: bgSprite.y - bounds.height/2, w: bounds.width, h: bounds.height });
+      }
+  } else {
+      setExportVisibility(false, null);
   }
 }
 
@@ -2031,5 +2043,9 @@ export const PixiRenderer = {
   toggleLabels,
   setLabelsEnabled,
   showLabels: isLabelsEnabled,
-  getHoveredCrater
+  getHoveredCrater,
+  updateExportDrag,
+  endExportDrag,
+  cancelExportDrag,
+  tickExportLayout
 };
